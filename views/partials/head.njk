@@ -1,18 +1,14 @@
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>{% block title %}Trade Tank{% endblock %}</title>
-    <meta name="description" 
-          content ="{% block description %}Trading analysis web application{% endblock %}">
+<meta name="description" content="{% block description %}Trading analysis web application{% endblock %}">
 
-    <link rel="stylesheet" href="/css/styles.css">
-    <script src="/js/app.js" defer></script>
-    <link rel="icon" href="/images/favicon.ico">
+<link rel="stylesheet" href="/css/styles.css">
+<script src="/js/app.js" defer></script>
+<link rel="icon" href="/images/favicon.ico">
 
-    {% block fontPreload %}
-        <link rel="preload" href="/fonts/general-sans-light.woff2" as="font" type="font/woff2">
-        <link rel="preload" href="/fonts/general-sans-medium.woff2" as="font" type="font/woff2">
-        <link rel="preload" href="/fonts/general-sans-heavy.woff2" as="font" type="font/woff2">
-    {% endblock %}
-</head>
+{% block fontPreload %}
+<link rel="preload" href="/fonts/general-sans-light.woff2" as="font" type="font/woff2">
+<link rel="preload" href="/fonts/general-sans-medium.woff2" as="font" type="font/woff2">
+<link rel="preload" href="/fonts/general-sans-heavy.woff2" as="font" type="font/woff2">
+{% endblock %}

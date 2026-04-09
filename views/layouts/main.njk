@@ -1,7 +1,11 @@
 <!DOCTYPE html lang="en">
 <html>
-    {% include "partials/head.njk" %}
+    <head>
+        {% include "partials/head.njk" %}
 
+        <title>{% block title %}Trade Tank{% endblock %}</title>
+    </head>
+    
     <body>
         {% include "partials/navbar-main.njk" %}
 

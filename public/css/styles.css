@@ -77,8 +77,15 @@ body {
     color: #ffffff; /* ADJUST COLOR */
 }
 
-.navbar-link.active {
-    border-bottom: 1px solid #ffffff; /* ADJUST COLOR */
+.navbar-link,
+.navbar-brand {
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
+}
+
+.navbar-link.active,
+.navbar-brand.active {
+    border-bottom: 2px solid #ffffff; /* ADJUST COLOR */
 }
 
 /* Footer */
