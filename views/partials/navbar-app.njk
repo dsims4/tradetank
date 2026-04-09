@@ -1,0 +1,18 @@
+<header>
+    <nav class="navbar">
+        <div class="navbar-container">
+            
+            <a href="/home" class="navbar-brand {% if currentPage == 'home' %}active{% endif %}">
+                <img src="/images/logo.png" alt="Trade Tank logo" class="navbar-logo">
+            </a>
+            
+            <div class="navbar-links">
+                <a href="/analyze" class="navbar-link {% if currentPage == 'analyze' %}active{% endif %}">Analyze</a>
+                <a href="/visualize" class="navbar-link {% if currentPage == 'visualize' %}active{% endif %}">Visualize</a>
+                <a href="/input" class="navbar-link {% if currentPage == 'input' %}active{% endif %}">Input</a>
+                <a href="/profile" class="navbar-link {% if currentPage == 'profile' %}active{% endif %}">Profile</a>
+            </div>
+    
+        </div>
+    </nav>
+</header>

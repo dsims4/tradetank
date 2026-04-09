@@ -1,0 +1,14 @@
+<!DOCTYPE html lang="en">
+<html>
+    {% include "partials/head.njk" %}
+
+    <body>
+        {% include "partials/navbar-app.njk" %}
+
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+
+        {% include "partials/footer.njk" %}
+    </body>
+</html>
