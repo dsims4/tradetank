@@ -3,10 +3,7 @@
         <div class="navbar-container">
             
             <a href="/home" class="navbar-brand {% if currentPage == 'home' %}active{% endif %}">
-                <svg class="navbar-logo" viewbox="0 0 501 486">
-                    <path d="..."></path>
-                </svg>
-                
+                {% include "partials/logo.njk" %}
             </a>
             
             <div class="navbar-links">

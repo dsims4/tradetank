@@ -54,9 +54,15 @@ body {
     font-weight: 600;
 }
 
+.navbar-brand:hover {
+    color: #ffffff; /* ADJUST COLOR */
+    transition: color 0.2s ease;
+}
+
 .navbar-logo {
     height: 3.5rem;
     width: auto;
+    display: block;
 }
 
 .navbar-links {
