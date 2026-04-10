@@ -73,4 +73,16 @@ router.get("/terms-of-use", (req, res) => {
     });
 });
 
+router.get("/forgot-password", (req, res) => {
+    res.render("forgot-password.njk", {
+        currentPage: "forgot-password"
+    });
+});
+
+router.get("/reset-password", (req, res) => {
+    res.render("reset-password.njk", {
+        currentPage: "reset-password"
+    });
+});
+
 module.exports = router;
