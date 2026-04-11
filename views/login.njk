@@ -4,17 +4,31 @@
 
 {% block content %}
     <div class="main-container">
-        <h1>Log In</h1>
         <form method="POST" class="security-form">
-            <div class="form-field">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+            <h1>Log In</h1>
+
+            <div class="form-fields">
+                <div class="form-field">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" class="form-input" name="username" required>
+                </div>
+
+                <div class="form-field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-input" name="password" required>
+                </div>
+
+                <div class="form-misc">
+                    <div class="checkbox-field">
+                        <input type="checkbox" id="remember" class="checkbox" name="remember">
+                        <label for="remember">Remember me</label>
+                    </div>
+
+                    <a href="/forgot-password">Forgot password?</a>
+                </div>
             </div>
-            <div class="form-field">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            <input type="submit">
+
+            <input type="submit" class="button" value="Log In">
         </form>
     </div>
 {% endblock %}
