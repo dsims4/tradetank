@@ -1,0 +1,61 @@
+/* Fonts */
+
+@font-face {
+    font-family: "general-sans";
+    src: url("../fonts/general-sans-light.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "general-sans";
+    src: url("../fonts/general-sans-medium.woff2") format("woff2");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "general-sans";
+    src: url("../fonts/general-sans-heavy.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@media (max-width: 48rem) {
+    /* mobile */
+}
+
+@media (min-width: 48.0625rem) and (max-width: 64rem) {
+    /* tablet */
+}
+
+@media (min-width: 64.0625rem) {
+    /* desktop */
+}
+
+/* Base */
+
+html {
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    min-height: 100vh;
+
+    margin: 0;
+
+    font-family: "general-sans", system-ui, sans-serif;
+}
