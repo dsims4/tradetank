@@ -4,8 +4,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    height: auto;
 
-    padding: clamp(0.625rem, 0.8vw, 0.75rem) clamp(1rem, 2vw, 1.5rem);
+    padding: 0.4em 1.15em;;
     border: 2px solid #000000; /* ADJUST COLOR */
     border-radius: 0.35rem;
 
@@ -20,25 +21,6 @@
     color: #ffffff;
     background-color: #808080;
     border-color: #ffffff;
-}
-
-/* Button divider */
-
-.button-or {
-    display: flex;
-    align-items: center;
-    gap: clamp(0.5rem, 1vw, 0.75rem);
-}
-
-.button-or hr {
-    width: clamp(1.5rem, 3vw, 2rem);
-    height: 0.125rem;
-    border: none;
-    background-color: #000000; /* ADJUST COLOR */
-}
-
-.button-or > * {
-    margin: 0;
 }
 
 /* Form input */
@@ -144,4 +126,25 @@
     border: solid #ffffff;
     border-width: 0 0.15rem 0.15rem 0;
     transform: rotate(45deg);
+}
+
+/* Slideshow */
+
+.slideshow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(1rem, 2vw, 2.25rem);
+}
+
+.slideshow-image {
+    display: block;
+    width: clamp(9rem, 18vw, 15rem);
+    aspect-ratio: 16 / 10;
+    height: auto;
+    margin: 0;
+    object-fit: cover;
+    border: 3px solid #000000; 
+    border-radius: 0.25rem;
 }
