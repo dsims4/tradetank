@@ -20,7 +20,7 @@
   },
   "homepage": "https://github.com/dsims4/tradetank#readme",
   "dependencies": {
-    "dotenv": "^17.4.1",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "nunjucks": "^3.2.4"
   }
