@@ -66,19 +66,26 @@
 }
 
 .footer-link {
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
     text-decoration: none;
     color: #000000; /* ADJUST COLOR */
-    font-size: clamp(0.95rem, 1rem + 0.3vw, 1.1rem);
-    transition: color 0.2s ease;
+    font-size: clamp(0.95rem, 0.9rem + 0.3vw, 1.1rem);
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.footer-link:visited {
+    color: #000000; /* ADJUST COLOR */
 }
 
 .footer-link:hover {
     color: #ffffff; /* ADJUST COLOR */
+    border-color: #ffffff; /* ADJUST COLOR */
 }
 
-.footer-link {
-    padding: 0.25rem 0;
-    border-bottom: 2px solid transparent;
+.footer-link:focus-visible {
+    outline: 2px solid rgba(0, 0, 0, 0.35);
+    outline-offset: 0.2rem;
 }
 
 .footer-link.active {
