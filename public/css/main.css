@@ -152,12 +152,20 @@ main {
 }
 
 .call-to-action .button {
+    width: min(100%, 14rem);
+    min-height: clamp(2.6rem, 3vw, 3rem);
     font-size: clamp(1.1rem, 1rem + 0.8vw, 1.4rem);
 }
 
 #index-signup-button {
-    font-size: clamp(0.6rem, 0.6rem + 0.8vw, 1rem);
-    min-width: clamp(5rem, 14vw, 6rem);
+    background-color: #000000;
+    color: #ffffff;
+    border-color: #000000;
+}
+
+#index-signup-button:hover {
+    color: #000000;
+    background-color: rgba(255, 255, 255, 0.85);
 }
 
 .button-or {

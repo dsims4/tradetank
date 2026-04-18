@@ -1,32 +1,55 @@
 /* Button */
 
-.button {
+.button,
+.slideshow-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: auto;
-
-    padding: 0.4em 1.15em;;
+    background-color: rgba(255, 255, 255, 0.85);
     border: 2px solid #000000; /* ADJUST COLOR */
-    border-radius: 0.35rem;
-
     color: #000000; /* ADJUST COLOR */
-    text-decoration: none;
-    font-weight: 600;
     cursor: pointer;
-    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+    box-shadow: 0 0.2rem 0.45rem rgba(0, 0, 0, 0.14);
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
-.button:hover {
+.button {
+    height: auto;
+    padding: 0.4em 1.15em;
+    border-radius: 0.35rem;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.button:hover,
+.slideshow-button:hover {
+    border-color: #000000;
     color: #ffffff;
-    background-color: #808080;
-    border-color: #ffffff;
+    background-color: #000000;
+    transform: translateY(-1px);
+}
+
+.button:focus-visible,
+.slideshow-button:focus-visible {
+    outline: 3px solid rgba(0, 0, 0, 0.35);
+    outline-offset: 2px;
+}
+
+.button:active,
+.slideshow-button:active {
+    transform: translateY(0);
+    box-shadow: 0 0.1rem 0.25rem rgba(0, 0, 0, 0.16);
 }
 
 /* Form input */
 
 .form-input {
-    min-width: min(100%, 20rem);
+    width: 100%;
     min-height: clamp(2.2rem, 3vw, 2.5rem);
     border-radius: 0.35rem;
     font-family: inherit;
@@ -36,28 +59,32 @@
 .form-fields {
     display: flex;
     flex-direction: column;
-    gap: clamp(0.75rem, 1.5vw, 1rem);
+    gap: clamp(1.1rem, 2.2vw, 1.6rem);
 }
 
 .form-field {
     display: flex;
     flex-direction: column;
+    flex: 1 1 0;
+    min-width: 14rem;
     gap: clamp(0.25rem, 0.6vw, 0.5rem);
-
-    margin: 0;
-
     font-size: clamp(1.35rem, 1rem + 1.5vw, 1.9rem);
     font-weight: 500;
+}
+
+.form-row .form-field {
+    font-size: clamp(1.05rem, 0.95rem + 0.65vw, 1.35rem);
 }
 
 .form .button {
     font-size: clamp(1.15rem, 1rem + 1vw, 1.5rem);
     min-width: min(100%, 10rem);
+    margin-bottom: clamp(0.1rem, 0.3vw, 0.2rem);
 }
 
-/* Security form */
+/* Form layout */
 
-.security-form {
+.form {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -67,18 +94,29 @@
     flex: 1;
 }
 
-.security-form > * {
+.form > * {
     margin: 0;
 }
 
-.security-form h1 {
+.form h1 {
     font-size: clamp(2.5rem, 1.75rem + 3vw, 4rem);
     font-weight: 600;
+    line-height: 1;
+}
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: clamp(1.1rem, 2vw, 1.5rem);
 }
 
 .form-misc {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
+    gap: clamp(0.75rem, 1.5vw, 1.25rem);
     align-items: center;
 }
 
@@ -86,10 +124,28 @@
     margin-left: auto;
     font-size: clamp(0.95rem, 0.9rem + 0.3vw, 1rem);
     color: #000000;
+    transition: color 0.2s ease;
 }
 
-.form-misc a:visited {
-    color: #000000;
+.form-misc a:hover {
+    color: #ffffff;
+}
+
+.form-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: clamp(0.35rem, 0.8vw, 0.6rem);
+}
+
+.form-misc--signup p {
+    font-size: clamp(0.78rem, 0.74rem + 0.2vw, 0.86rem);
+    line-height: 1.4;
+}
+
+.form-misc--signup a {
+    margin-left: 0;
+    font-size: inherit;
 }
 
 /* Form checkbox */
@@ -97,7 +153,7 @@
 .checkbox-field {
     display: flex;
     align-items: center;
-    gap: clamp(0.4rem, 0.8vw, 0.5rem);
+    gap: clamp(0.25rem, 0.55vw, 0.35rem);
 }
 
 .checkbox {
@@ -132,9 +188,10 @@
 
 .slideshow {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: clamp(1rem, 2vw, 2.25rem);
+    gap: clamp(0.325rem, 0.65vw, 0.75rem);
 }
 
 .slideshow-slide {
@@ -160,12 +217,12 @@
     transition: filter 250ms ease;
 }
 
-.slideshow-slide--hidden{
+.slideshow-slide--hidden {
     display: none;
 }
 
 .slideshow-slide--middle {
-    order: 2;
+    order: 3;
     transform: scale(1);
     opacity: 1;
 }
@@ -180,9 +237,42 @@
 }
 
 .slideshow-slide--left {
-    order: 1;
+    order: 2;
 }
 
 .slideshow-slide--right {
-    order: 3;
+    order: 4;
+}
+
+.slideshow-button {
+    width: clamp(2.25rem, 3vw, 2.75rem);
+    height: clamp(2.25rem, 3vw, 2.75rem);
+    padding: 0;
+    border-radius: 0.625rem;
+    font-size: clamp(1.35rem, 1rem + 1vw, 1.75rem);
+    line-height: 1;
+}
+
+.slideshow-button--left {
+    order: 1;
+}
+
+.slideshow-button--right {
+    order: 5;
+}
+
+@media (max-width: 650px) {
+    .slideshow {
+        gap: clamp(0.4rem, 1vw, 0.75rem);
+    }
+
+    .slideshow-slide--side {
+        display: none;
+    }
+
+    .slideshow-button {
+        width: clamp(1.75rem, 4vw, 2rem);
+        height: clamp(1.75rem, 4vw, 2rem);
+        font-size: clamp(1rem, 0.9rem + 0.5vw, 1.2rem);
+    }
 }
