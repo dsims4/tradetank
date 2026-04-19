@@ -38,6 +38,12 @@
 
 /* Base */
 
+:root {
+    --site-max-width: 75rem;
+    --color-ink: #000000;
+    --focus-outline: rgba(0, 0, 0, 0.35);
+}
+
 html {
     font-size: 1rem;
     box-sizing: border-box;
@@ -58,4 +64,11 @@ body {
     margin: 0;
 
     font-family: "general-sans", system-ui, sans-serif;
+}
+
+main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
 }
