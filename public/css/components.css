@@ -1,3 +1,104 @@
+/* Main container */
+
+.main-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(1.25rem, 2vw, 2rem);
+
+    max-width: var(--site-max-width);
+    margin: clamp(1.5rem, 4vw, 5rem) auto;
+    padding: clamp(1.5rem, 3vw, 3rem) clamp(1.5rem, 8vw, 10rem);
+
+    border: 2px solid var(--color-ink);
+    border-radius: 2rem;
+    background: linear-gradient(
+        to right in oklch,
+        #6f6f6f 0%,
+        #8a8a8a 14%,
+        #b7b7b7 28%,
+        #d8d8d8 42%,
+        #efefef 50%,
+        #d4d4d4 58%,
+        #ababab 72%,
+        #858585 86%,
+        #6d6d6d 100%
+    );
+    background-size: 100% 100%;
+    box-shadow:
+        inset 0 0.0625rem 0 rgba(255, 255, 255, 0.45),
+        inset 0 -0.0625rem 0 rgba(0, 0, 0, 0.18);
+}
+
+.main-container::after {
+    content: "";
+    position: absolute;
+    inset: 0.5rem;
+    border-radius: 1.5rem;
+    background-image:
+        radial-gradient(
+            circle closest-side,
+            #fbfbfb 0%,
+            #ededed 18%,
+            #d2d2d2 38%,
+            #969696 58%,
+            #707070 72%,
+            rgba(112, 112, 112, 0.3) 82%,
+            transparent 100%
+        ),
+        radial-gradient(
+            circle closest-side,
+            #fbfbfb 0%,
+            #ededed 18%,
+            #d2d2d2 38%,
+            #969696 58%,
+            #707070 72%,
+            rgba(112, 112, 112, 0.3) 82%,
+            transparent 100%
+        ),
+        radial-gradient(
+            circle closest-side,
+            #fbfbfb 0%,
+            #ededed 18%,
+            #d2d2d2 38%,
+            #969696 58%,
+            #707070 72%,
+            rgba(112, 112, 112, 0.3) 82%,
+            transparent 100%
+        ),
+        radial-gradient(
+            circle closest-side,
+            #fbfbfb 0%,
+            #ededed 18%,
+            #d2d2d2 38%,
+            #969696 58%,
+            #707070 72%,
+            rgba(112, 112, 112, 0.3) 82%,
+            transparent 100%
+        );
+    background-size:
+        3rem 0.75rem,
+        3rem 0.75rem,
+        0.75rem 2.75rem,
+        0.75rem 2.75rem;
+    background-repeat:
+        repeat-x,
+        repeat-x,
+        repeat-y,
+        repeat-y;
+    background-position:
+        center top,
+        center bottom,
+        left center,
+        right center;
+
+    mix-blend-mode: multiply;
+    opacity: 0.95;
+    pointer-events: none;
+}
+
 /* Button */
 
 .button,
@@ -6,8 +107,8 @@
     align-items: center;
     justify-content: center;
     background-color: rgba(255, 255, 255, 0.85);
-    border: 2px solid #000000; /* ADJUST COLOR */
-    color: #000000; /* ADJUST COLOR */
+    border: 2px solid var(--color-ink); /* ADJUST COLOR */
+    color: var(--color-ink); /* ADJUST COLOR */
     cursor: pointer;
     box-shadow: 0 0.2rem 0.45rem rgba(0, 0, 0, 0.14);
     transition:
@@ -28,15 +129,15 @@
 
 .button:hover,
 .slideshow-button:hover {
-    border-color: #000000;
+    border-color: var(--color-ink);
     color: #ffffff;
-    background-color: #000000;
+    background-color: var(--color-ink);
     transform: translateY(-1px);
 }
 
 .button:focus-visible,
 .slideshow-button:focus-visible {
-    outline: 3px solid rgba(0, 0, 0, 0.35);
+    outline: 3px solid var(--focus-outline);
     outline-offset: 2px;
 }
 
@@ -123,7 +224,7 @@
 .form-misc a {
     margin-left: auto;
     font-size: clamp(0.95rem, 0.9rem + 0.3vw, 1rem);
-    color: #000000;
+    color: var(--color-ink);
     transition: color 0.2s ease;
 }
 
@@ -161,7 +262,7 @@
     width: 1.1rem;
     height: 1.1rem;
     margin: 0;
-    border: 1px solid #000000;
+    border: 1px solid var(--color-ink);
     border-radius: 0.2rem;
     background-color: #ffffff; 
     cursor: pointer;
@@ -169,7 +270,7 @@
 }
 
 .checkbox:checked {
-    background-color: #000000;
+    background-color: var(--color-ink);
 }
 
 .checkbox:checked::after {
@@ -184,95 +285,38 @@
     transform: rotate(45deg);
 }
 
-/* Slideshow */
+/* Copy */
 
-.slideshow {
+.copy {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: clamp(0.325rem, 0.65vw, 0.75rem);
-}
+    flex-direction: column;
+    gap: clamp(0.75rem, 1.5vw, 1rem);
+    max-width: min(100%, 45rem);
+    text-align: center;
 
-.slideshow-slide {
-    width: clamp(9rem, 18vw, 15rem);
-    aspect-ratio: 16 / 10;
     margin: 0;
-    padding: 0;
-    border: 3px solid #000000; 
-    border-radius: clamp(0.25rem, 0.35vw, 0.5rem);
-    overflow: hidden;
-    transition:
-        transform 250ms ease,
-        opacity 250ms ease;
 }
 
-.slideshow-image {
-    width: 100%;
-    height: 100%;
+.copy ul {
+    text-align: left;
+    padding-left: 1.25rem;
+}
+
+.copy li {
+    font-size: clamp(1rem, 0.95rem + 0.4vw, 1.12rem);
+    line-height: clamp(1.75rem, 2vw, 3rem);
+}
+
+.copy h1 {
+    font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+    font-weight: 600;
+}
+
+.copy p {
+    font-size: clamp(1rem, 0.95rem + 0.4vw, 1.12rem);
+    line-height: clamp(1.75rem, 2vw, 3rem);    
+}
+
+.copy > * {
     margin: 0;
-    padding: 0;
-    display: block;
-    object-fit: cover;
-    transition: filter 250ms ease;
-}
-
-.slideshow-slide--hidden {
-    display: none;
-}
-
-.slideshow-slide--middle {
-    order: 3;
-    transform: scale(1);
-    opacity: 1;
-}
-
-.slideshow-slide--side {
-    opacity: 0.75;
-    transform: scale(0.85);
-}
-
-.slideshow-image--side {
-    filter: blur(0.1rem);
-}
-
-.slideshow-slide--left {
-    order: 2;
-}
-
-.slideshow-slide--right {
-    order: 4;
-}
-
-.slideshow-button {
-    width: clamp(2.25rem, 3vw, 2.75rem);
-    height: clamp(2.25rem, 3vw, 2.75rem);
-    padding: 0;
-    border-radius: 0.625rem;
-    font-size: clamp(1.35rem, 1rem + 1vw, 1.75rem);
-    line-height: 1;
-}
-
-.slideshow-button--left {
-    order: 1;
-}
-
-.slideshow-button--right {
-    order: 5;
-}
-
-@media (max-width: 650px) {
-    .slideshow {
-        gap: clamp(0.4rem, 1vw, 0.75rem);
-    }
-
-    .slideshow-slide--side {
-        display: none;
-    }
-
-    .slideshow-button {
-        width: clamp(1.75rem, 4vw, 2rem);
-        height: clamp(1.75rem, 4vw, 2rem);
-        font-size: clamp(1rem, 0.9rem + 0.5vw, 1.2rem);
-    }
 }
