@@ -4,18 +4,45 @@
 
 {% block content %}
     <div class="main-container">
-        <form method="POST" class="form">
-            <h1>Log In</h1>
+        <form
+            method="POST"
+            class="form"
+            data-login-form
+            {% if errorMessage or successMessage or formData.username %}data-clear-login-query{% endif %}>
+            <div class="form-header">
+                <h1>Log In</h1>
+            </div>
+
+            {% if successMessage %}
+                <p class="form-message form-message--success">{{ successMessage }}</p>
+            {% endif %}
+
+            {% if errorMessage %}
+                <p class="form-message form-message--error">{{ errorMessage }}</p>
+            {% endif %}
 
             <div class="form-fields">
                 <div class="form-field">
                     <label for="username">Username</label>
-                    <input type="text" id="username" class="form-input" name="username" required>
+                    <input
+                        type="text"
+                        id="username"
+                        class="form-input"
+                        name="username"
+                        value="{{ formData.username }}"
+                        autocomplete="username"
+                        required>
                 </div>
 
                 <div class="form-field">
                     <label for="password">Password</label>
-                    <input type="password" id="password" class="form-input" name="password" required>
+                    <input
+                        type="password"
+                        id="password"
+                        class="form-input"
+                        name="password"
+                        autocomplete="current-password"
+                        required>
                 </div>
 
                 <div class="form-misc">
