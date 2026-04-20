@@ -10,6 +10,9 @@
                 <a href="/visualize" class="navbar-link {% if currentPage == 'visualize' %}active{% endif %}">Visualize</a>
                 <a href="/input" class="navbar-link {% if currentPage == 'input' %}active{% endif %}">Input</a>
                 <a href="/profile" class="navbar-link {% if currentPage == 'profile' %}active{% endif %}">Profile</a>
+                <form method="POST" action="/logout">
+                    <button type="submit" class="navbar-link">Log Out</button>
+                </form>
             </div>
         </div>
     </nav>

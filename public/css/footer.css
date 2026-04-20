@@ -1,8 +1,6 @@
-/* Footer */
-
 .footer {
     position: relative;
-    border-top: 1px solid var(--color-ink); /* ADJUST COLOR */
+    border-top: var(--border-thin);
     background: linear-gradient(to top in oklch, #696969 0%, #d3d3d3 100%);
     box-shadow:
         inset 0 0.0625rem 0 rgba(255, 255, 255, 0.32),
@@ -61,26 +59,27 @@
 
 .footer-copyright {
     margin: 0;
-    color: var(--color-ink); /* ADJUST COLOR */
+    color: var(--color-ink);
     font-size: clamp(0.85rem, 0.95rem + 0.2vw, 1rem);
 }
 
 .footer-link {
     padding: 0.25rem 0;
-    border-bottom: 2px solid transparent;
+    border-bottom: var(--border-active);
+    border-bottom-color: transparent;
     text-decoration: none;
-    color: var(--color-ink); /* ADJUST COLOR */
+    color: var(--color-ink);
     font-size: clamp(0.95rem, 0.9rem + 0.3vw, 1.1rem);
     transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .footer-link:visited {
-    color: var(--color-ink); /* ADJUST COLOR */
+    color: var(--color-ink);
 }
 
 .footer-link:hover {
-    color: #ffffff; /* ADJUST COLOR */
-    border-color: #ffffff; /* ADJUST COLOR */
+    color: var(--color-contrast);
+    border-color: var(--color-contrast);
 }
 
 .footer-link:focus-visible {
@@ -89,5 +88,5 @@
 }
 
 .footer-link.active {
-    border-bottom: 2px solid #ffffff; /* ADJUST COLOR */
+    border-bottom-color: var(--color-contrast);
 }

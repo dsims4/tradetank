@@ -1,5 +1,3 @@
-/* Main container */
-
 .main-container {
     position: relative;
     display: flex;
@@ -12,7 +10,7 @@
     margin: clamp(1.5rem, 4vw, 5rem) auto;
     padding: clamp(1.5rem, 3vw, 3rem) clamp(1.5rem, 8vw, 10rem);
 
-    border: 2px solid var(--color-ink);
+    border: var(--border-strong);
     border-radius: 2rem;
     background: linear-gradient(
         to right in oklch,
@@ -99,16 +97,14 @@
     pointer-events: none;
 }
 
-/* Button */
-
 .button,
 .slideshow-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background-color: rgba(255, 255, 255, 0.85);
-    border: 2px solid var(--color-ink); /* ADJUST COLOR */
-    color: var(--color-ink); /* ADJUST COLOR */
+    background-color: var(--color-surface);
+    border: var(--border-strong);
+    color: var(--color-ink);
     cursor: pointer;
     box-shadow: 0 0.2rem 0.45rem rgba(0, 0, 0, 0.14);
     transition:
@@ -122,7 +118,7 @@
 .button {
     height: auto;
     padding: 0.4em 1.15em;
-    border-radius: 0.35rem;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     font-weight: 600;
 }
@@ -130,7 +126,7 @@
 .button:hover,
 .slideshow-button:hover {
     border-color: var(--color-ink);
-    color: #ffffff;
+    color: var(--color-contrast);
     background-color: var(--color-ink);
     transform: translateY(-1px);
 }
@@ -147,26 +143,25 @@
     box-shadow: 0 0.1rem 0.25rem rgba(0, 0, 0, 0.16);
 }
 
-/* Form input */
-
 .form-input {
     width: 100%;
     min-height: clamp(2.2rem, 3vw, 2.5rem);
-    border-radius: 0.35rem;
+    border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: 1rem;
 }
 
 .form-fields {
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: clamp(1.1rem, 2.2vw, 1.6rem);
 }
 
 .form-field {
+    width: 100%;
     display: flex;
     flex-direction: column;
-    flex: 1 1 0;
     min-width: 14rem;
     gap: clamp(0.25rem, 0.6vw, 0.5rem);
     font-size: clamp(1.35rem, 1rem + 1.5vw, 1.9rem);
@@ -175,6 +170,7 @@
 
 .form-row .form-field {
     font-size: clamp(1.05rem, 0.95rem + 0.65vw, 1.35rem);
+    flex: 1 1 0;
 }
 
 .form .button {
@@ -182,8 +178,6 @@
     min-width: min(100%, 10rem);
     margin-bottom: clamp(0.1rem, 0.3vw, 0.2rem);
 }
-
-/* Form layout */
 
 .form {
     display: flex;
@@ -199,10 +193,35 @@
     margin: 0;
 }
 
+.form-header {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: clamp(1rem, 2vw, 1.25rem);
+}
+
+.form-header > * {
+    margin: 0;
+}
+
 .form h1 {
     font-size: clamp(2.5rem, 1.75rem + 3vw, 4rem);
     font-weight: 600;
     line-height: 1;
+}
+
+.form-message {
+    margin: 0;
+    max-width: clamp(16rem, 32vw, 24rem);
+}
+
+.form-message--error {
+    color: #4b0d0d;
+}
+
+.form-message--success {
+    color: #173e1e;
 }
 
 .form-row {
@@ -229,7 +248,7 @@
 }
 
 .form-misc a:hover {
-    color: #ffffff;
+    color: var(--color-contrast);
 }
 
 .form-footer {
@@ -249,8 +268,6 @@
     font-size: inherit;
 }
 
-/* Form checkbox */
-
 .checkbox-field {
     display: flex;
     align-items: center;
@@ -259,12 +276,12 @@
 
 .checkbox {
     appearance: none;
-    width: 1.1rem;
-    height: 1.1rem;
+    width: clamp(1rem, 1.4vw, 1.1rem);
+    height: clamp(1rem, 1.4vw, 1.1rem);
     margin: 0;
-    border: 1px solid var(--color-ink);
-    border-radius: 0.2rem;
-    background-color: #ffffff; 
+    border: var(--border-thin);
+    border-radius: clamp(0.15rem, 0.35vw, 0.2rem);
+    background-color: var(--color-contrast);
     cursor: pointer;
     position: relative;
 }
@@ -280,12 +297,10 @@
     top: 0.2rem;
     width: 0.22rem;
     height: 0.5rem;
-    border: solid #ffffff;
+    border: solid var(--color-contrast);
     border-width: 0 0.15rem 0.15rem 0;
     transform: rotate(45deg);
 }
-
-/* Copy */
 
 .copy {
     display: flex;
@@ -315,6 +330,15 @@
 .copy p {
     font-size: clamp(1rem, 0.95rem + 0.4vw, 1.12rem);
     line-height: clamp(1.75rem, 2vw, 3rem);    
+}
+
+.copy a {
+    color: var(--color-ink);
+    transition: color 0.2s ease;
+}
+
+.copy a:hover {
+    color: var(--color-contrast);
 }
 
 .copy > * {
