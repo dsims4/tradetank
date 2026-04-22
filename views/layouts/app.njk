@@ -6,7 +6,9 @@
         <title>{% block title %}Trade Tank{% endblock %}</title>
     </head>
     
-    <body data-protected-page>
+    <body
+        data-protected-page
+        {% if colorScheme %}data-color-scheme="{{ colorScheme }}"{% endif %}>
         {% include "partials/navbar-app.njk" %}
 
         <main>

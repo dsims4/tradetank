@@ -59,6 +59,22 @@ body {
     font-family: "general-sans", system-ui, sans-serif;
 }
 
+body[data-color-scheme="dark"] {
+    background-color: #000000;
+}
+
+body[data-color-scheme="dark"] .navbar {
+    border-bottom-color: #ffffff;
+}
+
+body[data-color-scheme="dark"] .main-container {
+    border-color: #ffffff;
+}
+
+body[data-color-scheme="dark"] .footer {
+    border-top-color: #ffffff;
+}
+
 main {
     display: flex;
     flex: 1;

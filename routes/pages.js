@@ -4,9 +4,12 @@ const router = express.Router();
 const { getClient, query } = require("../services/db");
 
 const SESSION_COOKIE_NAME = "tradetank_session";
-const SESSION_SECRET = process.env.SESSION_SECRET || "development-session-secret";
+const SESSION_SECRET = process.env.SESSION_SECRET;
 const REMEMBER_ME_SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
-const PASSWORD_RESET_TTL_MS = 1000 * 60 * 15;
+const PASSWORD_RESET_TOKEN_MAX_AGE_MS = 1000 * 60 * 15;
+const LOGIN_RATE_LIMIT_WINDOW_MS = 1000 * 60 * 15;
+const LOGIN_RATE_LIMIT_MAX_FAILURES = 7;
+const LOGIN_RATE_LIMIT_BLOCK_MS = 1000 * 60 * 15;
 
 async function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString("hex");
@@ -172,6 +175,91 @@ function clearSessionCookie(res) {
     );
 }
 
+async function findLoginRateLimit(loginIdentifier) {
+    const rateLimitResult = await query(
+        `SELECT id, failed_attempt_count, window_started_at, blocked_until
+         FROM login_rate_limits
+         WHERE login_identifier = $1
+         LIMIT 1`,
+        [loginIdentifier]
+    );
+
+    return rateLimitResult.rows[0] || null;
+}
+
+async function registerFailedLoginAttempt(loginIdentifier, ipAddress) {
+    const existingRateLimit = await findLoginRateLimit(loginIdentifier);
+    const now = Date.now();
+
+    if (!existingRateLimit) {
+        await query(
+            `INSERT INTO login_rate_limits (
+                login_identifier,
+                ip_address,
+                failed_attempt_count,
+                window_started_at,
+                updated_at
+            )
+             VALUES ($1, $2, 1, NOW(), NOW())`,
+            [loginIdentifier, ipAddress || null]
+        );
+        return;
+    }
+
+    const windowStartedAtMs = new Date(existingRateLimit.window_started_at).getTime();
+    const windowHasExpired = !Number.isFinite(windowStartedAtMs)
+        || (now - windowStartedAtMs) > LOGIN_RATE_LIMIT_WINDOW_MS;
+    const nextFailedAttemptCount = windowHasExpired
+        ? 1
+        : Number(existingRateLimit.failed_attempt_count || 0) + 1;
+    const shouldBlock = nextFailedAttemptCount >= LOGIN_RATE_LIMIT_MAX_FAILURES;
+    const blockedUntil = shouldBlock
+        ? new Date(now + LOGIN_RATE_LIMIT_BLOCK_MS).toISOString()
+        : null;
+
+    await query(
+        `UPDATE login_rate_limits
+         SET ip_address = $2,
+             failed_attempt_count = $3,
+             window_started_at = CASE
+                 WHEN $4 THEN NOW()
+                 ELSE window_started_at
+             END,
+             blocked_until = $5,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+            existingRateLimit.id,
+            ipAddress || null,
+            nextFailedAttemptCount,
+            windowHasExpired,
+            blockedUntil
+        ]
+    );
+}
+
+async function clearLoginRateLimit(loginIdentifier) {
+    await query(
+        `DELETE FROM login_rate_limits
+         WHERE login_identifier = $1`,
+        [loginIdentifier]
+    );
+}
+
+function getRateLimitErrorMessage(blockedUntil) {
+    if (!blockedUntil) {
+        return "Too many login attempts. Please try again later.";
+    }
+
+    const blockedUntilDate = new Date(blockedUntil);
+
+    if (!Number.isFinite(blockedUntilDate.getTime())) {
+        return "Too many login attempts. Please try again later.";
+    }
+
+    return `Too many login attempts. Try again after ${blockedUntilDate.toLocaleTimeString()}.`;
+}
+
 function buildLoginView(data = {}) {
     return {
         currentPage: "login",
@@ -190,6 +278,34 @@ function buildResetPasswordView(data = {}) {
         token: data.token || "",
         resetLinkIsValid: Boolean(data.resetLinkIsValid)
     };
+}
+
+function getProfileEmailChangeMessage(errorCode, successCode) {
+    const errorMessage = (errorCode === "missing-fields")
+        ? "Enter and confirm your new email address."
+        : (errorCode === "mismatch")
+            ? "Email addresses do not match."
+            : (errorCode === "email-in-use")
+                ? "That email is already in use."
+                : (errorCode === "same-email")
+                    ? "Enter a different email address."
+                    : "";
+    const successMessage = (successCode === "email-updated")
+        ? "Your email address has been updated."
+        : "";
+
+    return { errorMessage, successMessage };
+}
+
+function getProfileColorSchemeMessage(errorCode, successCode) {
+    const errorMessage = (errorCode === "invalid-choice")
+        ? "Choose a valid color scheme."
+        : "";
+    const successMessage = (successCode === "updated")
+        ? "Your color scheme has been updated."
+        : "";
+
+    return { errorMessage, successMessage };
 }
 
 function redirectAuthenticatedUser(req, res) {
@@ -274,13 +390,16 @@ router.get("/login", (req, res) => {
 
     const username = String(req.query.username || "").trim();
     const error = String(req.query.error || "");
+    const message = String(req.query.message || "");
     const reset = String(req.query.reset || "");
-    const errorMessage = error === "missing-fields"
+    const errorMessage = (error === "missing-fields")
         ? "Enter both a username and password."
-        : error === "invalid-credentials"
+        : (error === "invalid-credentials")
             ? "Invalid username or password."
+            : (error === "too-many-attempts")
+                ? (message || "Too many login attempts. Please try again later.")
             : "";
-    const successMessage = reset === "success"
+    const successMessage = (reset === "success")
         ? "Your password has been reset. Log in with your new password."
         : "";
 
@@ -341,14 +460,176 @@ router.get("/input", (req, res) => {
     });
 });
 
-router.get("/profile", (req, res) => {
-    if (!ensureAuthenticated(req, res)) {
+router.get("/profile", async (req, res, next) => {
+    const authenticatedUserId = ensureAuthenticated(req, res);
+
+    if (!authenticatedUserId) {
         return;
     }
 
-    res.render("profile.njk", {
-        currentPage: "profile"
-    });
+    try {
+        const emailChangeError = String(req.query.emailChangeError || "");
+        const emailChangeSuccess = String(req.query.emailChangeSuccess || "");
+        const colorSchemeError = String(req.query.colorSchemeError || "");
+        const colorSchemeSuccess = String(req.query.colorSchemeSuccess || "");
+        const emailChangeMessage = getProfileEmailChangeMessage(
+            emailChangeError,
+            emailChangeSuccess
+        );
+        const colorSchemeMessage = getProfileColorSchemeMessage(
+            colorSchemeError,
+            colorSchemeSuccess
+        );
+        const profileResult = await query(
+            `SELECT
+                users.username,
+                users.email,
+                users.created_at,
+                user_preferences.color_scheme
+             FROM users
+             LEFT JOIN user_preferences
+               ON user_preferences.user_id = users.id
+             WHERE users.id = $1
+             LIMIT 1`,
+            [authenticatedUserId]
+        );
+
+        const profile = profileResult.rows[0];
+
+        if (!profile) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        return res.render("profile.njk", {
+            currentPage: "profile",
+            colorScheme: profile.color_scheme || "light",
+            profile: {
+                username: profile.username,
+                email: profile.email,
+                createdAtLabel: new Intl.DateTimeFormat("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric"
+                }).format(new Date(profile.created_at)),
+                colorScheme: profile.color_scheme || "light"
+            },
+            emailChangeMessage,
+            colorSchemeMessage
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/profile/color-scheme", async (req, res, next) => {
+    const authenticatedUserId = ensureAuthenticated(req, res);
+
+    if (!authenticatedUserId) {
+        return;
+    }
+
+    const colorScheme = String(req.body.profileColorScheme || "").trim().toLowerCase();
+
+    if (!["light", "dark"].includes(colorScheme)) {
+        return res.redirect("/profile?colorSchemeError=invalid-choice");
+    }
+
+    try {
+        await query(
+            `INSERT INTO user_preferences (user_id, color_scheme, updated_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (user_id)
+             DO UPDATE SET
+                 color_scheme = EXCLUDED.color_scheme,
+                 updated_at = NOW()`,
+            [authenticatedUserId, colorScheme]
+        );
+
+        return res.redirect("/profile?colorSchemeSuccess=updated");
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/profile/change-email", async (req, res, next) => {
+    const authenticatedUserId = ensureAuthenticated(req, res);
+
+    if (!authenticatedUserId) {
+        return;
+    }
+
+    const nextEmail = String(req.body.nextEmail || "").trim().toLowerCase();
+    const confirmEmail = String(req.body.confirmEmail || "").trim().toLowerCase();
+
+    if (!nextEmail || !confirmEmail) {
+        return res.redirect("/profile?emailChangeError=missing-fields");
+    }
+
+    if (nextEmail !== confirmEmail) {
+        return res.redirect("/profile?emailChangeError=mismatch");
+    }
+
+    try {
+        const currentUserResult = await query(
+            `SELECT email
+             FROM users
+             WHERE id = $1
+             LIMIT 1`,
+            [authenticatedUserId]
+        );
+
+        const currentUser = currentUserResult.rows[0];
+
+        if (!currentUser) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        if (currentUser.email === nextEmail) {
+            return res.redirect("/profile?emailChangeError=same-email");
+        }
+
+        const existingUserResult = await query(
+            `SELECT id
+             FROM users
+             WHERE email = $1 AND id <> $2
+             LIMIT 1`,
+            [nextEmail, authenticatedUserId]
+        );
+
+        if (existingUserResult.rows[0]) {
+            return res.redirect("/profile?emailChangeError=email-in-use");
+        }
+
+        const emailChangeTokenHash = crypto.randomBytes(32).toString("hex");
+
+        await query(
+            `UPDATE users
+             SET email = $1,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [nextEmail, authenticatedUserId]
+        );
+
+        await query(
+            `INSERT INTO email_change_events (
+                user_id,
+                previous_email,
+                next_email,
+                token_hash,
+                requested_at,
+                expires_at,
+                changed_at
+            )
+             VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())`,
+            [authenticatedUserId, currentUser.email, nextEmail, emailChangeTokenHash]
+        );
+
+        return res.redirect("/profile?emailChangeSuccess=email-updated");
+    } catch (error) {
+        return next(error);
+    }
 });
 
 router.get("/about", (req, res) => {
@@ -424,7 +705,7 @@ router.post("/forgot-password", (req, res) => {
             if (user) {
                 const rawResetToken = crypto.randomBytes(32).toString("hex");
                 const tokenHash = hashResetToken(rawResetToken);
-                const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+                const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_MAX_AGE_MS);
                 const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${rawResetToken}`;
 
                 await query(
@@ -534,6 +815,20 @@ router.post("/login", async (req, res, next) => {
     }
 
     try {
+        const existingRateLimit = await findLoginRateLimit(username);
+        const blockedUntilMs = existingRateLimit?.blocked_until
+            ? new Date(existingRateLimit.blocked_until).getTime()
+            : null;
+
+        if (blockedUntilMs && blockedUntilMs > Date.now()) {
+            const searchParams = new URLSearchParams({
+                error: "too-many-attempts",
+                message: getRateLimitErrorMessage(existingRateLimit.blocked_until),
+                username
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
         const userResult = await query(
             `SELECT id, password_hash
              FROM users
@@ -545,6 +840,7 @@ router.post("/login", async (req, res, next) => {
         const user = userResult.rows[0];
 
         if (!user) {
+            await registerFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
                 username
@@ -555,6 +851,7 @@ router.post("/login", async (req, res, next) => {
         const passwordIsValid = await verifyPassword(password, user.password_hash);
 
         if (!passwordIsValid) {
+            await registerFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
                 username
@@ -562,6 +859,7 @@ router.post("/login", async (req, res, next) => {
             return res.redirect(`/login?${searchParams.toString()}`);
         }
 
+        await clearLoginRateLimit(username);
         setSessionCookie(res, user.id, rememberMe);
         return res.redirect("/home");
     } catch (error) {
