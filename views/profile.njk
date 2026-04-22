@@ -3,6 +3,139 @@
 {% block title %}Trade Tank: Profile{% endblock %}
 
 {% block content %}
-    <h1>Profile</h1>
-    <p>Normal</p>
+    <div class="main-container">
+        <div class="profile-forms">
+            <section class="form profile-form profile-summary-form">
+                <div class="form-header">
+                    <h1>Profile</h1>
+                </div>
+
+                <div class="form-fields">
+                    {% if colorSchemeMessage.successMessage %}
+                        <p class="form-message form-message--success">{{ colorSchemeMessage.successMessage }}</p>
+                    {% endif %}
+
+                    {% if colorSchemeMessage.errorMessage %}
+                        <p class="form-message form-message--error">{{ colorSchemeMessage.errorMessage }}</p>
+                    {% endif %}
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <span>Username:</span>
+                            <div class="profile-display-field">{{ profile.username }}</div>
+                        </div>
+
+                        <div class="form-field">
+                            <span>Email:</span>
+                            <div class="profile-display-field">{{ profile.email }}</div>
+                        </div>
+                    </div>
+
+                    <form method="POST" action="/profile/color-scheme" class="profile-settings-group">
+                        <div class="form-row">
+                            <div class="form-field">
+                                <span>Created:</span>
+                                <div class="profile-display-field">{{ profile.createdAtLabel }}</div>
+                            </div>
+
+                            <div class="form-field">
+                                <span>Color Scheme:</span>
+                                <div class="profile-radio-group" role="radiogroup" aria-label="Color Scheme">
+                                    <label class="profile-radio-option">
+                                        <input
+                                            type="radio"
+                                            name="profileColorScheme"
+                                            value="light"
+                                            onchange="this.form.submit()"
+                                            {% if profile.colorScheme == "light" %}checked{% endif %}>
+                                        <span>Light</span>
+                                    </label>
+
+                                    <label class="profile-radio-option">
+                                        <input
+                                            type="radio"
+                                            name="profileColorScheme"
+                                            value="dark"
+                                            onchange="this.form.submit()"
+                                            {% if profile.colorScheme == "dark" %}checked{% endif %}>
+                                        <span>Dark</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="form profile-form">
+                <div class="form-header">
+                    <h1>Account Settings</h1>
+                </div>
+
+                <div class="form-fields">
+                    <form method="POST" action="/profile/change-email" class="profile-settings-group">
+                        {% if emailChangeMessage.successMessage %}
+                            <p class="form-message form-message--success">{{ emailChangeMessage.successMessage }}</p>
+                        {% endif %}
+
+                        {% if emailChangeMessage.errorMessage %}
+                            <p class="form-message form-message--error">{{ emailChangeMessage.errorMessage }}</p>
+                        {% endif %}
+
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="profile-change-email">Change Email:</label>
+                                <input
+                                    type="email"
+                                    id="profile-change-email"
+                                    class="form-input"
+                                    name="nextEmail">
+                            </div>
+
+                            <div class="form-field">
+                                <label for="profile-confirm-email">Confirm Email:</label>
+                                <input
+                                    type="email"
+                                    id="profile-confirm-email"
+                                    class="form-input"
+                                    name="confirmEmail">
+                            </div>
+                        </div>
+
+                        <div class="form-footer profile-form-footer">
+                            <button type="submit" class="button">Update Email</button>
+                        </div>
+                    </form>
+
+                    <form method="POST" class="profile-settings-group">
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="profile-new-password">Change Password:</label>
+                                <input
+                                    type="password"
+                                    id="profile-new-password"
+                                    class="form-input"
+                                    name="newPassword"
+                                    autocomplete="new-password">
+                            </div>
+
+                            <div class="form-field">
+                                <label for="profile-confirm-password">Confirm Password:</label>
+                                <input
+                                    type="password"
+                                    id="profile-confirm-password"
+                                    class="form-input"
+                                    name="confirmPassword"
+                                    autocomplete="new-password">
+                            </div>
+                        </div>
+
+                        <div class="form-footer profile-form-footer">
+                            <button type="button" class="button">Update Password</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
 {% endblock %}

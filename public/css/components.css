@@ -258,6 +258,120 @@
     gap: clamp(0.35rem, 0.8vw, 0.6rem);
 }
 
+.profile-forms {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2rem, 4vw, 3rem);
+}
+
+.profile-form {
+    width: 100%;
+}
+
+.profile-summary-form {
+    cursor: default;
+}
+
+.profile-settings-group {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1rem, 2vw, 1.5rem);
+}
+
+.profile-form-footer {
+    width: 100%;
+    align-items: flex-end;
+}
+
+.profile-form-footer .button {
+    width: fit-content;
+    max-width: 100%;
+    white-space: nowrap;
+}
+
+.profile-display-field {
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    min-height: clamp(2.2rem, 3vw, 2.5rem);
+    padding: 0.45rem 0.75rem;
+    border: var(--border-strong);
+    border-radius: var(--radius-sm);
+    background-color: rgba(255, 255, 255, 0.72);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.profile-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(0.75rem, 1.5vw, 1rem);
+    align-items: center;
+    min-height: clamp(2.2rem, 3vw, 2.5rem);
+}
+
+.profile-radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.75rem;
+    border: var(--border-strong);
+    border-radius: var(--radius-sm);
+    background-color: rgba(255, 255, 255, 0.72);
+    font-size: 1rem;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.profile-radio-option input[type="radio"] {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    appearance: none;
+    border: 2px solid var(--color-ink);
+    border-radius: 50%;
+    background-color: transparent;
+    display: inline-grid;
+    place-content: center;
+}
+
+.profile-radio-option input[type="radio"]::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    transform: scale(0);
+    transition: transform 0.15s ease;
+    background-color: var(--color-ink);
+}
+
+.profile-radio-option input[type="radio"]:checked::before {
+    transform: scale(1);
+}
+
+.profile-radio-option input[type="radio"]:focus-visible {
+    outline: 3px solid var(--focus-outline);
+    outline-offset: 2px;
+}
+
+.profile-display-field {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: clamp(2.2rem, 3vw, 2.5rem);
+    padding: 0.45rem 0.75rem;
+    border: var(--border-strong);
+    border-radius: var(--radius-sm);
+    background-color: rgba(255, 255, 255, 0.72);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.25;
+}
+
 .form-misc--signup p {
     font-size: clamp(0.78rem, 0.74rem + 0.2vw, 0.86rem);
     line-height: 1.4;
