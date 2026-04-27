@@ -3,380 +3,16 @@ const crypto = require("crypto");
 const router = express.Router();
 const { getClient, query } = require("../services/db");
 
-const SESSION_COOKIE_NAME = "tradetank_session";
+const SESSION_NAME = "tradetank_session";
 const SESSION_SECRET = process.env.SESSION_SECRET;
-const REMEMBER_ME_SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 30;
-const PASSWORD_RESET_TOKEN_MAX_AGE_MS = 1000 * 60 * 15;
-const LOGIN_RATE_LIMIT_WINDOW_MS = 1000 * 60 * 15;
-const LOGIN_RATE_LIMIT_MAX_FAILURES = 7;
-const LOGIN_RATE_LIMIT_BLOCK_MS = 1000 * 60 * 15;
-
-async function hashPassword(password) {
-    const salt = crypto.randomBytes(16).toString("hex");
-    const passwordHash = await new Promise((resolve, reject) => {
-        crypto.scrypt(password, salt, 64, (error, derivedKey) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve(`${salt}:${derivedKey.toString("hex")}`);
-        });
-    });
-
-    return passwordHash;
-}
-
-async function verifyPassword(password, storedPasswordHash) {
-    const [salt, storedDerivedKeyHex] = storedPasswordHash.split(":");
-
-    if (!salt || !storedDerivedKeyHex) {
-        return false;
-    }
-
-    const derivedKey = await new Promise((resolve, reject) => {
-        crypto.scrypt(password, salt, 64, (error, key) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve(key);
-        });
-    });
-
-    const storedDerivedKey = Buffer.from(storedDerivedKeyHex, "hex");
-
-    if (derivedKey.length !== storedDerivedKey.length) {
-        return false;
-    }
-
-    return crypto.timingSafeEqual(derivedKey, storedDerivedKey);
-}
-
-function parseCookies(cookieHeader = "") {
-    if (!cookieHeader) {
-        return {};
-    }
-
-    return Object.fromEntries(
-        cookieHeader
-            .split(";")
-            .map((cookie) => cookie.trim())
-            .filter(Boolean)
-            .map((cookie) => {
-                const separatorIndex = cookie.indexOf("=");
-                const key = cookie.slice(0, separatorIndex);
-                const value = cookie.slice(separatorIndex + 1);
-
-                return [key, decodeURIComponent(value)];
-            })
-    );
-}
-
-function signSessionPayload(payload) {
-    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
-}
-
-function hashResetToken(token) {
-    return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function createSessionValue(userId, maxAgeMs) {
-    const expiresAt = maxAgeMs ? Date.now() + maxAgeMs : 0;
-    const payload = `${userId}.${expiresAt}`;
-    const signature = signSessionPayload(payload);
-
-    return `${payload}.${signature}`;
-}
-
-function readAuthenticatedUserId(req) {
-    const cookies = parseCookies(req.headers.cookie);
-    const sessionValue = cookies[SESSION_COOKIE_NAME];
-
-    if (!sessionValue) {
-        return null;
-    }
-
-    const [userIdText, expiresAtText, signature] = sessionValue.split(".");
-
-    if (!userIdText || !expiresAtText || !signature) {
-        return null;
-    }
-
-    const payload = `${userIdText}.${expiresAtText}`;
-    const receivedSignatureBuffer = Buffer.from(signature, "hex");
-    const expectedSignatureBuffer = Buffer.from(signSessionPayload(payload), "hex");
-
-    if (receivedSignatureBuffer.length !== expectedSignatureBuffer.length) {
-        return null;
-    }
-
-    if (!crypto.timingSafeEqual(receivedSignatureBuffer, expectedSignatureBuffer)) {
-        return null;
-    }
-
-    const expiresAt = Number(expiresAtText);
-
-    if (!Number.isFinite(expiresAt)) {
-        return null;
-    }
-
-    if (expiresAt !== 0 && expiresAt <= Date.now()) {
-        return null;
-    }
-
-    const userId = Number(userIdText);
-    return Number.isInteger(userId) ? userId : null;
-}
-
-function setSessionCookie(res, userId, rememberMe) {
-    const maxAgeMs = rememberMe ? REMEMBER_ME_SESSION_MAX_AGE_MS : null;
-    const sessionValue = createSessionValue(userId, maxAgeMs);
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieParts = [
-        `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionValue)}`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict"
-    ];
-
-    if (maxAgeMs) {
-        cookieParts.push(`Max-Age=${Math.floor(maxAgeMs / 1000)}`);
-    }
-
-    if (isProduction) {
-        cookieParts.push("Secure");
-    }
-
-    cookieParts.push("Priority=High");
-
-    res.setHeader("Set-Cookie", cookieParts.join("; "));
-}
-
-function clearSessionCookie(res) {
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieParts = [
-        `${SESSION_COOKIE_NAME}=`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict",
-        "Max-Age=0",
-        "Priority=High"
-    ];
-
-    if (isProduction) {
-        cookieParts.push("Secure");
-    }
-
-    res.setHeader(
-        "Set-Cookie",
-        cookieParts.join("; ")
-    );
-}
-
-async function findLoginRateLimit(loginIdentifier) {
-    const rateLimitResult = await query(
-        `SELECT id, failed_attempt_count, window_started_at, blocked_until
-         FROM login_rate_limits
-         WHERE login_identifier = $1
-         LIMIT 1`,
-        [loginIdentifier]
-    );
-
-    return rateLimitResult.rows[0] || null;
-}
-
-async function registerFailedLoginAttempt(loginIdentifier, ipAddress) {
-    const existingRateLimit = await findLoginRateLimit(loginIdentifier);
-    const now = Date.now();
-
-    if (!existingRateLimit) {
-        await query(
-            `INSERT INTO login_rate_limits (
-                login_identifier,
-                ip_address,
-                failed_attempt_count,
-                window_started_at,
-                updated_at
-            )
-             VALUES ($1, $2, 1, NOW(), NOW())`,
-            [loginIdentifier, ipAddress || null]
-        );
-        return;
-    }
-
-    const windowStartedAtMs = new Date(existingRateLimit.window_started_at).getTime();
-    const windowHasExpired = !Number.isFinite(windowStartedAtMs)
-        || (now - windowStartedAtMs) > LOGIN_RATE_LIMIT_WINDOW_MS;
-    const nextFailedAttemptCount = windowHasExpired
-        ? 1
-        : Number(existingRateLimit.failed_attempt_count || 0) + 1;
-    const shouldBlock = nextFailedAttemptCount >= LOGIN_RATE_LIMIT_MAX_FAILURES;
-    const blockedUntil = shouldBlock
-        ? new Date(now + LOGIN_RATE_LIMIT_BLOCK_MS).toISOString()
-        : null;
-
-    await query(
-        `UPDATE login_rate_limits
-         SET ip_address = $2,
-             failed_attempt_count = $3,
-             window_started_at = CASE
-                 WHEN $4 THEN NOW()
-                 ELSE window_started_at
-             END,
-             blocked_until = $5,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [
-            existingRateLimit.id,
-            ipAddress || null,
-            nextFailedAttemptCount,
-            windowHasExpired,
-            blockedUntil
-        ]
-    );
-}
-
-async function clearLoginRateLimit(loginIdentifier) {
-    await query(
-        `DELETE FROM login_rate_limits
-         WHERE login_identifier = $1`,
-        [loginIdentifier]
-    );
-}
-
-function getRateLimitErrorMessage(blockedUntil) {
-    if (!blockedUntil) {
-        return "Too many login attempts. Please try again later.";
-    }
-
-    const blockedUntilDate = new Date(blockedUntil);
-
-    if (!Number.isFinite(blockedUntilDate.getTime())) {
-        return "Too many login attempts. Please try again later.";
-    }
-
-    return `Too many login attempts. Try again after ${blockedUntilDate.toLocaleTimeString()}.`;
-}
-
-function buildLoginView(data = {}) {
-    return {
-        currentPage: "login",
-        errorMessage: data.errorMessage || "",
-        successMessage: data.successMessage || "",
-        formData: {
-            username: data.username || ""
-        }
-    };
-}
-
-function buildResetPasswordView(data = {}) {
-    return {
-        currentPage: "reset-password",
-        errorMessage: data.errorMessage || "",
-        token: data.token || "",
-        resetLinkIsValid: Boolean(data.resetLinkIsValid)
-    };
-}
-
-function getProfileEmailChangeMessage(errorCode, successCode) {
-    const errorMessage = (errorCode === "missing-fields")
-        ? "Enter and confirm your new email address."
-        : (errorCode === "mismatch")
-            ? "Email addresses do not match."
-            : (errorCode === "email-in-use")
-                ? "That email is already in use."
-                : (errorCode === "same-email")
-                    ? "Enter a different email address."
-                    : "";
-    const successMessage = (successCode === "email-updated")
-        ? "Your email address has been updated."
-        : "";
-
-    return { errorMessage, successMessage };
-}
-
-function getProfileColorSchemeMessage(errorCode, successCode) {
-    const errorMessage = (errorCode === "invalid-choice")
-        ? "Choose a valid color scheme."
-        : "";
-    const successMessage = (successCode === "updated")
-        ? "Your color scheme has been updated."
-        : "";
-
-    return { errorMessage, successMessage };
-}
-
-function redirectAuthenticatedUser(req, res) {
-    const authenticatedUserId = readAuthenticatedUserId(req);
-
-    if (authenticatedUserId) {
-        res.redirect("/home");
-        return true;
-    }
-
-    return false;
-}
-
-function setNoStoreHeaders(res) {
-    res.set({
-        "Cache-Control": "no-store, no-cache, must-revalidate, private",
-        Pragma: "no-cache",
-        Expires: "0"
-    });
-}
-
-async function findPasswordResetEvent(rawToken, db = { query }, options = {}) {
-    if (!rawToken) {
-        return null;
-    }
-
-    const tokenHash = hashResetToken(rawToken);
-    const lockClause = options.lockForUpdate ? "\n         FOR UPDATE" : "";
-    const resetEventResult = await db.query(
-        `SELECT id, user_id, expires_at, reset_at
-         FROM password_reset_events
-         WHERE token_hash = $1
-         LIMIT 1${lockClause}`,
-        [tokenHash]
-    );
-
-    return resetEventResult.rows[0] || null;
-}
-
-function getPasswordResetErrorMessage(resetEvent) {
-    if (!resetEvent) {
-        return "This password reset link is invalid.";
-    }
-
-    if (resetEvent.reset_at) {
-        return "This password reset link has been used or expired.";
-    }
-
-    if (new Date(resetEvent.expires_at).getTime() <= Date.now()) {
-        return "This password reset link has been used or expired.";
-    }
-
-    return "";
-}
-
-function ensureAuthenticated(req, res) {
-    const authenticatedUserId = readAuthenticatedUserId(req);
-
-    if (!authenticatedUserId) {
-        res.redirect("/login");
-        return null;
-    }
-
-    setNoStoreHeaders(res);
-    return authenticatedUserId;
-}
+const SESSION_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
+const RESET_TOKEN_MAX_AGE = 1000 * 60 * 15;
+const RATE_LIMIT_SPAN = 1000 * 60 * 15;
+const RATE_LIMIT_MAX_FAILURES = 7;
+const RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
 
 router.get("/", (req, res) => {
-    if (redirectAuthenticatedUser(req, res)) {
-        return;
-    }
+    if (existentSessionRedirect(req, res)) return;
 
     res.render("index.njk", {
         currentPage: "index"
@@ -384,56 +20,72 @@ router.get("/", (req, res) => {
 });
 
 router.get("/login", (req, res) => {
-    if (redirectAuthenticatedUser(req, res)) {
-        return;
-    }
+    if (existentSessionRedirect(req, res)) return;
 
     const username = String(req.query.username || "").trim();
     const error = String(req.query.error || "");
-    const message = String(req.query.message || "");
-    const reset = String(req.query.reset || "");
+    const success = String(req.query.success || "");
+
     const errorMessage = (error === "missing-fields")
         ? "Enter both a username and password."
         : (error === "invalid-credentials")
-            ? "Invalid username or password."
-            : (error === "too-many-attempts")
-                ? (message || "Too many login attempts. Please try again later.")
-            : "";
-    const successMessage = (reset === "success")
-        ? "Your password has been reset. Log in with your new password."
+        ? "Invalid username or password."
+        : (error === "rate-limit")
+        ? "Too many login attempts. Please try again later."
+        : "";
+    const successMessage = (success === "reset-success")
+        ? "Your password has been reset. You can now log in with your new password."
         : "";
 
-    res.render("login.njk", buildLoginView({
-        username,
-        errorMessage,
-        successMessage
-    }));
+    res.render("login.njk", {
+        currentPage: "login",
+        username: username,
+        errorMessage: errorMessage,
+        successMessage: successMessage
+    });
 });
 
 router.get("/signup", (req, res) => {
-    if (redirectAuthenticatedUser(req, res)) {
-        return;
-    }
+    if (existentSessionRedirect(req, res)) return;
 
     res.render("signup.njk", {
         currentPage: "signup"
     });
 });
 
-router.get("/home", (req, res) => {
-    if (!ensureAuthenticated(req, res)) {
-        return;
-    }
+router.get("/home", async (req, res, next) => {
+    if (nonexistentSessionRedirect(req, res)) return;
 
-    res.render("home.njk", {
-        currentPage: "home"
-    });
+    const userID = getSessionUserID(req);
+
+    try {
+        const profileResult = await query(
+            `SELECT
+                user_preferences.color_scheme
+            FROM user_preferences
+            WHERE user_id = $1
+            LIMIT 1`,
+            [userID]
+        );
+
+        const profile = profileResult.rows[0];
+        
+        if (!profile) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        return res.render("home.njk", {
+            currentPage: "home",
+            colorScheme: profile.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
 });
 
 router.get("/analyze", (req, res) => {
-    if (!ensureAuthenticated(req, res)) {
-        return;
-    }
+    if (nonexistentSessionRedirect(req, res)) return;
 
     res.render("analyze.njk", {
         currentPage: "analyze"
@@ -441,9 +93,7 @@ router.get("/analyze", (req, res) => {
 });
 
 router.get("/visualize", (req, res) => {
-    if (!ensureAuthenticated(req, res)) {
-        return;
-    }
+    if (nonexistentSessionRedirect(req, res)) return;
 
     res.render("visualize.njk", {
         currentPage: "visualize"
@@ -451,9 +101,7 @@ router.get("/visualize", (req, res) => {
 });
 
 router.get("/input", (req, res) => {
-    if (!ensureAuthenticated(req, res)) {
-        return;
-    }
+    if (nonexistentSessionRedirect(req, res)) return;
 
     res.render("input.njk", {
         currentPage: "input"
@@ -461,25 +109,16 @@ router.get("/input", (req, res) => {
 });
 
 router.get("/profile", async (req, res, next) => {
-    const authenticatedUserId = ensureAuthenticated(req, res);
+    if (nonexistentSessionRedirect(req, res)) return;
 
-    if (!authenticatedUserId) {
-        return;
-    }
+    const userID = getSessionUserID(req);
 
     try {
-        const emailChangeError = String(req.query.emailChangeError || "");
-        const emailChangeSuccess = String(req.query.emailChangeSuccess || "");
-        const colorSchemeError = String(req.query.colorSchemeError || "");
-        const colorSchemeSuccess = String(req.query.colorSchemeSuccess || "");
-        const emailChangeMessage = getProfileEmailChangeMessage(
-            emailChangeError,
-            emailChangeSuccess
-        );
-        const colorSchemeMessage = getProfileColorSchemeMessage(
-            colorSchemeError,
-            colorSchemeSuccess
-        );
+        const error = String(req.query.error || "");
+        const success = String(req.query.success || "");
+
+        const errorMessage, successMessage = getProfileMessages(error, success);
+
         const profileResult = await query(
             `SELECT
                 users.username,
@@ -491,7 +130,7 @@ router.get("/profile", async (req, res, next) => {
                ON user_preferences.user_id = users.id
              WHERE users.id = $1
              LIMIT 1`,
-            [authenticatedUserId]
+            [userID]
         );
 
         const profile = profileResult.rows[0];
@@ -915,5 +554,361 @@ router.post("/logout", (req, res) => {
     clearSessionCookie(res);
     res.redirect("/login");
 });
+
+
+async function hashPassword(password) {
+    const salt = crypto.randomBytes(16).toString("hex");
+    const passwordHash = await new Promise((resolve, reject) => {
+        crypto.scrypt(password, salt, 64, (error, derivedKey) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            resolve(`${salt}:${derivedKey.toString("hex")}`);
+        });
+    });
+    return passwordHash;
+}
+
+async function verifyPassword(password, storedPasswordHash) {
+    const [salt, storedDerivedKeyHex] = storedPasswordHash.split(":");
+
+    if (!salt || !storedDerivedKeyHex) {
+        return false;
+    }
+
+    const derivedKey = await new Promise((resolve, reject) => {
+        crypto.scrypt(password, salt, 64, (error, key) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            resolve(key);
+        });
+    });
+
+    const storedDerivedKey = Buffer.from(storedDerivedKeyHex, "hex");
+
+    if (derivedKey.length !== storedDerivedKey.length) {
+        return false;
+    }
+
+    return crypto.timingSafeEqual(derivedKey, storedDerivedKey);
+}
+
+function parseCookies(cookieHeader = "") {
+    if (!cookieHeader) {
+        return {};
+    }
+
+    return Object.fromEntries(
+        cookieHeader
+            .split(";")
+            .map((cookie) => cookie.trim())
+            .filter(Boolean)
+            .map((cookie) => {
+                const separatorIndex = cookie.indexOf("=");
+                const key = cookie.slice(0, separatorIndex);
+                const value = cookie.slice(separatorIndex + 1);
+
+                return [key, decodeURIComponent(value)];
+            })
+    );
+}
+
+function signSessionPayload(payload) {
+    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+}
+
+function hashResetToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function createSessionValue(userId, maxAgeMs) {
+    const expiresAt = maxAgeMs ? Date.now() + maxAgeMs : 0;
+    const payload = `${userId}.${expiresAt}`;
+    const signature = signSessionPayload(payload);
+
+    return `${payload}.${signature}`;
+}
+
+function getSessionUserIDFromCookie(req) {
+    const cookies = parseCookies(req.headers.cookie);
+    const sessionValue = cookies[SESSION_NAME];
+
+    if (!sessionValue) {
+        return null;
+    }
+
+    const [userIdText, expiresAtText, signature] = sessionValue.split(".");
+
+    if (!userIdText || !expiresAtText || !signature) {
+        return null;
+    }
+
+    const payload = `${userIdText}.${expiresAtText}`;
+    const receivedSignatureBuffer = Buffer.from(signature, "hex");
+    const expectedSignatureBuffer = Buffer.from(signSessionPayload(payload), "hex");
+
+    if (receivedSignatureBuffer.length !== expectedSignatureBuffer.length) {
+        return null;
+    }
+
+    if (!crypto.timingSafeEqual(receivedSignatureBuffer, expectedSignatureBuffer)) {
+        return null;
+    }
+
+    const expiresAt = Number(expiresAtText);
+
+    if (!Number.isFinite(expiresAt)) {
+        return null;
+    }
+
+    if (expiresAt !== 0 && expiresAt <= Date.now()) {
+        return null;
+    }
+
+    const userId = Number(userIdText);
+    return Number.isInteger(userId) ? userId : null;
+}
+
+function setSessionCookie(res, userId, rememberMe) {
+    const maxAgeMs = rememberMe ? REMEMBER_ME_SESSION_MAX_AGE_MS : null;
+    const sessionValue = createSessionValue(userId, maxAgeMs);
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieParts = [
+        `${SESSION_NAME}=${encodeURIComponent(sessionValue)}`,
+        "Path=/",
+        "HttpOnly",
+        "SameSite=Strict"
+    ];
+
+    if (maxAgeMs) {
+        cookieParts.push(`Max-Age=${Math.floor(maxAgeMs / 1000)}`);
+    }
+
+    if (isProduction) {
+        cookieParts.push("Secure");
+    }
+
+    cookieParts.push("Priority=High");
+
+    res.setHeader("Set-Cookie", cookieParts.join("; "));
+}
+
+function clearSessionCookie(res) {
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieParts = [
+        `${SESSION_NAME}=`,
+        "Path=/",
+        "HttpOnly",
+        "SameSite=Strict",
+        "Max-Age=0",
+        "Priority=High"
+    ];
+
+    if (isProduction) {
+        cookieParts.push("Secure");
+    }
+
+    res.setHeader(
+        "Set-Cookie",
+        cookieParts.join("; ")
+    );
+}
+
+async function findLoginRateLimit(loginIdentifier) {
+    const rateLimitResult = await query(
+        `SELECT id, failed_attempt_count, window_started_at, blocked_until
+         FROM login_rate_limits
+         WHERE login_identifier = $1
+         LIMIT 1`,
+        [loginIdentifier]
+    );
+
+    return rateLimitResult.rows[0] || null;
+}
+
+async function registerFailedLoginAttempt(loginIdentifier, ipAddress) {
+    const existingRateLimit = await findLoginRateLimit(loginIdentifier);
+    const now = Date.now();
+
+    if (!existingRateLimit) {
+        await query(
+            `INSERT INTO login_rate_limits (
+                login_identifier,
+                ip_address,
+                failed_attempt_count,
+                window_started_at,
+                updated_at
+            )
+             VALUES ($1, $2, 1, NOW(), NOW())`,
+            [loginIdentifier, ipAddress || null]
+        );
+        return;
+    }
+
+    const windowStartedAtMs = new Date(existingRateLimit.window_started_at).getTime();
+    const windowHasExpired = !Number.isFinite(windowStartedAtMs)
+        || (now - windowStartedAtMs) > LOGIN_RATE_LIMIT_WINDOW_MS;
+    const nextFailedAttemptCount = windowHasExpired
+        ? 1
+        : Number(existingRateLimit.failed_attempt_count || 0) + 1;
+    const shouldBlock = nextFailedAttemptCount >= LOGIN_RATE_LIMIT_MAX_FAILURES;
+    const blockedUntil = shouldBlock
+        ? new Date(now + LOGIN_RATE_LIMIT_BLOCK_MS).toISOString()
+        : null;
+
+    await query(
+        `UPDATE login_rate_limits
+         SET ip_address = $2,
+             failed_attempt_count = $3,
+             window_started_at = CASE
+                 WHEN $4 THEN NOW()
+                 ELSE window_started_at
+             END,
+             blocked_until = $5,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+            existingRateLimit.id,
+            ipAddress || null,
+            nextFailedAttemptCount,
+            windowHasExpired,
+            blockedUntil
+        ]
+    );
+}
+
+async function clearLoginRateLimit(loginIdentifier) {
+    await query(
+        `DELETE FROM login_rate_limits
+         WHERE login_identifier = $1`,
+        [loginIdentifier]
+    );
+}
+
+function getRateLimitErrorMessage(blockedUntil) {
+    if (!blockedUntil) {
+        return "Too many login attempts. Please try again later.";
+    }
+
+    const blockedUntilDate = new Date(blockedUntil);
+
+    if (!Number.isFinite(blockedUntilDate.getTime())) {
+        return "Too many login attempts. Please try again later.";
+    }
+
+    return `Too many login attempts. Try again after ${blockedUntilDate.toLocaleTimeString()}.`;
+}
+
+function buildResetPasswordView(data = {}) {
+    return {
+        currentPage: "reset-password",
+        errorMessage: data.errorMessage || "",
+        token: data.token || "",
+        resetLinkIsValid: Boolean(data.resetLinkIsValid)
+    };
+}
+
+function getProfileMessages(error, success) {
+    const errorMessage = (error === "email-missing-fields")
+        ? "Enter and confirm your new email address."
+        : (error === "password-missing-fields")
+        ? "Enter and confirm your new password."
+        : (error === "email-mismatch")
+        ? "Email addresses do not match."
+        : (error === "password-mismatch")
+        ? "Passwords do not match."
+        : (error === "email-in-use")
+        ? "That email is already in use."
+        : (error === "email-same")
+        ? "Enter a different email address."
+        : "";
+    const successMessage = (success === "email-updated")
+        ? "Your email address has been updated."
+        : (success === "password-updated")
+        ? "Your password has been updated."
+        : "";
+
+    return { errorMessage, successMessage };
+}
+
+function getSessionUserID(req) {
+    if (req.authenticatedUserID !== undefined) return req.authenticatedUserID;
+
+    req.authenticatedUserID = getSessionUserIDFromCookie(req);
+    return req.authenticatedUserID;
+}
+
+function existentSession(req) {
+    return Boolean(getSessionUserID(req));
+}
+
+function existentSessionRedirect(req, res) {
+    const existentSession = existentSession(req);
+
+    if (existentSession) {
+        res.redirect("/home");
+        return true;
+    }
+    return false;
+}
+
+function nonexistentSessionRedirect(req, res) {
+    const existentSession = existentSession(req);
+
+    if (!existentSession) {
+        res.redirect("/login");
+        return true;
+    }
+
+    setNoStoreHeaders(res);
+    return false;
+}
+
+function setNoStoreHeaders(res) {
+    res.set({
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        Pragma: "no-cache",
+        Expires: "0"
+    });
+}
+
+async function findPasswordResetEvent(rawToken, db = { query }, options = {}) {
+    if (!rawToken) {
+        return null;
+    }
+
+    const tokenHash = hashResetToken(rawToken);
+    const lockClause = options.lockForUpdate ? "\n         FOR UPDATE" : "";
+    const resetEventResult = await db.query(
+        `SELECT id, user_id, expires_at, reset_at
+         FROM password_reset_events
+         WHERE token_hash = $1
+         LIMIT 1${lockClause}`,
+        [tokenHash]
+    );
+
+    return resetEventResult.rows[0] || null;
+}
+
+function getPasswordResetErrorMessage(resetEvent) {
+    if (!resetEvent) {
+        return "This password reset link is invalid.";
+    }
+
+    if (resetEvent.reset_at) {
+        return "This password reset link has been used or expired.";
+    }
+
+    if (new Date(resetEvent.expires_at).getTime() <= Date.now()) {
+        return "This password reset link has been used or expired.";
+    }
+
+    return "";
+}
 
 module.exports = router;
