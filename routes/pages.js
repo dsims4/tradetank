@@ -5,11 +5,11 @@ const { getClient, query } = require("../services/db");
 
 const SESSION_NAME = "tradetank_session";
 const SESSION_SECRET = process.env.SESSION_SECRET;
-const SESSION_MAX_AGE = 1000 * 60 * 60 * 24 * 30;
-const RESET_TOKEN_MAX_AGE = 1000 * 60 * 15;
-const RATE_LIMIT_SPAN = 1000 * 60 * 15;
-const RATE_LIMIT_MAX_FAILURES = 7;
-const RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
+const SESSION_DURATION_REMEMBER = 1000 * 60 * 60 * 24 * 30;
+const RESET_TOKEN_DURATION = 1000 * 60 * 15;
+const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
+const LOGIN_RATE_LIMIT_FAILURES = 7;
+const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
 
 router.get("/", (req, res) => {
     if (existentSessionRedirect(req, res)) return;
@@ -59,53 +59,134 @@ router.get("/home", async (req, res, next) => {
     const userID = getSessionUserID(req);
 
     try {
-        const profileResult = await query(
-            `SELECT
-                user_preferences.color_scheme
-            FROM user_preferences
-            WHERE user_id = $1
+        const userResult = await query(
+            `SELECT 
+                color_scheme
+            FROM 
+                user_preferences
+            WHERE 
+                user_id = $1
             LIMIT 1`,
             [userID]
         );
 
-        const profile = profileResult.rows[0];
+        const user = userResult.rows[0];
         
-        if (!profile) {
+        if (!user) {
             clearSessionCookie(res);
             return res.redirect("/login");
         }
 
         return res.render("home.njk", {
             currentPage: "home",
-            colorScheme: profile.color_scheme || "light"
+            colorScheme: user.color_scheme || "light"
         });
     } catch (error) {
         return next(error);
     }
 });
 
-router.get("/analyze", (req, res) => {
+router.get("/analyze", async(req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
+
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = await query(
+            `SELECT 
+                color_scheme
+            FROM 
+                user_preferences
+            WHERE 
+                user_id = $1
+            LIMIT 1`,
+            [userID]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        return res.render("analyze.njk", {
+            currentPage: "analyze",
+            colorScheme: user.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
 
     res.render("analyze.njk", {
         currentPage: "analyze"
     });
 });
 
-router.get("/visualize", (req, res) => {
+router.get("/visualize", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
-    res.render("visualize.njk", {
-        currentPage: "visualize"
-    });
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = await query(
+            `SELECT 
+                color_scheme
+            FROM 
+                user_preferences
+            WHERE 
+                user_id = $1
+            LIMIT 1`,
+            [userID]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        return res.render("visualize.njk", {
+            currentPage: "visualize",
+            colorScheme: user.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
 });
 
-router.get("/input", (req, res) => {
+router.get("/input", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
-    res.render("input.njk", {
-        currentPage: "input"
-    });
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = await query(
+            `SELECT 
+                color_scheme
+            FROM 
+                user_preferences
+            WHERE 
+                user_id = $1
+            LIMIT 1`,
+            [userID]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+            clearSessionCookie(res);
+            return res.redirect("/login");
+        }
+
+        return res.render("input.njk", {
+            currentPage: "input",
+            colorScheme: user.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
 });
 
 router.get("/profile", async (req, res, next) => {
@@ -117,49 +198,253 @@ router.get("/profile", async (req, res, next) => {
         const error = String(req.query.error || "");
         const success = String(req.query.success || "");
 
-        const errorMessage, successMessage = getProfileMessages(error, success);
+        const {
+            emailErrorMessage,
+            passwordErrorMessage,
+            emailSuccessMessage,
+            passwordSuccessMessage
+        } = getProfileMessages(error, success);
 
-        const profileResult = await query(
+        const userResult = await query(
             `SELECT
                 users.username,
                 users.email,
                 users.created_at,
                 user_preferences.color_scheme
-             FROM users
-             LEFT JOIN user_preferences
-               ON user_preferences.user_id = users.id
-             WHERE users.id = $1
+             FROM 
+                users
+             LEFT JOIN 
+                user_preferences
+             ON 
+                user_preferences.user_id = users.id
+             WHERE 
+                users.id = $1
              LIMIT 1`,
             [userID]
         );
 
-        const profile = profileResult.rows[0];
+        const user = userResult.rows[0];
 
-        if (!profile) {
+        if (!user) {
             clearSessionCookie(res);
             return res.redirect("/login");
         }
 
         return res.render("profile.njk", {
             currentPage: "profile",
-            colorScheme: profile.color_scheme || "light",
+            colorScheme: user.color_scheme || "light",
             profile: {
-                username: profile.username,
-                email: profile.email,
+                username: user.username,
+                email: user.email,
                 createdAtLabel: new Intl.DateTimeFormat("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric"
-                }).format(new Date(profile.created_at)),
-                colorScheme: profile.color_scheme || "light"
+                }).format(new Date(user.created_at)),
+                colorScheme: user.color_scheme || "light"
             },
-            emailChangeMessage,
-            colorSchemeMessage
+            emailErrorMessage: emailErrorMessage,
+            passwordErrorMessage: passwordErrorMessage,
+            emailSuccessMessage: emailSuccessMessage,
+            passwordSuccessMessage: passwordSuccessMessage
         });
     } catch (error) {
         return next(error);
     }
 });
+
+router.get("/about", async (req, res, next) => {
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = userID ? await query(
+            `SELECT
+                user_preferences.color_scheme
+            FROM 
+                user_preferences
+            WHERE 
+                user_id = $1
+            LIMIT 1`,
+                [userID]
+            ) : null;
+
+        return res.render("about.njk", {
+            currentPage: "about",
+            colorScheme: userResult?.rows[0]?.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.get("/contact", async (req, res, next) => {
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = userID ? await query(
+            `SELECT 
+                color_scheme
+             FROM 
+                user_preferences
+             WHERE 
+                user_id = $1
+             LIMIT 1`,
+            [userID]
+        ) : null;
+
+        return res.render("contact.njk", {
+            currentPage: "contact",
+            colorScheme: userResult?.rows[0]?.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.get("/privacy-policy", async (req, res, next) => {
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = userID ? await query(
+            `SELECT 
+                color_scheme
+             FROM 
+                user_preferences
+             WHERE 
+                user_id = $1
+             LIMIT 1`,
+            [userID]
+        ) : null;
+
+        return res.render("privacy-policy.njk", {
+            currentPage: "privacy-policy",
+            colorScheme: userResult?.rows[0]?.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.get("/terms-of-use", async (req, res, next) => {
+    const userID = getSessionUserID(req);
+
+    try {
+        const userResult = userID ? await query(
+            `SELECT 
+                color_scheme
+             FROM 
+                user_preferences
+             WHERE 
+                user_id = $1
+             LIMIT 1`,
+            [userID]
+        ) : null;
+
+        return res.render("terms-of-use.njk", {
+            currentPage: "terms-of-use",
+            colorScheme: userResult?.rows[0]?.color_scheme || "light"
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.get("/forgot-password", (req, res) => {
+    res.render("forgot-password.njk", {
+        currentPage: "forgot-password"
+    });
+});
+
+router.get("/forgot-password-confirmation", (req, res) => {
+    res.render("forgot-password-confirmation.njk", {
+        currentPage: "forgot-password-confirmation"
+    });
+});
+
+router.get("/reset-password", async (req, res, next) => {
+    const token = String(req.query.token || "").trim();
+
+    try {
+        const resetEvent = await findResetPasswordEvent(token);
+        const errorMessage = getResetPasswordErrorMessage(resetEvent);
+
+        return res.render("reset-password.njk", {
+            currentPage: "reset-password",
+            token: token,
+            errorMessage: errorMessage,
+            resetLinkIsValid: !errorMessage
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/login", async (req, res, next) => {
+    const username = String(req.body.username || "").trim();
+    const password = String(req.body.password || "");
+    const rememberMe = Boolean(req.body.remember);
+
+    if (!username || !password) {
+        const searchParams = new URLSearchParams({
+            error: "missing-fields",
+            username: username
+        });
+        return res.redirect(`/login?${searchParams.toString()}`);
+    }
+
+    try {
+        const loginRateLimit = await findLoginRateLimit(username);
+        const loginRateLimitRefresh = loginRateLimit?.blocked_until
+            ? new Date(loginRateLimit.blocked_until).getTime()
+            : null;
+
+        if (loginRateLimitRefresh && loginRateLimitRefresh > Date.now()) {
+            const searchParams = new URLSearchParams({
+                username: username,
+                error: "login-rate-limit"
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        const userResult = await query(
+            `SELECT id, password_hash
+             FROM users
+             WHERE username = $1
+             LIMIT 1`,
+            [username]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+            await registerFailedLoginAttempt(username, req.ip);
+            const searchParams = new URLSearchParams({
+                error: "invalid-credentials",
+                username
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        const passwordIsValid = await verifyPassword(password, user.password_hash);
+
+        if (!passwordIsValid) {
+            await registerFailedLoginAttempt(username, req.ip);
+            const searchParams = new URLSearchParams({
+                error: "invalid-credentials",
+                username
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        await clearLoginRateLimit(username);
+        setSessionCookie(res, user.id, rememberMe);
+        return res.redirect("/home");
+    } catch (error) {
+        return next(error);
+    }
+});
+
+
 
 router.post("/profile/color-scheme", async (req, res, next) => {
     const authenticatedUserId = ensureAuthenticated(req, res);
@@ -266,59 +551,6 @@ router.post("/profile/change-email", async (req, res, next) => {
         );
 
         return res.redirect("/profile?emailChangeSuccess=email-updated");
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/about", (req, res) => {
-    res.render("about.njk", {
-        currentPage: "about"
-    });
-});
-
-router.get("/contact", (req, res) => {
-    res.render("contact.njk", {
-        currentPage: "contact"
-    });
-});
-
-router.get("/privacy-policy", (req, res) => {
-    res.render("privacy-policy.njk", {
-        currentPage: "privacy-policy"
-    });
-});
-
-router.get("/terms-of-use", (req, res) => {
-    res.render("terms-of-use.njk", {
-        currentPage: "terms-of-use"
-    });
-});
-
-router.get("/forgot-password", (req, res) => {
-    res.render("forgot-password.njk", {
-        currentPage: "forgot-password"
-    });
-});
-
-router.get("/forgot-password-confirmation", (req, res) => {
-    res.render("forgot-password-confirmation.njk", {
-        currentPage: "forgot-password-confirmation"
-    });
-});
-
-router.get("/reset-password", async (req, res, next) => {
-    const token = String(req.query.token || "").trim();
-
-    try {
-        const resetEvent = await findPasswordResetEvent(token);
-        const errorMessage = getPasswordResetErrorMessage(resetEvent);
-
-        return res.render("reset-password.njk", buildResetPasswordView({
-            token,
-            errorMessage,
-            resetLinkIsValid: Boolean(token) && !errorMessage
-        }));
     } catch (error) {
         return next(error);
     }
@@ -437,72 +669,6 @@ router.post("/reset-password", async (req, res, next) => {
         return next(error);
     } finally {
         client.release();
-    }
-});
-
-router.post("/login", async (req, res, next) => {
-    const username = String(req.body.username || "").trim();
-    const password = String(req.body.password || "");
-    const rememberMe = Boolean(req.body.remember);
-
-    if (!username || !password) {
-        const searchParams = new URLSearchParams({
-            error: "missing-fields",
-            username
-        });
-        return res.redirect(`/login?${searchParams.toString()}`);
-    }
-
-    try {
-        const existingRateLimit = await findLoginRateLimit(username);
-        const blockedUntilMs = existingRateLimit?.blocked_until
-            ? new Date(existingRateLimit.blocked_until).getTime()
-            : null;
-
-        if (blockedUntilMs && blockedUntilMs > Date.now()) {
-            const searchParams = new URLSearchParams({
-                error: "too-many-attempts",
-                message: getRateLimitErrorMessage(existingRateLimit.blocked_until),
-                username
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        const userResult = await query(
-            `SELECT id, password_hash
-             FROM users
-             WHERE username = $1
-             LIMIT 1`,
-            [username]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            await registerFailedLoginAttempt(username, req.ip);
-            const searchParams = new URLSearchParams({
-                error: "invalid-credentials",
-                username
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        const passwordIsValid = await verifyPassword(password, user.password_hash);
-
-        if (!passwordIsValid) {
-            await registerFailedLoginAttempt(username, req.ip);
-            const searchParams = new URLSearchParams({
-                error: "invalid-credentials",
-                username
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        await clearLoginRateLimit(username);
-        setSessionCookie(res, user.id, rememberMe);
-        return res.redirect("/home");
-    } catch (error) {
-        return next(error);
     }
 });
 
@@ -790,20 +956,6 @@ async function clearLoginRateLimit(loginIdentifier) {
     );
 }
 
-function getRateLimitErrorMessage(blockedUntil) {
-    if (!blockedUntil) {
-        return "Too many login attempts. Please try again later.";
-    }
-
-    const blockedUntilDate = new Date(blockedUntil);
-
-    if (!Number.isFinite(blockedUntilDate.getTime())) {
-        return "Too many login attempts. Please try again later.";
-    }
-
-    return `Too many login attempts. Try again after ${blockedUntilDate.toLocaleTimeString()}.`;
-}
-
 function buildResetPasswordView(data = {}) {
     return {
         currentPage: "reset-password",
@@ -814,26 +966,32 @@ function buildResetPasswordView(data = {}) {
 }
 
 function getProfileMessages(error, success) {
-    const errorMessage = (error === "email-missing-fields")
+    const emailErrorMessage = (error === "email-missing-fields")
         ? "Enter and confirm your new email address."
-        : (error === "password-missing-fields")
-        ? "Enter and confirm your new password."
         : (error === "email-mismatch")
         ? "Email addresses do not match."
-        : (error === "password-mismatch")
-        ? "Passwords do not match."
         : (error === "email-in-use")
         ? "That email is already in use."
         : (error === "email-same")
         ? "Enter a different email address."
         : "";
-    const successMessage = (success === "email-updated")
+
+    const passwordErrorMessage = (error === "password-missing-fields")
+        ? "Enter and confirm your new password."
+        : (error === "password-mismatch")
+        ? "Passwords do not match."
+        : "";
+
+    const emailSuccessMessage = (success === "email-updated")
         ? "Your email address has been updated."
-        : (success === "password-updated")
+        : "";
+
+    const passwordSuccessMessage = (success === "password-updated")
         ? "Your password has been updated."
         : "";
 
-    return { errorMessage, successMessage };
+    return { emailErrorMessage, passwordErrorMessage, 
+        emailSuccessMessage, passwordSuccessMessage };
 }
 
 function getSessionUserID(req) {
@@ -877,7 +1035,7 @@ function setNoStoreHeaders(res) {
     });
 }
 
-async function findPasswordResetEvent(rawToken, db = { query }, options = {}) {
+async function findResetPasswordEvent(rawToken, db = { query }, options = {}) {
     if (!rawToken) {
         return null;
     }
@@ -895,7 +1053,7 @@ async function findPasswordResetEvent(rawToken, db = { query }, options = {}) {
     return resetEventResult.rows[0] || null;
 }
 
-function getPasswordResetErrorMessage(resetEvent) {
+function getResetPasswordErrorMessage(resetEvent) {
     if (!resetEvent) {
         return "This password reset link is invalid.";
     }
