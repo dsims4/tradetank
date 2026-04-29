@@ -5,7 +5,8 @@ const { getClient, query } = require("../services/db");
 
 const SESSION_NAME = "tradetank_session";
 const SESSION_SECRET = process.env.SESSION_SECRET;
-const SESSION_DURATION_REMEMBER = 1000 * 60 * 60 * 24 * 30;
+const SESSION_DURATION = 1000 * 60 * 60 * 24;
+const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;
 const RESET_TOKEN_DURATION = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_FAILURES = 7;
@@ -26,16 +27,8 @@ router.get("/login", (req, res) => {
     const error = String(req.query.error || "");
     const success = String(req.query.success || "");
 
-    const errorMessage = (error === "missing-fields")
-        ? "Enter both a username and password."
-        : (error === "invalid-credentials")
-        ? "Invalid username or password."
-        : (error === "rate-limit")
-        ? "Too many login attempts. Please try again later."
-        : "";
-    const successMessage = (success === "reset-success")
-        ? "Your password has been reset. You can now log in with your new password."
-        : "";
+    const errorMessage = getErrorMessage(error);
+    const successMessage = getSuccessMessage(success);
 
     res.render("login.njk", {
         currentPage: "login",
@@ -48,8 +41,12 @@ router.get("/login", (req, res) => {
 router.get("/signup", (req, res) => {
     if (existentSessionRedirect(req, res)) return;
 
+    const error = req.query.error || "";
+    const errorMessage = getErrorMessage(error);
+
     res.render("signup.njk", {
-        currentPage: "signup"
+        currentPage: "signup",
+        error: errorMessage
     });
 });
 
@@ -195,15 +192,15 @@ router.get("/profile", async (req, res, next) => {
     const userID = getSessionUserID(req);
 
     try {
-        const error = String(req.query.error || "");
-        const success = String(req.query.success || "");
+        const emailError = String(req.query.emailError || "");
+        const passwordError = String(req.query.passwordError || "");
+        const emailSuccess = String(req.query.emailSuccess || "");
+        const passwordSuccess = String(req.query.passwordSuccess || "");
 
-        const {
-            emailErrorMessage,
-            passwordErrorMessage,
-            emailSuccessMessage,
-            passwordSuccessMessage
-        } = getProfileMessages(error, success);
+        const emailErrorMessage = getErrorMessage(emailError);
+        const passwordErrorMessage = getErrorMessage(passwordError);
+        const emailSuccessMessage = getSuccessMessage(emailSuccess);
+        const passwordSuccessMessage = getSuccessMessage(passwordSuccess);
 
         const userResult = await query(
             `SELECT
@@ -394,11 +391,11 @@ router.post("/login", async (req, res, next) => {
 
     try {
         const loginRateLimit = await findLoginRateLimit(username);
-        const loginRateLimitRefresh = loginRateLimit?.blocked_until
+        const loginRateLimitExpiration = loginRateLimit?.blocked_until
             ? new Date(loginRateLimit.blocked_until).getTime()
             : null;
 
-        if (loginRateLimitRefresh && loginRateLimitRefresh > Date.now()) {
+        if (loginRateLimitExpiration && loginRateLimitExpiration > Date.now()) {
             const searchParams = new URLSearchParams({
                 username: username,
                 error: "login-rate-limit"
@@ -417,10 +414,10 @@ router.post("/login", async (req, res, next) => {
         const user = userResult.rows[0];
 
         if (!user) {
-            await registerFailedLoginAttempt(username, req.ip);
+            await recordFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
-                username
+                username: username
             });
             return res.redirect(`/login?${searchParams.toString()}`);
         }
@@ -428,10 +425,10 @@ router.post("/login", async (req, res, next) => {
         const passwordIsValid = await verifyPassword(password, user.password_hash);
 
         if (!passwordIsValid) {
-            await registerFailedLoginAttempt(username, req.ip);
+            await recordFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
-                username
+                username: username
             });
             return res.redirect(`/login?${searchParams.toString()}`);
         }
@@ -444,20 +441,94 @@ router.post("/login", async (req, res, next) => {
     }
 });
 
+router.post("/signup", async (req, res, next) => {
+    const username = String(req.body.username || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    const confirmPassword = String(req.body.confirmPassword || "");
 
+    const error = (!username || !email || !password || !confirmPassword)
+        ? "missing-fields"
+        : (password !== confirmPassword)
+        ? "password-mismatch"
+        : (existingUsers.rows.some((user) => user.username === username))
+        ? "username-taken"
+        : (existingUsers.rows.some((user) => user.email === email))
+        ? "email-in-use"
+        : "";
+
+    if (error) {
+        const searchParams = new URLSearchParams({
+            error: error,
+        });
+        return res.redirect(`/signup?${searchParams.toString()}`);
+    }
+
+    try {
+        const existingUsers = await query(
+            `SELECT 
+                username, 
+                email
+             FROM 
+                users
+             WHERE 
+                username = $1 
+            OR 
+                email = $2`,
+            [username, email]
+        );
+
+        const hashedPassword = await hashPassword(password);
+
+        await query(
+            `INSERT INTO 
+                users 
+                (username, email, password_hash)
+             VALUES 
+                ($1, $2, $3)`,
+            [username, email, hashedPassword]
+        );
+
+        const userID = await query(
+            `SELECT id
+             FROM users
+             WHERE username = $1
+             LIMIT 1`,
+            [username]
+        )
+
+        await query(
+            `INSERT INTO 
+                user_preferences 
+                (user_id)
+            `,
+            []
+        )
+
+        return res.redirect("/login");
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/logout", (req, res) => {
+    clearSessionCookie(res);
+    res.redirect("/login");
+});
 
 router.post("/profile/color-scheme", async (req, res, next) => {
-    const authenticatedUserId = ensureAuthenticated(req, res);
+    if (nonexistentSessionRedirect(req, res)) return;
 
-    if (!authenticatedUserId) {
-        return;
-    }
-
-    const colorScheme = String(req.body.profileColorScheme || "").trim().toLowerCase();
+    const colorScheme = String(req.body.changeColorScheme || "").trim().toLowerCase();
 
     if (!["light", "dark"].includes(colorScheme)) {
-        return res.redirect("/profile?colorSchemeError=invalid-choice");
+        const searchParams = new URLSearchParams({
+            colorSchemeError: "invalid-color-scheme"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
     }
+
+    const 
 
     try {
         await query(
@@ -672,55 +743,39 @@ router.post("/reset-password", async (req, res, next) => {
     }
 });
 
-router.post("/signup", async (req, res, next) => {
-    const username = String(req.body.username || "").trim();
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const password = String(req.body.password || "");
-    const confirmPassword = String(req.body.confirmPassword || "");
+function getErrorMessage(error) {
+    return (error === "missing-fields")
+        ? "Some fields are missing."
+        : (error === "email-missing-fields")
+        ? "Some fields are missing."
+        : (error === "password-missing-fields")
+        ? "Some fields are missing."
+        : (error === "invalid-credentials")
+        ? "Those credentials are invalid."
+        : (error === "login-rate-limit")
+        ? "The login attempt limit has been reached and must expire."
+        : (error === "password-mismatch")
+        ? "The passwords do not match."
+        : (error === "username-taken")
+        ? "That username is already taken."
+        : (error === "email-in-use")
+        ? "That email is already in use."
+        : (error === "email-mismatch")
+        ? "Those email addresses do not match."
+        : (error === "email-same")
+        ? "That email address is already used by this account."
+        : "";
+}
 
-    if (!username || !email || !password || !confirmPassword) {
-        return res.status(400).send("All signup fields are required.");
-    }
-
-    if (password !== confirmPassword) {
-        return res.status(400).send("Passwords do not match.");
-    }
-
-    try {
-        const existingUsers = await query(
-            `SELECT username, email
-             FROM users
-             WHERE username = $1 OR email = $2`,
-            [username, email]
-        );
-
-        if (existingUsers.rows.some((user) => user.username === username)) {
-            return res.status(409).send("That username is already taken.");
-        }
-
-        if (existingUsers.rows.some((user) => user.email === email)) {
-            return res.status(409).send("That email is already in use.");
-        }
-
-        const passwordHash = await hashPassword(password);
-
-        await query(
-            `INSERT INTO users (username, email, password_hash)
-             VALUES ($1, $2, $3)`,
-            [username, email, passwordHash]
-        );
-
-        return res.redirect("/login");
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.post("/logout", (req, res) => {
-    clearSessionCookie(res);
-    res.redirect("/login");
-});
-
+function getSuccessMessage(success) {
+    return (success === "reset-success")
+        ? "Your password has been reset."
+        : (success === "email-updated")
+        ? "Your email address has been updated."
+        : (success === "password-updated")
+        ? "Your password has been updated."
+        : "";
+}
 
 async function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString("hex");
