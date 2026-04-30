@@ -68,7 +68,7 @@ router.get("/home", async (req, res, next) => {
         );
 
         const user = userResult.rows[0];
-        
+
         if (!user) {
             clearSessionCookie(res);
             return res.redirect("/login");
@@ -83,7 +83,7 @@ router.get("/home", async (req, res, next) => {
     }
 });
 
-router.get("/analyze", async(req, res, next) => {
+router.get("/analyze", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
     const userID = getSessionUserID(req);
@@ -194,11 +194,13 @@ router.get("/profile", async (req, res, next) => {
     try {
         const emailError = String(req.query.emailError || "");
         const passwordError = String(req.query.passwordError || "");
+        const colorSchemeError = String(req.query.colorSchemeError || "");
         const emailSuccess = String(req.query.emailSuccess || "");
         const passwordSuccess = String(req.query.passwordSuccess || "");
 
         const emailErrorMessage = getErrorMessage(emailError);
         const passwordErrorMessage = getErrorMessage(passwordError);
+        const colorSchemeErrorMessage = getErrorMessage(colorSchemeError);
         const emailSuccessMessage = getSuccessMessage(emailSuccess);
         const passwordSuccessMessage = getSuccessMessage(passwordSuccess);
 
@@ -242,6 +244,7 @@ router.get("/profile", async (req, res, next) => {
             },
             emailErrorMessage: emailErrorMessage,
             passwordErrorMessage: passwordErrorMessage,
+            colorSchemeErrorMessage: colorSchemeErrorMessage,
             emailSuccessMessage: emailSuccessMessage,
             passwordSuccessMessage: passwordSuccessMessage
         });
@@ -262,8 +265,8 @@ router.get("/about", async (req, res, next) => {
             WHERE 
                 user_id = $1
             LIMIT 1`,
-                [userID]
-            ) : null;
+            [userID]
+        ) : null;
 
         return res.render("about.njk", {
             currentPage: "about",
@@ -360,17 +363,19 @@ router.get("/forgot-password-confirmation", (req, res) => {
 
 router.get("/reset-password", async (req, res, next) => {
     const token = String(req.query.token || "").trim();
+    const error = String(req.query.error || "");
 
     try {
         const resetEvent = await findResetPasswordEvent(token);
-        const errorMessage = getResetPasswordErrorMessage(resetEvent);
+        const resetLinkErrorMessage = getResetPasswordErrorMessage(resetEvent);
+        const errorMessage = resetLinkErrorMessage || getErrorMessage(error);
 
-        return res.render("reset-password.njk", {
+        return res.render("reset-password.njk", buildResetPasswordView({
             currentPage: "reset-password",
             token: token,
             errorMessage: errorMessage,
-            resetLinkIsValid: !errorMessage
-        });
+            resetLinkIsValid: !resetLinkErrorMessage
+        }));
     } catch (error) {
         return next(error);
     }
@@ -451,10 +456,6 @@ router.post("/signup", async (req, res, next) => {
         ? "missing-fields"
         : (password !== confirmPassword)
         ? "password-mismatch"
-        : (existingUsers.rows.some((user) => user.username === username))
-        ? "username-taken"
-        : (existingUsers.rows.some((user) => user.email === email))
-        ? "email-taken"
         : "";
 
     if (error) {
@@ -494,40 +495,52 @@ router.post("/signup", async (req, res, next) => {
 
         const hashedPassword = await hashPassword(password);
 
-        const userResult = await query(
-            `INSERT INTO 
-                users 
-                (username, email, password_hash)
-             VALUES 
-                ($1, $2, $3)
-             RETURNING 
-                id`,
-            [username, email, hashedPassword]
-        );
+        const client = await getClient();
 
-        const userID = userResult?.rows[0]?.id;
+        try {
+            await client.query("BEGIN");
 
-        await query(
-            `INSERT INTO 
-                user_preferences 
-                (user_id)
-             VALUES
-                ($1)
-            `,
-            [userID]
-        );
+            const userResult = await client.query(
+                `INSERT INTO 
+                    users 
+                    (username, email, password_hash)
+                VALUES 
+                    ($1, $2, $3)
+                RETURNING 
+                    id`,
+                [username, email, hashedPassword]
+            );
 
-        await query(
-            `INSERT INTO
-                user_stats
-                (user_id)
-             VALUES
-                ($1)
-             `,
-             [userID]
-        );
+            const userID = userResult?.rows[0]?.id;
 
-        return res.redirect("/login");
+            await client.query(
+                `INSERT INTO 
+                    user_preferences 
+                    (user_id)
+                VALUES
+                    ($1)
+                `,
+                [userID]
+            );
+
+            await client.query(
+                `INSERT INTO
+                    user_stats
+                    (user_id)
+                VALUES
+                    ($1)`,
+                [userID]
+            );
+
+            await client.query("COMMIT");
+
+            return res.redirect("/login");
+        } catch (error) {
+            await client.query("ROLLBACK");
+            return next(error);
+        } finally {
+            client.release();
+        }
     } catch (error) {
         return next(error);
     }
@@ -541,6 +554,8 @@ router.post("/logout", (req, res) => {
 router.post("/profile/color-scheme", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
+    const userID = getSessionUserID(req);
+
     const colorScheme = String(req.body.changeColorScheme || "").trim().toLowerCase();
 
     if (!["light", "dark"].includes(colorScheme)) {
@@ -550,100 +565,136 @@ router.post("/profile/color-scheme", async (req, res, next) => {
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
-    const 
-
     try {
         await query(
-            `INSERT INTO user_preferences (user_id, color_scheme, updated_at)
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (user_id)
+            `INSERT INTO 
+                user_preferences 
+                (user_id, color_scheme, updated_at)
+             VALUES 
+                ($1, $2, NOW())
+             ON CONFLICT 
+                (user_id)
              DO UPDATE SET
                  color_scheme = EXCLUDED.color_scheme,
                  updated_at = NOW()`,
-            [authenticatedUserId, colorScheme]
+            [userID, colorScheme]
         );
 
-        return res.redirect("/profile?colorSchemeSuccess=updated");
+        return res.redirect("/profile?success=color-scheme-updated");
     } catch (error) {
         return next(error);
     }
 });
 
 router.post("/profile/change-email", async (req, res, next) => {
-    const authenticatedUserId = ensureAuthenticated(req, res);
+    if (nonexistentSessionRedirect(req, res)) return;
 
-    if (!authenticatedUserId) {
-        return;
-    }
+    const userID = getSessionUserID(req);
 
-    const nextEmail = String(req.body.nextEmail || "").trim().toLowerCase();
+    const email = String(req.body.email || "").trim().toLowerCase();
     const confirmEmail = String(req.body.confirmEmail || "").trim().toLowerCase();
 
-    if (!nextEmail || !confirmEmail) {
-        return res.redirect("/profile?emailChangeError=missing-fields");
+    if (!email || !confirmEmail) {
+        const searchParams = new URLSearchParams({
+            emailError: "email-missing-fields"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
-    if (nextEmail !== confirmEmail) {
-        return res.redirect("/profile?emailChangeError=mismatch");
+    if (email !== confirmEmail) {
+        const searchParams = new URLSearchParams({
+            emailError: "email-mismatch"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     try {
-        const currentUserResult = await query(
-            `SELECT email
-             FROM users
-             WHERE id = $1
+        const userResult = await query(
+            `SELECT 
+                email
+             FROM 
+                users
+             WHERE 
+                id = $1
              LIMIT 1`,
-            [authenticatedUserId]
+            [userID]
         );
 
-        const currentUser = currentUserResult.rows[0];
+        const user = userResult.rows[0];
 
-        if (!currentUser) {
+        if (!user) {
             clearSessionCookie(res);
             return res.redirect("/login");
         }
 
-        if (currentUser.email === nextEmail) {
-            return res.redirect("/profile?emailChangeError=same-email");
+        if (user.email === email) {
+            const searchParams = new URLSearchParams({
+                emailError: "email-same"
+            });
+            return res.redirect(`/profile?${searchParams.toString()}`);
         }
 
         const existingUserResult = await query(
-            `SELECT id
-             FROM users
-             WHERE email = $1 AND id <> $2
+            `SELECT 
+                id
+             FROM 
+                users
+             WHERE 
+                email = $1 
+             AND 
+                id <> $2
              LIMIT 1`,
-            [nextEmail, authenticatedUserId]
+            [email, userID]
         );
 
         if (existingUserResult.rows[0]) {
-            return res.redirect("/profile?emailChangeError=email-in-use");
+            const searchParams = new URLSearchParams({
+                emailError: "email-taken"
+            });
+            return res.redirect(`/profile?${searchParams.toString()}`);
         }
 
-        const emailChangeTokenHash = crypto.randomBytes(32).toString("hex");
+        const client = await getClient();
 
-        await query(
-            `UPDATE users
-             SET email = $1,
-                 updated_at = NOW()
-             WHERE id = $2`,
-            [nextEmail, authenticatedUserId]
-        );
+        try {
+           await client.query("BEGIN");
 
-        await query(
-            `INSERT INTO email_change_events (
-                user_id,
-                previous_email,
-                next_email,
-                token_hash,
-                requested_at,
-                expires_at,
-                changed_at
-            )
-             VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())`,
-            [authenticatedUserId, currentUser.email, nextEmail, emailChangeTokenHash]
-        );
+            await client.query(
+                `UPDATE 
+                    users
+                 SET 
+                    email = $1,
+                    updated_at = NOW()
+                 WHERE 
+                    id = $2`,
+                [email, userID]
+            );
 
-        return res.redirect("/profile?emailChangeSuccess=email-updated");
+            await client.query(
+                `INSERT INTO 
+                    email_change_events 
+                 (
+                    user_id,
+                    previous_email,
+                    next_email,
+                    changed_at
+                 )
+                 VALUES ($1, $2, $3, NOW())`,
+                [userID, user.email, email]
+            );
+
+            await client.query("COMMIT");
+
+            const searchParams = new URLSearchParams({
+                emailSuccess: "email-updated"
+            });
+            return res.redirect(`/profile?${searchParams.toString()}`);
+        } catch (error) {
+            await client.query("ROLLBACK");
+            return next(error);
+        } finally {
+            client.release();
+        }
     } catch (error) {
         return next(error);
     }
@@ -657,34 +708,39 @@ router.post("/forgot-password", (req, res) => {
     }
 
     query(
-        `SELECT id
-         FROM users
-         WHERE email = $1
+        `SELECT 
+            id
+         FROM 
+            users
+         WHERE 
+            email = $1
          LIMIT 1`,
         [email]
-    )
-        .then(async (userResult) => {
-            const user = userResult.rows[0];
+    ).then(async (userResult) => {
+        const user = userResult.rows[0];
 
-            if (user) {
-                const rawResetToken = crypto.randomBytes(32).toString("hex");
-                const tokenHash = hashResetToken(rawResetToken);
-                const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_MAX_AGE_MS);
-                const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${rawResetToken}`;
+        if (user) {
+            const resetToken = crypto.randomBytes(32).toString("hex");
+            const hashedResetToken = hashResetToken(resetToken);
+            const expiresAt = new Date(Date.now() + RESET_TOKEN_DURATION).toISOString();
+            const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
 
-                await query(
-                    `INSERT INTO password_reset_events (user_id, token_hash, expires_at)
-                     VALUES ($1, $2, $3)`,
-                    [user.id, tokenHash, expiresAt]
-                );
+            await query(
+                `INSERT INTO 
+                    password_reset_events 
+                    (user_id, token_hash, expires_at)
+                 VALUES 
+                    ($1, $2, $3)`,
+                [user.id, hashedResetToken, expiresAt]
+            );
 
-                if (process.env.NODE_ENV !== "production") {
-                    console.log(`Password reset URL: ${resetUrl}`);
-                }
+            if (process.env.NODE_ENV !== "production") {
+                console.log(`Password reset URL: ${resetUrl}`);
             }
+        }
 
-            return res.redirect("/forgot-password-confirmation");
-        })
+        return res.redirect("/forgot-password-confirmation");
+    })
         .catch((error) => {
             res.redirect("/forgot-password-confirmation");
         });
@@ -703,19 +759,19 @@ router.post("/reset-password", async (req, res, next) => {
     }
 
     if (!password || !confirmPassword) {
-        return res.render("reset-password.njk", buildResetPasswordView({
-            token,
-            errorMessage: "Enter and confirm your new password.",
-            resetLinkIsValid: true
-        }));
+        const searchParams = new URLSearchParams({
+            token: token,
+            error: "missing-fields"
+        });
+        return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     if (password !== confirmPassword) {
-        return res.render("reset-password.njk", buildResetPasswordView({
-            token,
-            errorMessage: "Passwords do not match.",
-            resetLinkIsValid: true
-        }));
+        const searchParams = new URLSearchParams({
+            token: token,
+            error: "password-mismatch"
+        });
+        return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     const client = await getClient();
@@ -723,7 +779,7 @@ router.post("/reset-password", async (req, res, next) => {
     try {
         await client.query("BEGIN");
 
-        const resetEvent = await findPasswordResetEvent(token, client, {
+        const resetEvent = await findResetPasswordEvent(token, client, {
             lockForUpdate: true
         });
         const resetErrorMessage = getPasswordResetErrorMessage(resetEvent);
@@ -731,7 +787,7 @@ router.post("/reset-password", async (req, res, next) => {
         if (resetErrorMessage) {
             await client.query("ROLLBACK");
             return res.render("reset-password.njk", buildResetPasswordView({
-                token,
+                token: token,
                 errorMessage: resetErrorMessage,
                 resetLinkIsValid: false
             }));
@@ -786,6 +842,8 @@ function getErrorMessage(error) {
         ? "Those email addresses do not match."
         : (error === "email-same")
         ? "That email address is already used by this account."
+        : (error === "invalid-color-scheme")
+        ? "That color scheme is invalid."
         : "";
 }
 
@@ -796,6 +854,10 @@ function getSuccessMessage(success) {
         ? "Your email address has been updated."
         : (success === "password-updated")
         ? "Your password has been updated."
+        : (success === "password-reset")
+        ? "Your password has been reset."
+        : (success === "color-scheme-updated")
+        ? "Your color scheme has been updated."
         : "";
 }
 
@@ -1040,35 +1102,6 @@ function buildResetPasswordView(data = {}) {
         token: data.token || "",
         resetLinkIsValid: Boolean(data.resetLinkIsValid)
     };
-}
-
-function getProfileMessages(error, success) {
-    const emailErrorMessage = (error === "email-missing-fields")
-        ? "Enter and confirm your new email address."
-        : (error === "email-mismatch")
-        ? "Email addresses do not match."
-        : (error === "email-taken")
-        ? "That email is already in use."
-        : (error === "email-same")
-        ? "Enter a different email address."
-        : "";
-
-    const passwordErrorMessage = (error === "password-missing-fields")
-        ? "Enter and confirm your new password."
-        : (error === "password-mismatch")
-        ? "Passwords do not match."
-        : "";
-
-    const emailSuccessMessage = (success === "email-updated")
-        ? "Your email address has been updated."
-        : "";
-
-    const passwordSuccessMessage = (success === "password-updated")
-        ? "Your password has been updated."
-        : "";
-
-    return { emailErrorMessage, passwordErrorMessage, 
-        emailSuccessMessage, passwordSuccessMessage };
 }
 
 function getSessionUserID(req) {

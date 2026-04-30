@@ -16,15 +16,18 @@ CREATE TABLE IF NOT EXISTS password_reset_events (
     reset_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS password_change_events (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS email_change_events (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     previous_email VARCHAR(255) NOT NULL,
     next_email VARCHAR(255) NOT NULL,
-    token_hash TEXT NOT NULL UNIQUE,
-    requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    changed_at TIMESTAMPTZ
+    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS login_rate_limits (
@@ -93,11 +96,17 @@ CREATE INDEX IF NOT EXISTS password_reset_events_user_id_idx
 CREATE INDEX IF NOT EXISTS password_reset_events_expires_at_idx
     ON password_reset_events (expires_at);
 
+CREATE INDEX IF NOT EXISTS password_change_events_user_id_idx
+    ON password_change_events (user_id);
+
+CREATE INDEX IF NOT EXISTS password_change_events_changed_at_idx
+    ON password_change_events (changed_at);
+
 CREATE INDEX IF NOT EXISTS email_change_events_user_id_idx
     ON email_change_events (user_id);
 
-CREATE INDEX IF NOT EXISTS email_change_events_expires_at_idx
-    ON email_change_events (expires_at);
+CREATE INDEX IF NOT EXISTS email_change_events_changed_at_idx
+    ON email_change_events (changed_at);
 
 CREATE INDEX IF NOT EXISTS login_rate_limits_blocked_until_idx
     ON login_rate_limits (blocked_until);
