@@ -75,7 +75,6 @@ CREATE TABLE IF NOT EXISTS user_stats (
     biggest_loss_per_contract NUMERIC(10, 3),
     biggest_win_per_trade NUMERIC(10, 3),
     biggest_loss_per_trade NUMERIC(10, 3),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -454,7 +454,7 @@ router.post("/signup", async (req, res, next) => {
         : (existingUsers.rows.some((user) => user.username === username))
         ? "username-taken"
         : (existingUsers.rows.some((user) => user.email === email))
-        ? "email-in-use"
+        ? "email-taken"
         : "";
 
     if (error) {
@@ -478,32 +478,54 @@ router.post("/signup", async (req, res, next) => {
             [username, email]
         );
 
+        if (existingUsers.rows.some((user) => user.username === username)) {
+            const searchParams = new URLSearchParams({
+                error: "username-taken"
+            });
+            return res.redirect(`/signup?${searchParams.toString()}`);
+        }
+
+        if (existingUsers.rows.some((user) => user.email === email)) {
+            const searchParams = new URLSearchParams({
+                error: "email-taken"
+            });
+            return res.redirect(`/signup?${searchParams.toString()}`);
+        }
+
         const hashedPassword = await hashPassword(password);
 
-        await query(
+        const userResult = await query(
             `INSERT INTO 
                 users 
                 (username, email, password_hash)
              VALUES 
-                ($1, $2, $3)`,
+                ($1, $2, $3)
+             RETURNING 
+                id`,
             [username, email, hashedPassword]
         );
 
-        const userID = await query(
-            `SELECT id
-             FROM users
-             WHERE username = $1
-             LIMIT 1`,
-            [username]
-        )
+        const userID = userResult?.rows[0]?.id;
 
         await query(
             `INSERT INTO 
                 user_preferences 
                 (user_id)
+             VALUES
+                ($1)
             `,
-            []
-        )
+            [userID]
+        );
+
+        await query(
+            `INSERT INTO
+                user_stats
+                (user_id)
+             VALUES
+                ($1)
+             `,
+             [userID]
+        );
 
         return res.redirect("/login");
     } catch (error) {
@@ -758,7 +780,7 @@ function getErrorMessage(error) {
         ? "The passwords do not match."
         : (error === "username-taken")
         ? "That username is already taken."
-        : (error === "email-in-use")
+        : (error === "email-taken")
         ? "That email is already in use."
         : (error === "email-mismatch")
         ? "Those email addresses do not match."
@@ -1025,7 +1047,7 @@ function getProfileMessages(error, success) {
         ? "Enter and confirm your new email address."
         : (error === "email-mismatch")
         ? "Email addresses do not match."
-        : (error === "email-in-use")
+        : (error === "email-taken")
         ? "That email is already in use."
         : (error === "email-same")
         ? "Enter a different email address."
