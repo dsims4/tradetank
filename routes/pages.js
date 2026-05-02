@@ -363,19 +363,28 @@ router.get("/forgot-password-confirmation", (req, res) => {
 
 router.get("/reset-password", async (req, res, next) => {
     const token = String(req.query.token || "").trim();
-    const error = String(req.query.error || "");
+    let errorMessage = String(req.query.errorMessage || "");
+    const linkIsValid = req.query.linkIsValid === "true";
 
-    try {
-        const resetEvent = await findResetPasswordEvent(token);
-        const resetLinkErrorMessage = getResetPasswordErrorMessage(resetEvent);
-        const errorMessage = resetLinkErrorMessage || getErrorMessage(error);
-
-        return res.render("reset-password.njk", buildResetPasswordView({
+    if (errorMessage) {
+        return res.render("reset-password.njk", {
             currentPage: "reset-password",
             token: token,
             errorMessage: errorMessage,
-            resetLinkIsValid: !resetLinkErrorMessage
-        }));
+            linkIsValid: linkIsValid
+        });
+    }
+
+    try {
+        const resetEvent = await getResetPasswordEvent(token);
+        errorMessage = getResetPasswordErrorMessage(resetEvent);
+
+        return res.render("reset-password.njk", {
+            currentPage: "reset-password",
+            token: token,
+            errorMessage: errorMessage,
+            linkIsValid: !errorMessage
+        });
     } catch (error) {
         return next(error);
     }
@@ -752,24 +761,31 @@ router.post("/reset-password", async (req, res, next) => {
     const confirmPassword = String(req.body.confirmPassword || "");
 
     if (!token) {
-        return res.render("reset-password.njk", buildResetPasswordView({
-            errorMessage: "This password reset link is invalid.",
-            resetLinkIsValid: false
-        }));
+        const errorMessage = getErrorMessage("invalid-token");
+        const searchParams = new URLSearchParams({
+            token: token,
+            errorMessage: errorMessage,
+            linkIsValid: "false"
+        });
+        return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     if (!password || !confirmPassword) {
+        const errorMessage = getErrorMessage("missing-fields");
         const searchParams = new URLSearchParams({
             token: token,
-            error: "missing-fields"
+            errorMessage: errorMessage,
+            linkIsValid: "true"
         });
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     if (password !== confirmPassword) {
+        const errorMessage = getErrorMessage("password-mismatch");
         const searchParams = new URLSearchParams({
             token: token,
-            error: "password-mismatch"
+            errorMessage: errorMessage,
+            linkIsValid: "true"
         });
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
@@ -779,40 +795,50 @@ router.post("/reset-password", async (req, res, next) => {
     try {
         await client.query("BEGIN");
 
-        const resetEvent = await findResetPasswordEvent(token, client, {
+        const resetPasswordEvent = await getResetPasswordEvent(token, client, {
             lockForUpdate: true
         });
-        const resetErrorMessage = getPasswordResetErrorMessage(resetEvent);
+        const errorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
 
-        if (resetErrorMessage) {
+        if (errorMessage) {
             await client.query("ROLLBACK");
-            return res.render("reset-password.njk", buildResetPasswordView({
+            const searchParams = new URLSearchParams({
                 token: token,
-                errorMessage: resetErrorMessage,
-                resetLinkIsValid: false
-            }));
+                errorMessage: errorMessage,
+                linkIsValid: "true"
+            });
+            return res.redirect(`/reset-password?${searchParams.toString()}`);
         }
 
-        const passwordHash = await hashPassword(password);
+        const hashedPassword = await hashPassword(password);
 
         await client.query(
-            `UPDATE users
-             SET password_hash = $1,
+            `UPDATE 
+                users
+             SET 
+                password_hash = $1,
                  updated_at = NOW()
-             WHERE id = $2`,
-            [passwordHash, resetEvent.user_id]
+             WHERE 
+                id = $2`,
+            [hashedPassword, resetPasswordEvent.user_id]
         );
 
         await client.query(
-            `UPDATE password_reset_events
-             SET reset_at = NOW()
-             WHERE id = $1`,
-            [resetEvent.id]
+            `UPDATE 
+                password_reset_events
+             SET 
+                reset_at = NOW()
+             WHERE 
+                id = $1`,
+            [resetPasswordEvent.id]
         );
 
         await client.query("COMMIT");
 
-        return res.redirect("/login?reset=success");
+        const searchParams = new URLSearchParams({
+            success: "reset-success"
+        });
+        return res.redirect(`/login?${searchParams.toString()}`);
     } catch (error) {
         await client.query("ROLLBACK");
         return next(error);
@@ -844,6 +870,8 @@ function getErrorMessage(error) {
         ? "That email address is already used by this account."
         : (error === "invalid-color-scheme")
         ? "That color scheme is invalid."
+        : (error === "invalid-token")
+        ? "The password reset token is invalid."
         : "";
 }
 
@@ -863,7 +891,7 @@ function getSuccessMessage(success) {
 
 async function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString("hex");
-    const passwordHash = await new Promise((resolve, reject) => {
+    const hashedPassword = await new Promise((resolve, reject) => {
         crypto.scrypt(password, salt, 64, (error, derivedKey) => {
             if (error) {
                 reject(error);
@@ -873,13 +901,13 @@ async function hashPassword(password) {
             resolve(`${salt}:${derivedKey.toString("hex")}`);
         });
     });
-    return passwordHash;
+    return hashedPassword;
 }
 
-async function verifyPassword(password, storedPasswordHash) {
-    const [salt, storedDerivedKeyHex] = storedPasswordHash.split(":");
+async function verifyPassword(password, storedHashedPassword) {
+    const [salt, storedDerivedKey] = storedHashedPassword.split(":");
 
-    if (!salt || !storedDerivedKeyHex) {
+    if (!salt || !storedDerivedKey) {
         return false;
     }
 
@@ -894,13 +922,13 @@ async function verifyPassword(password, storedPasswordHash) {
         });
     });
 
-    const storedDerivedKey = Buffer.from(storedDerivedKeyHex, "hex");
+    const storedDerivedKeyBuffer = Buffer.from(storedDerivedKey, "hex");
 
-    if (derivedKey.length !== storedDerivedKey.length) {
+    if (derivedKey.length !== storedDerivedKeyBuffer.length) {
         return false;
     }
 
-    return crypto.timingSafeEqual(derivedKey, storedDerivedKey);
+    return crypto.timingSafeEqual(derivedKey, storedDerivedKeyBuffer);
 }
 
 function parseCookies(cookieHeader = "") {
@@ -923,17 +951,17 @@ function parseCookies(cookieHeader = "") {
     );
 }
 
-function signSessionPayload(payload) {
-    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
-}
-
 function hashResetToken(token) {
     return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function createSessionValue(userId, maxAgeMs) {
-    const expiresAt = maxAgeMs ? Date.now() + maxAgeMs : 0;
-    const payload = `${userId}.${expiresAt}`;
+function signSessionPayload(payload) {
+    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+}
+
+function createSessionParameters(userId, sessionDuration) {
+    const expiration = sessionDuration ? Date.now() + sessionDuration : 0;
+    const payload = `${userId}.${expiration}`;
     const signature = signSessionPayload(payload);
 
     return `${payload}.${signature}`;
@@ -941,71 +969,71 @@ function createSessionValue(userId, maxAgeMs) {
 
 function getSessionUserIDFromCookie(req) {
     const cookies = parseCookies(req.headers.cookie);
-    const sessionValue = cookies[SESSION_NAME];
+    const sessionParameters = cookies[SESSION_NAME];
 
-    if (!sessionValue) {
+    if (!sessionParameters) {
         return null;
     }
 
-    const [userIdText, expiresAtText, signature] = sessionValue.split(".");
+    const [userIDString, expirationString, signature] = sessionParameters.split(".");
 
-    if (!userIdText || !expiresAtText || !signature) {
+    if (!userIDString || !expirationString || !signature) {
         return null;
     }
 
-    const payload = `${userIdText}.${expiresAtText}`;
-    const receivedSignatureBuffer = Buffer.from(signature, "hex");
+    const payload = `${userIDString}.${expirationString}`;
+    const actualSignatureBuffer = Buffer.from(signature, "hex");
     const expectedSignatureBuffer = Buffer.from(signSessionPayload(payload), "hex");
 
-    if (receivedSignatureBuffer.length !== expectedSignatureBuffer.length) {
+    if (actualSignatureBuffer.length !== expectedSignatureBuffer.length) {
         return null;
     }
 
-    if (!crypto.timingSafeEqual(receivedSignatureBuffer, expectedSignatureBuffer)) {
+    if (!crypto.timingSafeEqual(actualSignatureBuffer, expectedSignatureBuffer)) {
         return null;
     }
 
-    const expiresAt = Number(expiresAtText);
+    const expiration = Number(expirationString);
 
-    if (!Number.isFinite(expiresAt)) {
+    if (!Number.isFinite(expiration)) {
         return null;
     }
 
-    if (expiresAt !== 0 && expiresAt <= Date.now()) {
+    if (expiration !== 0 && expiration <= Date.now()) {
         return null;
     }
 
-    const userId = Number(userIdText);
+    const userId = Number(userIDString);
     return Number.isInteger(userId) ? userId : null;
 }
 
 function setSessionCookie(res, userId, rememberMe) {
-    const maxAgeMs = rememberMe ? REMEMBER_ME_SESSION_MAX_AGE_MS : null;
-    const sessionValue = createSessionValue(userId, maxAgeMs);
+    const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : null;
+    const sessionParameters = createSessionParameters(userId, sessionDuration);
     const isProduction = process.env.NODE_ENV === "production";
-    const cookieParts = [
-        `${SESSION_NAME}=${encodeURIComponent(sessionValue)}`,
+    const cookieParameters = [
+        `${SESSION_NAME}=${encodeURIComponent(sessionParameters)}`,
         "Path=/",
         "HttpOnly",
-        "SameSite=Strict"
+        "SameSite=Strict",
+        "Priority=High"
     ];
 
-    if (maxAgeMs) {
-        cookieParts.push(`Max-Age=${Math.floor(maxAgeMs / 1000)}`);
+    if (sessionDuration) {
+        cookieParameters.push(`Max-Age=${Math.floor(sessionDuration / 1000)}`);
     }
 
     if (isProduction) {
-        cookieParts.push("Secure");
+        cookieParameters.push("Secure");
     }
 
-    cookieParts.push("Priority=High");
 
-    res.setHeader("Set-Cookie", cookieParts.join("; "));
+    res.setHeader("Set-Cookie", cookieParameters.join("; "));
 }
 
 function clearSessionCookie(res) {
     const isProduction = process.env.NODE_ENV === "production";
-    const cookieParts = [
+    const cookieParameters = [
         `${SESSION_NAME}=`,
         "Path=/",
         "HttpOnly",
@@ -1015,41 +1043,52 @@ function clearSessionCookie(res) {
     ];
 
     if (isProduction) {
-        cookieParts.push("Secure");
+        cookieParameters.push("Secure");
     }
 
     res.setHeader(
         "Set-Cookie",
-        cookieParts.join("; ")
+        cookieParameters.join("; ")
     );
 }
 
-async function findLoginRateLimit(loginIdentifier) {
+async function getLoginRateLimit(loginIdentifier) {
     const rateLimitResult = await query(
-        `SELECT id, failed_attempt_count, window_started_at, blocked_until
-         FROM login_rate_limits
-         WHERE login_identifier = $1
+        `SELECT 
+            id, 
+            failed_attempt_count, 
+            window_started_at, 
+            blocked_until
+         FROM 
+            login_rate_limits
+         WHERE 
+            login_identifier = $1
          LIMIT 1`,
         [loginIdentifier]
     );
-
+    
     return rateLimitResult.rows[0] || null;
 }
 
-async function registerFailedLoginAttempt(loginIdentifier, ipAddress) {
-    const existingRateLimit = await findLoginRateLimit(loginIdentifier);
+async function recordFailedLoginAttempt(loginIdentifier, ipAddress) {
+    const existingRateLimit = await getLoginRateLimit(loginIdentifier);
     const now = Date.now();
 
     if (!existingRateLimit) {
         await query(
-            `INSERT INTO login_rate_limits (
+            `INSERT INTO 
+                login_rate_limits 
+                (
                 login_identifier,
                 ip_address,
                 failed_attempt_count,
                 window_started_at,
                 updated_at
-            )
-             VALUES ($1, $2, 1, NOW(), NOW())`,
+                )
+             VALUES 
+                (
+                $1, $2, 1, NOW(), NOW()
+                )`,
             [loginIdentifier, ipAddress || null]
         );
         return;
@@ -1095,15 +1134,6 @@ async function clearLoginRateLimit(loginIdentifier) {
     );
 }
 
-function buildResetPasswordView(data = {}) {
-    return {
-        currentPage: "reset-password",
-        errorMessage: data.errorMessage || "",
-        token: data.token || "",
-        resetLinkIsValid: Boolean(data.resetLinkIsValid)
-    };
-}
-
 function getSessionUserID(req) {
     if (req.authenticatedUserID !== undefined) return req.authenticatedUserID;
 
@@ -1145,19 +1175,19 @@ function setNoStoreHeaders(res) {
     });
 }
 
-async function findResetPasswordEvent(rawToken, db = { query }, options = {}) {
-    if (!rawToken) {
+async function getResetPasswordEvent(token, db = { query }, options = {}) {
+    if (!token) {
         return null;
     }
 
-    const tokenHash = hashResetToken(rawToken);
-    const lockClause = options.lockForUpdate ? "\n         FOR UPDATE" : "";
+    const hashedToken = hashResetToken(token);
+    const lockClause = options.lockForUpdate ? " FOR UPDATE" : "";
     const resetEventResult = await db.query(
         `SELECT id, user_id, expires_at, reset_at
          FROM password_reset_events
          WHERE token_hash = $1
          LIMIT 1${lockClause}`,
-        [tokenHash]
+        [hashedToken]
     );
 
     return resetEventResult.rows[0] || null;
