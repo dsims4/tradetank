@@ -235,7 +235,7 @@ router.get("/profile", async (req, res, next) => {
             profile: {
                 username: user.username,
                 email: user.email,
-                createdAtLabel: new Intl.DateTimeFormat("en-US", {
+                creationTimeLabel: new Intl.DateTimeFormat("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric"
@@ -376,8 +376,8 @@ router.get("/reset-password", async (req, res, next) => {
     }
 
     try {
-        const resetEvent = await getResetPasswordEvent(token);
-        errorMessage = getResetPasswordErrorMessage(resetEvent);
+        const resetPasswordEvent = await getResetPasswordEvent(token);
+        errorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
 
         return res.render("reset-password.njk", {
             currentPage: "reset-password",
@@ -405,11 +405,11 @@ router.post("/login", async (req, res, next) => {
 
     try {
         const loginRateLimit = await getLoginRateLimit(username);
-        const loginRateLimitExpiration = loginRateLimit?.expiration_time
+        const loginRateLimitExpirationTime = loginRateLimit?.expiration_time
             ? new Date(loginRateLimit.expiration_time).getTime()
             : null;
 
-        if (loginRateLimitExpiration && loginRateLimitExpiration > Date.now()) {
+        if (loginRateLimitExpirationTime && loginRateLimitExpirationTime > Date.now()) {
             const searchParams = new URLSearchParams({
                 username: username,
                 error: "login-rate-limit"
@@ -713,24 +713,24 @@ router.post("/profile/change-password", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
     const userID = getSessionUserID(req);
-    const password = String(req.body.password || "");
+    const newPassword = String(req.body.newPassword || "");
     const confirmPassword = String(req.body.confirmPassword || "");
 
-    if (!password || !confirmPassword) {
+    if (!newPassword || !confirmPassword) {
         const searchParams = new URLSearchParams({
             passwordError: "password-missing-fields"
         });
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
         const searchParams = new URLSearchParams({
             passwordError: "password-mismatch"
         });
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(newPassword);
 
     const client = await getClient();
 
@@ -793,8 +793,8 @@ router.post("/forgot-password", (req, res) => {
         if (user) {
             const resetToken = crypto.randomBytes(32).toString("hex");
             const hashedResetToken = hashResetToken(resetToken);
-            const expiresAt = new Date(Date.now() + RESET_TOKEN_DURATION).toISOString();
-            const resetUrl = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
+            const expirationTime = new Date(Date.now() + RESET_TOKEN_DURATION).toISOString();
+            const resetURL = `${req.protocol}://${req.get("host")}/reset-password?token=${resetToken}`;
 
             await query(
                 `INSERT INTO 
@@ -802,11 +802,11 @@ router.post("/forgot-password", (req, res) => {
                     (user_id, hashed_token, expiration_time)
                  VALUES 
                     ($1, $2, $3)`,
-                [user.id, hashedResetToken, expiresAt]
+                [user.id, hashedResetToken, expirationTime]
             );
 
             if (process.env.NODE_ENV !== "production") {
-                console.log(`Password reset URL: ${resetUrl}`);
+                console.log(`Password reset URL: ${resetURL}`);
             }
         }
 
@@ -819,7 +819,7 @@ router.post("/forgot-password", (req, res) => {
 
 router.post("/reset-password", async (req, res, next) => {
     const token = String(req.body.token || "").trim();
-    const password = String(req.body.password || "");
+    const newPassword = String(req.body.password || "");
     const confirmPassword = String(req.body.confirmPassword || "");
 
     if (!token) {
@@ -832,7 +832,7 @@ router.post("/reset-password", async (req, res, next) => {
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
-    if (!password || !confirmPassword) {
+    if (!newPassword || !confirmPassword) {
         const errorMessage = getErrorMessage("missing-fields");
         const searchParams = new URLSearchParams({
             token: token,
@@ -842,7 +842,7 @@ router.post("/reset-password", async (req, res, next) => {
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
         const errorMessage = getErrorMessage("password-mismatch");
         const searchParams = new URLSearchParams({
             token: token,
@@ -872,7 +872,7 @@ router.post("/reset-password", async (req, res, next) => {
             return res.redirect(`/reset-password?${searchParams.toString()}`);
         }
 
-        const hashedPassword = await hashPassword(password);
+        const hashedPassword = await hashPassword(newPassword);
 
         await client.query(
             `UPDATE 
@@ -1021,9 +1021,9 @@ function signSessionPayload(payload) {
     return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
 }
 
-function createSessionParameters(userId, sessionDuration) {
-    const expiration = sessionDuration ? Date.now() + sessionDuration : 0;
-    const payload = `${userId}.${expiration}`;
+function createSessionPayload(userID, sessionDuration) {
+    const expirationTime = sessionDuration ? Date.now() + sessionDuration : 0;
+    const payload = `${userID}.${expirationTime}`;
     const signature = signSessionPayload(payload);
 
     return `${payload}.${signature}`;
@@ -1031,13 +1031,13 @@ function createSessionParameters(userId, sessionDuration) {
 
 function getSessionUserIDFromCookie(req) {
     const cookies = parseCookies(req.headers.cookie);
-    const sessionParameters = cookies[SESSION_NAME];
+    const sessionPayload = cookies[SESSION_NAME];
 
-    if (!sessionParameters) {
+    if (!sessionPayload) {
         return null;
     }
 
-    const [userIDString, expirationString, signature] = sessionParameters.split(".");
+    const [userIDString, expirationString, signature] = sessionPayload.split(".");
 
     if (!userIDString || !expirationString || !signature) {
         return null;
@@ -1055,26 +1055,26 @@ function getSessionUserIDFromCookie(req) {
         return null;
     }
 
-    const expiration = Number(expirationString);
+    const expirationTime = Number(expirationString);
 
-    if (!Number.isFinite(expiration)) {
+    if (!Number.isFinite(expirationTime)) {
         return null;
     }
 
-    if (expiration !== 0 && expiration <= Date.now()) {
+    if (expirationTime !== 0 && expirationTime <= Date.now()) {
         return null;
     }
 
-    const userId = Number(userIDString);
-    return Number.isInteger(userId) ? userId : null;
+    const userID = Number(userIDString);
+    return Number.isInteger(userID) ? userID : null;
 }
 
-function setSessionCookie(res, userId, rememberMe) {
+function setSessionCookie(res, userID, rememberMe) {
     const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : null;
-    const sessionParameters = createSessionParameters(userId, sessionDuration);
+    const sessionPayload = createSessionPayload(userID, sessionDuration);
     const isProduction = process.env.NODE_ENV === "production";
     const cookieParameters = [
-        `${SESSION_NAME}=${encodeURIComponent(sessionParameters)}`,
+        `${SESSION_NAME}=${encodeURIComponent(sessionPayload)}`,
         "Path=/",
         "HttpOnly",
         "SameSite=Strict",
@@ -1115,7 +1115,7 @@ function clearSessionCookie(res) {
 }
 
 async function getLoginRateLimit(username) {
-    const rateLimitResult = await query(
+    const loginRateLimitResult = await query(
         `SELECT 
             id, 
             failed_attempts, 
@@ -1129,14 +1129,14 @@ async function getLoginRateLimit(username) {
         [username]
     );
     
-    return rateLimitResult.rows[0] || null;
+    return loginRateLimitResult.rows[0] || null;
 }
 
 async function recordFailedLoginAttempt(username, ipAddress) {
-    const existingRateLimit = await getLoginRateLimit(username);
-    const now = Date.now();
+    const existingLoginRateLimit = await getLoginRateLimit(username);
+    const currentTime = Date.now();
 
-    if (!existingRateLimit) {
+    if (!existingLoginRateLimit) {
         await query(
             `INSERT INTO 
                 login_rate_limits 
@@ -1156,15 +1156,15 @@ async function recordFailedLoginAttempt(username, ipAddress) {
         return;
     }
 
-    const startTime = new Date(existingRateLimit.start_time).getTime();
+    const startTime = new Date(existingLoginRateLimit.start_time).getTime();
     const windowHasExpired = !Number.isFinite(startTime)
-        || (now - startTime) > LOGIN_RATE_LIMIT_WINDOW;
+        || (currentTime - startTime) > LOGIN_RATE_LIMIT_WINDOW;
     const newFailedAttempts = windowHasExpired
         ? 1
-        : Number(existingRateLimit.failed_attempts || 0) + 1;
+        : Number(existingLoginRateLimit.failed_attempts || 0) + 1;
     const shouldBlock = newFailedAttempts >= LOGIN_RATE_LIMIT_FAILURES;
-    const blockedUntil = shouldBlock
-        ? new Date(now + LOGIN_RATE_LIMIT_TIMEOUT).toISOString()
+    const expirationTime = shouldBlock
+        ? new Date(currentTime + LOGIN_RATE_LIMIT_TIMEOUT).toISOString()
         : null;
 
     await query(
@@ -1182,11 +1182,11 @@ async function recordFailedLoginAttempt(username, ipAddress) {
          WHERE 
             id = $1`,
         [
-            existingRateLimit.id,
+            existingLoginRateLimit.id,
             ipAddress || null,
             newFailedAttempts,
             windowHasExpired,
-            blockedUntil
+            expirationTime
         ]
     );
 }
@@ -1213,9 +1213,9 @@ function existentSession(req) {
 }
 
 function existentSessionRedirect(req, res) {
-    const existentSession = existentSession(req);
+    const sessionExists = existentSession(req);
 
-    if (existentSession) {
+    if (sessionExists) {
         res.redirect("/home");
         return true;
     }
@@ -1223,9 +1223,9 @@ function existentSessionRedirect(req, res) {
 }
 
 function nonexistentSessionRedirect(req, res) {
-    const existentSession = existentSession(req);
+    const sessionExists = existentSession(req);
 
-    if (!existentSession) {
+    if (!sessionExists) {
         res.redirect("/login");
         return true;
     }
@@ -1247,9 +1247,9 @@ async function getResetPasswordEvent(token, db = { query }, options = {}) {
         return null;
     }
 
-    const hashedToken = hashResetToken(token);
+    const hashedResetToken = hashResetToken(token);
     const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
-    const resetEventResult = await db.query(
+    const resetPasswordEventResult = await db.query(
         `SELECT 
             id, user_id, 
             expiration_time, 
@@ -1260,22 +1260,22 @@ async function getResetPasswordEvent(token, db = { query }, options = {}) {
             hashed_token = $1
          LIMIT 1 
             ${lockClause}`,
-        [hashedToken]
+        [hashedResetToken]
     );
 
-    return resetEventResult.rows[0] || null;
+    return resetPasswordEventResult.rows[0] || null;
 }
 
-function getResetPasswordErrorMessage(resetEvent) {
-    if (!resetEvent) {
+function getResetPasswordErrorMessage(resetPasswordEvent) {
+    if (!resetPasswordEvent) {
         return "This password reset link is invalid.";
     }
 
-    if (resetEvent.reset_time) {
+    if (resetPasswordEvent.reset_time) {
         return "This password reset link has been used or expired.";
     }
 
-    if (new Date(resetEvent.expiration_time).getTime() <= Date.now()) {
+    if (new Date(resetPasswordEvent.expiration_time).getTime() <= Date.now()) {
         return "This password reset link has been used or expired.";
     }
 
