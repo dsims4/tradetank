@@ -46,7 +46,7 @@ router.get("/signup", (req, res) => {
 
     res.render("signup.njk", {
         currentPage: "signup",
-        error: errorMessage
+        errorMessage: errorMessage
     });
 });
 
@@ -208,7 +208,7 @@ router.get("/profile", async (req, res, next) => {
             `SELECT
                 users.username,
                 users.email,
-                users.created_at,
+                users.creation_time,
                 user_preferences.color_scheme
              FROM 
                 users
@@ -239,7 +239,7 @@ router.get("/profile", async (req, res, next) => {
                     month: "long",
                     day: "numeric",
                     year: "numeric"
-                }).format(new Date(user.created_at)),
+                }).format(new Date(user.creation_time)),
                 colorScheme: user.color_scheme || "light"
             },
             emailErrorMessage: emailErrorMessage,
@@ -404,9 +404,9 @@ router.post("/login", async (req, res, next) => {
     }
 
     try {
-        const loginRateLimit = await findLoginRateLimit(username);
-        const loginRateLimitExpiration = loginRateLimit?.blocked_until
-            ? new Date(loginRateLimit.blocked_until).getTime()
+        const loginRateLimit = await getLoginRateLimit(username);
+        const loginRateLimitExpiration = loginRateLimit?.expiration_time
+            ? new Date(loginRateLimit.expiration_time).getTime()
             : null;
 
         if (loginRateLimitExpiration && loginRateLimitExpiration > Date.now()) {
@@ -418,7 +418,7 @@ router.post("/login", async (req, res, next) => {
         }
 
         const userResult = await query(
-            `SELECT id, password_hash
+            `SELECT id, hashed_password
              FROM users
              WHERE username = $1
              LIMIT 1`,
@@ -436,7 +436,7 @@ router.post("/login", async (req, res, next) => {
             return res.redirect(`/login?${searchParams.toString()}`);
         }
 
-        const passwordIsValid = await verifyPassword(password, user.password_hash);
+        const passwordIsValid = await verifyPassword(password, user.hashed_password);
 
         if (!passwordIsValid) {
             await recordFailedLoginAttempt(username, req.ip);
@@ -512,7 +512,7 @@ router.post("/signup", async (req, res, next) => {
             const userResult = await client.query(
                 `INSERT INTO 
                     users 
-                    (username, email, password_hash)
+                    (username, email, hashed_password)
                 VALUES 
                     ($1, $2, $3)
                 RETURNING 
@@ -578,14 +578,14 @@ router.post("/profile/color-scheme", async (req, res, next) => {
         await query(
             `INSERT INTO 
                 user_preferences 
-                (user_id, color_scheme, updated_at)
+                (user_id, color_scheme, update_time)
              VALUES 
                 ($1, $2, NOW())
              ON CONFLICT 
                 (user_id)
              DO UPDATE SET
                  color_scheme = EXCLUDED.color_scheme,
-                 updated_at = NOW()`,
+                 update_time = NOW()`,
             [userID, colorScheme]
         );
 
@@ -673,7 +673,7 @@ router.post("/profile/change-email", async (req, res, next) => {
                     users
                  SET 
                     email = $1,
-                    updated_at = NOW()
+                    update_time = NOW()
                  WHERE 
                     id = $2`,
                 [email, userID]
@@ -686,7 +686,7 @@ router.post("/profile/change-email", async (req, res, next) => {
                     user_id,
                     previous_email,
                     next_email,
-                    changed_at
+                    change_time
                  )
                  VALUES ($1, $2, $3, NOW())`,
                 [userID, user.email, email]
@@ -706,6 +706,68 @@ router.post("/profile/change-email", async (req, res, next) => {
         }
     } catch (error) {
         return next(error);
+    }
+});
+
+router.post("/profile/change-password", async (req, res, next) => {
+    if (nonexistentSessionRedirect(req, res)) return;
+
+    const userID = getSessionUserID(req);
+    const password = String(req.body.password || "");
+    const confirmPassword = String(req.body.confirmPassword || "");
+
+    if (!password || !confirmPassword) {
+        const searchParams = new URLSearchParams({
+            passwordError: "password-missing-fields"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    }
+
+    if (password !== confirmPassword) {
+        const searchParams = new URLSearchParams({
+            passwordError: "password-mismatch"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    }
+
+    const hashedPassword = await hashPassword(password);
+
+    const client = await getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        await client.query(
+            `UPDATE
+                users
+             SET
+                hashed_password = $1,
+                update_time = NOW()
+             WHERE
+                id = $2`,
+            [hashedPassword, userID]
+        );
+
+        await client.query(
+            `INSERT INTO
+                password_change_events
+                (user_id, change_time)
+             VALUES
+                ($1, NOW())`,
+            [userID]
+        );
+
+        await client.query("COMMIT");
+
+        const searchParams = new URLSearchParams({
+            passwordSuccess: "password-updated"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    } catch (error) {
+        await client.query("ROLLBACK");
+        return next(error);
+    } finally {
+        client.release();
     }
 });
 
@@ -737,7 +799,7 @@ router.post("/forgot-password", (req, res) => {
             await query(
                 `INSERT INTO 
                     password_reset_events 
-                    (user_id, token_hash, expires_at)
+                    (user_id, hashed_token, expiration_time)
                  VALUES 
                     ($1, $2, $3)`,
                 [user.id, hashedResetToken, expiresAt]
@@ -816,8 +878,8 @@ router.post("/reset-password", async (req, res, next) => {
             `UPDATE 
                 users
              SET 
-                password_hash = $1,
-                 updated_at = NOW()
+                hashed_password = $1,
+                 update_time = NOW()
              WHERE 
                 id = $2`,
             [hashedPassword, resetPasswordEvent.user_id]
@@ -827,7 +889,7 @@ router.post("/reset-password", async (req, res, next) => {
             `UPDATE 
                 password_reset_events
              SET 
-                reset_at = NOW()
+                reset_time = NOW()
              WHERE 
                 id = $1`,
             [resetPasswordEvent.id]
@@ -1052,26 +1114,26 @@ function clearSessionCookie(res) {
     );
 }
 
-async function getLoginRateLimit(loginIdentifier) {
+async function getLoginRateLimit(username) {
     const rateLimitResult = await query(
         `SELECT 
             id, 
-            failed_attempt_count, 
-            window_started_at, 
-            blocked_until
+            failed_attempts, 
+            start_time, 
+            expiration_time
          FROM 
             login_rate_limits
          WHERE 
-            login_identifier = $1
+            username = $1
          LIMIT 1`,
-        [loginIdentifier]
+        [username]
     );
     
     return rateLimitResult.rows[0] || null;
 }
 
-async function recordFailedLoginAttempt(loginIdentifier, ipAddress) {
-    const existingRateLimit = await getLoginRateLimit(loginIdentifier);
+async function recordFailedLoginAttempt(username, ipAddress) {
+    const existingRateLimit = await getLoginRateLimit(username);
     const now = Date.now();
 
     if (!existingRateLimit) {
@@ -1079,58 +1141,63 @@ async function recordFailedLoginAttempt(loginIdentifier, ipAddress) {
             `INSERT INTO 
                 login_rate_limits 
                 (
-                login_identifier,
+                username,
                 ip_address,
-                failed_attempt_count,
-                window_started_at,
-                updated_at
+                failed_attempts,
+                start_time,
+                update_time
                 )
              VALUES 
                 (
                 $1, $2, 1, NOW(), NOW()
                 )`,
-            [loginIdentifier, ipAddress || null]
+            [username, ipAddress || null]
         );
         return;
     }
 
-    const windowStartedAtMs = new Date(existingRateLimit.window_started_at).getTime();
-    const windowHasExpired = !Number.isFinite(windowStartedAtMs)
-        || (now - windowStartedAtMs) > LOGIN_RATE_LIMIT_WINDOW_MS;
-    const nextFailedAttemptCount = windowHasExpired
+    const startTime = new Date(existingRateLimit.start_time).getTime();
+    const windowHasExpired = !Number.isFinite(startTime)
+        || (now - startTime) > LOGIN_RATE_LIMIT_WINDOW;
+    const newFailedAttempts = windowHasExpired
         ? 1
-        : Number(existingRateLimit.failed_attempt_count || 0) + 1;
-    const shouldBlock = nextFailedAttemptCount >= LOGIN_RATE_LIMIT_MAX_FAILURES;
+        : Number(existingRateLimit.failed_attempts || 0) + 1;
+    const shouldBlock = newFailedAttempts >= LOGIN_RATE_LIMIT_FAILURES;
     const blockedUntil = shouldBlock
-        ? new Date(now + LOGIN_RATE_LIMIT_BLOCK_MS).toISOString()
+        ? new Date(now + LOGIN_RATE_LIMIT_TIMEOUT).toISOString()
         : null;
 
     await query(
-        `UPDATE login_rate_limits
-         SET ip_address = $2,
-             failed_attempt_count = $3,
-             window_started_at = CASE
+        `UPDATE 
+            login_rate_limits
+         SET 
+            ip_address = $2,
+             failed_attempts = $3,
+             start_time = CASE
                  WHEN $4 THEN NOW()
-                 ELSE window_started_at
+                 ELSE start_time
              END,
-             blocked_until = $5,
-             updated_at = NOW()
-         WHERE id = $1`,
+             expiration_time = $5,
+             update_time = NOW()
+         WHERE 
+            id = $1`,
         [
             existingRateLimit.id,
             ipAddress || null,
-            nextFailedAttemptCount,
+            newFailedAttempts,
             windowHasExpired,
             blockedUntil
         ]
     );
 }
 
-async function clearLoginRateLimit(loginIdentifier) {
+async function clearLoginRateLimit(username) {
     await query(
-        `DELETE FROM login_rate_limits
-         WHERE login_identifier = $1`,
-        [loginIdentifier]
+        `DELETE FROM 
+            login_rate_limits
+         WHERE 
+            username = $1`,
+        [username]
     );
 }
 
@@ -1181,12 +1248,18 @@ async function getResetPasswordEvent(token, db = { query }, options = {}) {
     }
 
     const hashedToken = hashResetToken(token);
-    const lockClause = options.lockForUpdate ? " FOR UPDATE" : "";
+    const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
     const resetEventResult = await db.query(
-        `SELECT id, user_id, expires_at, reset_at
-         FROM password_reset_events
-         WHERE token_hash = $1
-         LIMIT 1${lockClause}`,
+        `SELECT 
+            id, user_id, 
+            expiration_time, 
+            reset_time
+         FROM 
+            password_reset_events
+         WHERE 
+            hashed_token = $1
+         LIMIT 1 
+            ${lockClause}`,
         [hashedToken]
     );
 
@@ -1198,11 +1271,11 @@ function getResetPasswordErrorMessage(resetEvent) {
         return "This password reset link is invalid.";
     }
 
-    if (resetEvent.reset_at) {
+    if (resetEvent.reset_time) {
         return "This password reset link has been used or expired.";
     }
 
-    if (new Date(resetEvent.expires_at).getTime() <= Date.now()) {
+    if (new Date(resetEvent.expiration_time).getTime() <= Date.now()) {
         return "This password reset link has been used or expired.";
     }
 
