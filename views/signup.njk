@@ -4,10 +4,22 @@
 
 {% block content %}
     <div class="main-container">
-        <form method="POST" class="form" data-signup-form>
+        <form
+            method="POST"
+            class="form"
+            data-signup-form
+            {% if errorMessage or successMessage %}data-clear-query{% endif %}>
             <div class="form-header">
                 <h1>Sign Up</h1>
             </div>
+
+            {% if successMessage %}
+                <p class="form-message form-message--success">{{ successMessage }}</p>
+            {% endif %}
+            
+            {% if errorMessage %}
+                <p class="form-message form-message--error">{{ errorMessage }}</p>
+            {% endif %}
 
             <div class="form-fields">
                 <div class="form-row">

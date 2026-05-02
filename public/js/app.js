@@ -187,10 +187,6 @@ function runLoginForm() {
 
     clearPasswordField();
 
-    if (window.location.search && loginForm.hasAttribute("data-clear-login-query")) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
     window.addEventListener("pageshow", (event) => {
         const navigationEntries = window.performance.getEntriesByType("navigation");
         const navigationType = navigationEntries[0]?.type;
@@ -240,6 +236,31 @@ function runResetPasswordForm() {
     confirmPasswordInput.addEventListener("input", clearPasswordValidation);
 }
 
+function runQueryCleaner() {
+    const queryCleaner = document.querySelector("[data-clear-query]");
+
+    if (!queryCleaner || !window.location.search) {
+        return;
+    }
+
+    const keepParameters = String(queryCleaner.dataset.clearQueryKeep || "")
+        .split(",")
+        .map((parameter) => parameter.trim())
+        .filter(Boolean);
+    const currentParameters = new URLSearchParams(window.location.search);
+    const cleanParameters = new URLSearchParams();
+
+    keepParameters.forEach((parameter) => {
+        const values = currentParameters.getAll(parameter);
+        values.forEach((value) => cleanParameters.append(parameter, value));
+    });
+
+    const cleanSearch = cleanParameters.toString();
+    const cleanURL = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ""}${window.location.hash}`;
+
+    window.history.replaceState({}, document.title, cleanURL);
+}
+
 function runProtectedPageGuard() {
     const protectedPage = document.body?.dataset.protectedPage !== undefined;
 
@@ -261,4 +282,5 @@ runSlideshow();
 runSignupForm();
 runLoginForm();
 runResetPasswordForm();
+runQueryCleaner();
 runProtectedPageGuard();

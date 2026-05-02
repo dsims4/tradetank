@@ -43,10 +43,13 @@ router.get("/signup", (req, res) => {
 
     const error = req.query.error || "";
     const errorMessage = getErrorMessage(error);
+    const success = req.query.success || "";
+    const successMessage = getSuccessMessage(success);
 
     res.render("signup.njk", {
         currentPage: "signup",
-        errorMessage: errorMessage
+        errorMessage: errorMessage,
+        successMessage: successMessage
     });
 });
 
@@ -270,6 +273,7 @@ router.get("/about", async (req, res, next) => {
 
         return res.render("about.njk", {
             currentPage: "about",
+            layoutTemplate: getPageLayoutTemplate(userID),
             colorScheme: userResult?.rows[0]?.color_scheme || "light"
         });
     } catch (error) {
@@ -294,6 +298,7 @@ router.get("/contact", async (req, res, next) => {
 
         return res.render("contact.njk", {
             currentPage: "contact",
+            layoutTemplate: getPageLayoutTemplate(userID),
             colorScheme: userResult?.rows[0]?.color_scheme || "light"
         });
     } catch (error) {
@@ -318,6 +323,7 @@ router.get("/privacy-policy", async (req, res, next) => {
 
         return res.render("privacy-policy.njk", {
             currentPage: "privacy-policy",
+            layoutTemplate: getPageLayoutTemplate(userID),
             colorScheme: userResult?.rows[0]?.color_scheme || "light"
         });
     } catch (error) {
@@ -342,6 +348,7 @@ router.get("/terms-of-use", async (req, res, next) => {
 
         return res.render("terms-of-use.njk", {
             currentPage: "terms-of-use",
+            layoutTemplate: getPageLayoutTemplate(userID),
             colorScheme: userResult?.rows[0]?.color_scheme || "light"
         });
     } catch (error) {
@@ -589,7 +596,7 @@ router.post("/profile/color-scheme", async (req, res, next) => {
             [userID, colorScheme]
         );
 
-        return res.redirect("/profile?success=color-scheme-updated");
+        return res.redirect("/profile");
     } catch (error) {
         return next(error);
     }
@@ -771,6 +778,38 @@ router.post("/profile/change-password", async (req, res, next) => {
     }
 });
 
+router.post("/profile/delete-account", async (req, res, next) => {
+    if (nonexistentSessionRedirect(req, res)) return;
+
+    const userID = getSessionUserID(req);
+    const client = await getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        await client.query(
+            `DELETE FROM 
+                users
+             WHERE
+                id = $1`,
+            [userID]
+        );
+
+        await client.query("COMMIT");
+        clearSessionCookie(res);
+        const searchParams = new URLSearchParams({
+            success: "account-deleted"
+        });
+        return res.redirect(`/signup?${searchParams.toString()}`);
+    } catch (error) {
+        await client.query("ROLLBACK");
+        return next(error);
+    } finally {
+        client.release();
+    }
+});
+
+
 router.post("/forgot-password", (req, res) => {
     const email = String(req.body.email || "").trim().toLowerCase();
 
@@ -867,7 +906,7 @@ router.post("/reset-password", async (req, res, next) => {
             const searchParams = new URLSearchParams({
                 token: token,
                 errorMessage: errorMessage,
-                linkIsValid: "true"
+                linkIsValid: "false"
             });
             return res.redirect(`/reset-password?${searchParams.toString()}`);
         }
@@ -948,6 +987,8 @@ function getSuccessMessage(success) {
         ? "Your password has been reset."
         : (success === "color-scheme-updated")
         ? "Your color scheme has been updated."
+        : (success === "account-deleted")
+        ? "Your account has been deleted."
         : "";
 }
 
@@ -1070,7 +1111,7 @@ function getSessionUserIDFromCookie(req) {
 }
 
 function setSessionCookie(res, userID, rememberMe) {
-    const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : null;
+    const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : SESSION_DURATION;
     const sessionPayload = createSessionPayload(userID, sessionDuration);
     const isProduction = process.env.NODE_ENV === "production";
     const cookieParameters = [
@@ -1240,6 +1281,10 @@ function setNoStoreHeaders(res) {
         Pragma: "no-cache",
         Expires: "0"
     });
+}
+
+function getPageLayoutTemplate(userID) {
+    return userID ? "layouts/app.njk" : "layouts/main.njk";
 }
 
 async function getResetPasswordEvent(token, db = { query }, options = {}) {

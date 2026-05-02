@@ -4,19 +4,17 @@
 
 {% block content %}
     <div class="main-container">
-        <div class="profile-forms">
+        <div
+            class="profile-forms"
+            {% if colorSchemeErrorMessage or emailSuccessMessage or emailErrorMessage or passwordSuccessMessage or passwordErrorMessage %}data-clear-query{% endif %}>
             <section class="form profile-form profile-summary-form">
                 <div class="form-header">
                     <h1>Profile</h1>
                 </div>
 
                 <div class="form-fields">
-                    {% if colorSchemeMessage.successMessage %}
-                        <p class="form-message form-message--success">{{ colorSchemeMessage.successMessage }}</p>
-                    {% endif %}
-
-                    {% if colorSchemeMessage.errorMessage %}
-                        <p class="form-message form-message--error">{{ colorSchemeMessage.errorMessage }}</p>
+                    {% if colorSchemeErrorMessage %}
+                        <p class="form-message form-message--error">{{ colorSchemeErrorMessage }}</p>
                     {% endif %}
 
                     <div class="form-row">
@@ -44,7 +42,7 @@
                                     <label class="profile-radio-option">
                                         <input
                                             type="radio"
-                                            name="profileColorScheme"
+                                            name="changeColorScheme"
                                             value="light"
                                             onchange="this.form.submit()"
                                             {% if profile.colorScheme == "light" %}checked{% endif %}>
@@ -54,7 +52,7 @@
                                     <label class="profile-radio-option">
                                         <input
                                             type="radio"
-                                            name="profileColorScheme"
+                                            name="changeColorScheme"
                                             value="dark"
                                             onchange="this.form.submit()"
                                             {% if profile.colorScheme == "dark" %}checked{% endif %}>
@@ -74,12 +72,12 @@
 
                 <div class="form-fields">
                     <form method="POST" action="/profile/change-email" class="profile-settings-group">
-                        {% if emailChangeMessage.successMessage %}
-                            <p class="form-message form-message--success">{{ emailChangeMessage.successMessage }}</p>
+                        {% if emailSuccessMessage %}
+                            <p class="form-message form-message--success">{{ emailSuccessMessage }}</p>
                         {% endif %}
 
-                        {% if emailChangeMessage.errorMessage %}
-                            <p class="form-message form-message--error">{{ emailChangeMessage.errorMessage }}</p>
+                        {% if emailErrorMessage %}
+                            <p class="form-message form-message--error">{{ emailErrorMessage }}</p>
                         {% endif %}
 
                         <div class="form-row">
@@ -89,7 +87,7 @@
                                     type="email"
                                     id="profile-change-email"
                                     class="form-input"
-                                    name="nextEmail">
+                                    name="email">
                             </div>
 
                             <div class="form-field">
@@ -107,7 +105,15 @@
                         </div>
                     </form>
 
-                    <form method="POST" class="profile-settings-group">
+                    <form method="POST" action="/profile/change-password" class="profile-settings-group">
+                        {% if passwordSuccessMessage %}
+                            <p class="form-message form-message--success">{{ passwordSuccessMessage }}</p>
+                        {% endif %}
+
+                        {% if passwordErrorMessage %}
+                            <p class="form-message form-message--error">{{ passwordErrorMessage }}</p>
+                        {% endif %}
+
                         <div class="form-row">
                             <div class="form-field">
                                 <label for="profile-new-password">Change Password:</label>
@@ -131,7 +137,7 @@
                         </div>
 
                         <div class="form-footer profile-form-footer">
-                            <button type="button" class="button">Update Password</button>
+                            <button type="submit" class="button">Update Password</button>
                         </div>
                     </form>
                 </div>
