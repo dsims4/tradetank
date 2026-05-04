@@ -198,12 +198,14 @@ router.get("/profile", async (req, res, next) => {
         const emailError = String(req.query.emailError || "");
         const passwordError = String(req.query.passwordError || "");
         const colorSchemeError = String(req.query.colorSchemeError || "");
+        const deleteError = String(req.query.deleteError || "");
         const emailSuccess = String(req.query.emailSuccess || "");
         const passwordSuccess = String(req.query.passwordSuccess || "");
 
         const emailErrorMessage = getErrorMessage(emailError);
         const passwordErrorMessage = getErrorMessage(passwordError);
         const colorSchemeErrorMessage = getErrorMessage(colorSchemeError);
+        const deleteErrorMessage = getErrorMessage(deleteError);
         const emailSuccessMessage = getSuccessMessage(emailSuccess);
         const passwordSuccessMessage = getSuccessMessage(passwordSuccess);
 
@@ -248,6 +250,7 @@ router.get("/profile", async (req, res, next) => {
             emailErrorMessage: emailErrorMessage,
             passwordErrorMessage: passwordErrorMessage,
             colorSchemeErrorMessage: colorSchemeErrorMessage,
+            deleteErrorMessage: deleteErrorMessage,
             emailSuccessMessage: emailSuccessMessage,
             passwordSuccessMessage: passwordSuccessMessage
         });
@@ -550,7 +553,8 @@ router.post("/signup", async (req, res, next) => {
 
             await client.query("COMMIT");
 
-            return res.redirect("/login");
+            setSessionCookie(res, userID, false);
+            return res.redirect("/home");
         } catch (error) {
             await client.query("ROLLBACK");
             return next(error);
@@ -781,6 +785,15 @@ router.post("/profile/change-password", async (req, res, next) => {
 router.post("/profile/delete-account", async (req, res, next) => {
     if (nonexistentSessionRedirect(req, res)) return;
 
+    const confirmation = String(req.body.deleteConfirmation || "");
+
+    if (confirmation !== "DELETE") {
+        const searchParams = new URLSearchParams({
+            deleteError: "invalid-confirmation"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    }
+
     const userID = getSessionUserID(req);
     const client = await getClient();
 
@@ -973,6 +986,8 @@ function getErrorMessage(error) {
         ? "That color scheme is invalid."
         : (error === "invalid-token")
         ? "The password reset token is invalid."
+        : (error === "invalid-confirmation")
+        ? "You must enter DELETE to confirm account deletion."
         : "";
 }
 

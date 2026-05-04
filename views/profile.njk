@@ -6,7 +6,7 @@
     <div class="main-container">
         <div
             class="profile-forms"
-            {% if colorSchemeErrorMessage or emailSuccessMessage or emailErrorMessage or passwordSuccessMessage or passwordErrorMessage %}data-clear-query{% endif %}>
+            {% if colorSchemeErrorMessage or emailSuccessMessage or emailErrorMessage or passwordSuccessMessage or passwordErrorMessage or deleteErrorMessage %}data-clear-query{% endif %}>
             <section class="form profile-form profile-summary-form">
                 <div class="form-header">
                     <h1>Profile</h1>
@@ -82,7 +82,7 @@
 
                         <div class="form-row">
                             <div class="form-field">
-                                <label for="profile-change-email">Change Email:</label>
+                                <label for="profile-change-email">New Email:</label>
                                 <input
                                     type="email"
                                     id="profile-change-email"
@@ -116,7 +116,7 @@
 
                         <div class="form-row">
                             <div class="form-field">
-                                <label for="profile-new-password">Change Password:</label>
+                                <label for="profile-new-password">New Password:</label>
                                 <input
                                     type="password"
                                     id="profile-new-password"
@@ -138,6 +138,36 @@
 
                         <div class="form-footer profile-form-footer">
                             <button type="submit" class="button">Update Password</button>
+                        </div>
+                    </form>
+
+                    <form 
+                        method="POST" 
+                        action="/profile/delete-account" 
+                        class="profile-settings-group"
+                        data-delete-account-form
+                    >
+
+                        {% if deleteErrorMessage %}
+                            <p class="form-message form-message--error">{{ deleteErrorMessage }}</p>
+                        {% endif %}
+                        
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label for="profile-delete-confirmation">Type "DELETE" to confirm:</label>
+                                <input
+                                    type="text"
+                                    id="profile-delete-confirmation"
+                                    class="form-input"
+                                    name="deleteConfirmation"
+                                    pattern="DELETE"
+                                    autocomplete="off"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div class="form-footer profile-form-footer">
+                            <button type="submit" class="button">Delete Account</button>
                         </div>
                     </form>
                 </div>
