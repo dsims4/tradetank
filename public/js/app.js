@@ -236,6 +236,36 @@ function runResetPasswordForm() {
     confirmPasswordInput.addEventListener("input", clearPasswordValidation);
 }
 
+function runDeleteAccountForm() {
+    const deleteAccountForm = document.querySelector("[data-delete-account-form]");
+
+    if (!deleteAccountForm) {
+        return;
+    }
+
+    const confirmationInput = deleteAccountForm.querySelector("#profile-delete-confirmation");
+
+    if (!confirmationInput) {
+        return;
+    }
+
+    function clearConfirmationValidation() {
+        confirmationInput.setCustomValidity("");
+    }
+
+    deleteAccountForm.addEventListener("submit", (event) => {
+        clearConfirmationValidation();
+
+        if (confirmationInput.value !== "DELETE") {
+            confirmationInput.setCustomValidity('You must enter "DELETE" to confirm.');
+            confirmationInput.reportValidity();
+            event.preventDefault();
+        }
+    });
+
+    confirmationInput.addEventListener("input", clearConfirmationValidation);
+}
+
 function runQueryCleaner() {
     const queryCleaner = document.querySelector("[data-clear-query]");
 
@@ -282,5 +312,6 @@ runSlideshow();
 runSignupForm();
 runLoginForm();
 runResetPasswordForm();
+runDeleteAccountForm();
 runQueryCleaner();
 runProtectedPageGuard();
