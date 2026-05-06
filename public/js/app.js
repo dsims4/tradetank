@@ -308,6 +308,18 @@ function runProtectedPageGuard() {
     });
 }
 
+function runCandlestickChart() {
+    const canvas = document.getElementById("candlestick-chart");
+    let candles = [];
+
+    function getChartDate() {
+        
+    }
+
+
+    candlestickChart = 
+}
+
 runSlideshow();
 runSignupForm();
 runLoginForm();
