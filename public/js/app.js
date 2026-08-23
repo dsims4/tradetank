@@ -310,14 +310,16 @@ function runProtectedPageGuard() {
 
 function runCandlestickChart() {
     const canvas = document.getElementById("candlestick-chart");
-    let candles = [];
 
-    function getChartDate() {
-        
+    if (!canvas) {
+        return;
     }
 
+    const chart = new CandlestickChart(canvas);
+    const resizeObserver = new ResizeObserver(() => chart.resize());
 
-    candlestickChart = 
+    resizeObserver.observe(canvas);
+    chart.resize();
 }
 
 runSlideshow();
@@ -327,3 +329,4 @@ runResetPasswordForm();
 runDeleteAccountForm();
 runQueryCleaner();
 runProtectedPageGuard();
+runCandlestickChart();

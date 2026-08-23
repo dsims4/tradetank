@@ -6,6 +6,8 @@ const nunjucks = require("nunjucks");
 const path = require("path");
 
 const pagesRouter = require("./routes/pages");
+const publicRouter = require("./routes/public");
+const appRouter = require("./routes/app");
 const apiRouter = require("./routes/api");
 
 const app = express();
@@ -21,8 +23,9 @@ app.use(express.urlencoded({ extended:true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", pagesRouter);
+app.use("/", appRouter);
+app.use("/", publicRouter);
 app.use("/api", apiRouter);
-
 app.use((req, res) => {
     res.status(404).send("Page not found");
 });

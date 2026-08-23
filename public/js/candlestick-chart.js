@@ -2,7 +2,9 @@ class CandlestickChart {
     constructor(canvas, candles = []) {
         this.candles = candles;
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
+        this.ctx = canvas.getContext("2d");
+        this.width = 0;
+        this.height = 0;
     }
 
     resize() {

@@ -1,28 +1,29 @@
 const express = require("express");
 const crypto = require("crypto");
 const router = express.Router();
-const { getClient, query } = require("../services/db");
 
-const SESSION_NAME = "tradetank_session";
-const SESSION_SECRET = process.env.SESSION_SECRET;
-const SESSION_DURATION = 1000 * 60 * 60 * 24;
-const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;
+const {
+    getClient,
+    query
+} = require("../services/db");
+
+const {
+    getSessionUserID,
+    setSessionCookie,
+    clearSessionCookie
+} = require("../services/session");
+
+const {
+    redirectAuthenticated,
+    redirectUnauthenticated
+} = require("../middleware/authentication");
+
 const RESET_TOKEN_DURATION = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_FAILURES = 7;
 const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
 
-router.get("/", (req, res) => {
-    if (existentSessionRedirect(req, res)) return;
-
-    res.render("index.njk", {
-        currentPage: "index"
-    });
-});
-
-router.get("/login", (req, res) => {
-    if (existentSessionRedirect(req, res)) return;
-
+router.get("/login", redirectAuthenticated, (req, res) => {
     const username = String(req.query.username || "").trim();
     const error = String(req.query.error || "");
     const success = String(req.query.success || "");
@@ -38,9 +39,7 @@ router.get("/login", (req, res) => {
     });
 });
 
-router.get("/signup", (req, res) => {
-    if (existentSessionRedirect(req, res)) return;
-
+router.get("/signup", redirectAuthenticated, (req, res) => {
     const error = req.query.error || "";
     const errorMessage = getErrorMessage(error);
     const success = req.query.success || "";
@@ -53,145 +52,7 @@ router.get("/signup", (req, res) => {
     });
 });
 
-router.get("/home", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = await query(
-            `SELECT 
-                color_scheme
-            FROM 
-                user_preferences
-            WHERE 
-                user_id = $1
-            LIMIT 1`,
-            [userID]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            clearSessionCookie(res);
-            return res.redirect("/login");
-        }
-
-        return res.render("home.njk", {
-            currentPage: "home",
-            colorScheme: user.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/analyze", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = await query(
-            `SELECT 
-                color_scheme
-            FROM 
-                user_preferences
-            WHERE 
-                user_id = $1
-            LIMIT 1`,
-            [userID]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            clearSessionCookie(res);
-            return res.redirect("/login");
-        }
-
-        return res.render("analyze.njk", {
-            currentPage: "analyze",
-            colorScheme: user.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-
-    res.render("analyze.njk", {
-        currentPage: "analyze"
-    });
-});
-
-router.get("/visualize", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = await query(
-            `SELECT 
-                color_scheme
-            FROM 
-                user_preferences
-            WHERE 
-                user_id = $1
-            LIMIT 1`,
-            [userID]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            clearSessionCookie(res);
-            return res.redirect("/login");
-        }
-
-        return res.render("visualize.njk", {
-            currentPage: "visualize",
-            colorScheme: user.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/input", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = await query(
-            `SELECT 
-                color_scheme
-            FROM 
-                user_preferences
-            WHERE 
-                user_id = $1
-            LIMIT 1`,
-            [userID]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            clearSessionCookie(res);
-            return res.redirect("/login");
-        }
-
-        return res.render("input.njk", {
-            currentPage: "input",
-            colorScheme: user.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/profile", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
+router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
 
     try {
@@ -253,106 +114,6 @@ router.get("/profile", async (req, res, next) => {
             deleteErrorMessage: deleteErrorMessage,
             emailSuccessMessage: emailSuccessMessage,
             passwordSuccessMessage: passwordSuccessMessage
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/about", async (req, res, next) => {
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = userID ? await query(
-            `SELECT
-                user_preferences.color_scheme
-            FROM 
-                user_preferences
-            WHERE 
-                user_id = $1
-            LIMIT 1`,
-            [userID]
-        ) : null;
-
-        return res.render("about.njk", {
-            currentPage: "about",
-            layoutTemplate: getPageLayoutTemplate(userID),
-            colorScheme: userResult?.rows[0]?.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/contact", async (req, res, next) => {
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = userID ? await query(
-            `SELECT 
-                color_scheme
-             FROM 
-                user_preferences
-             WHERE 
-                user_id = $1
-             LIMIT 1`,
-            [userID]
-        ) : null;
-
-        return res.render("contact.njk", {
-            currentPage: "contact",
-            layoutTemplate: getPageLayoutTemplate(userID),
-            colorScheme: userResult?.rows[0]?.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/privacy-policy", async (req, res, next) => {
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = userID ? await query(
-            `SELECT 
-                color_scheme
-             FROM 
-                user_preferences
-             WHERE 
-                user_id = $1
-             LIMIT 1`,
-            [userID]
-        ) : null;
-
-        return res.render("privacy-policy.njk", {
-            currentPage: "privacy-policy",
-            layoutTemplate: getPageLayoutTemplate(userID),
-            colorScheme: userResult?.rows[0]?.color_scheme || "light"
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.get("/terms-of-use", async (req, res, next) => {
-    const userID = getSessionUserID(req);
-
-    try {
-        const userResult = userID ? await query(
-            `SELECT 
-                color_scheme
-             FROM 
-                user_preferences
-             WHERE 
-                user_id = $1
-             LIMIT 1`,
-            [userID]
-        ) : null;
-
-        return res.render("terms-of-use.njk", {
-            currentPage: "terms-of-use",
-            layoutTemplate: getPageLayoutTemplate(userID),
-            colorScheme: userResult?.rows[0]?.color_scheme || "light"
         });
     } catch (error) {
         return next(error);
@@ -571,9 +332,7 @@ router.post("/logout", (req, res) => {
     res.redirect("/login");
 });
 
-router.post("/profile/color-scheme", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
+router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
 
     const colorScheme = String(req.body.changeColorScheme || "").trim().toLowerCase();
@@ -606,9 +365,7 @@ router.post("/profile/color-scheme", async (req, res, next) => {
     }
 });
 
-router.post("/profile/change-email", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
+router.post("/profile/change-email", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
 
     const email = String(req.body.email || "").trim().toLowerCase();
@@ -695,8 +452,8 @@ router.post("/profile/change-email", async (req, res, next) => {
                     email_change_events 
                  (
                     user_id,
-                    previous_email,
-                    next_email,
+                    old_email,
+                    new_email,
                     change_time
                  )
                  VALUES ($1, $2, $3, NOW())`,
@@ -720,9 +477,7 @@ router.post("/profile/change-email", async (req, res, next) => {
     }
 });
 
-router.post("/profile/change-password", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
+router.post("/profile/change-password", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
     const newPassword = String(req.body.newPassword || "");
     const confirmPassword = String(req.body.confirmPassword || "");
@@ -782,9 +537,7 @@ router.post("/profile/change-password", async (req, res, next) => {
     }
 });
 
-router.post("/profile/delete-account", async (req, res, next) => {
-    if (nonexistentSessionRedirect(req, res)) return;
-
+router.post("/profile/delete-account", redirectUnauthenticated, async (req, res, next) => {
     const confirmation = String(req.body.deleteConfirmation || "");
 
     if (confirmation !== "DELETE") {
@@ -1049,132 +802,11 @@ async function verifyPassword(password, storedHashedPassword) {
     return crypto.timingSafeEqual(derivedKey, storedDerivedKeyBuffer);
 }
 
-function parseCookies(cookieHeader = "") {
-    if (!cookieHeader) {
-        return {};
-    }
-
-    return Object.fromEntries(
-        cookieHeader
-            .split(";")
-            .map((cookie) => cookie.trim())
-            .filter(Boolean)
-            .map((cookie) => {
-                const separatorIndex = cookie.indexOf("=");
-                const key = cookie.slice(0, separatorIndex);
-                const value = cookie.slice(separatorIndex + 1);
-
-                return [key, decodeURIComponent(value)];
-            })
-    );
-}
-
-function hashResetToken(token) {
-    return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function signSessionPayload(payload) {
-    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
-}
-
-function createSessionPayload(userID, sessionDuration) {
-    const expirationTime = sessionDuration ? Date.now() + sessionDuration : 0;
-    const payload = `${userID}.${expirationTime}`;
-    const signature = signSessionPayload(payload);
-
-    return `${payload}.${signature}`;
-}
-
-function getSessionUserIDFromCookie(req) {
-    const cookies = parseCookies(req.headers.cookie);
-    const sessionPayload = cookies[SESSION_NAME];
-
-    if (!sessionPayload) {
-        return null;
-    }
-
-    const [userIDString, expirationString, signature] = sessionPayload.split(".");
-
-    if (!userIDString || !expirationString || !signature) {
-        return null;
-    }
-
-    const payload = `${userIDString}.${expirationString}`;
-    const actualSignatureBuffer = Buffer.from(signature, "hex");
-    const expectedSignatureBuffer = Buffer.from(signSessionPayload(payload), "hex");
-
-    if (actualSignatureBuffer.length !== expectedSignatureBuffer.length) {
-        return null;
-    }
-
-    if (!crypto.timingSafeEqual(actualSignatureBuffer, expectedSignatureBuffer)) {
-        return null;
-    }
-
-    const expirationTime = Number(expirationString);
-
-    if (!Number.isFinite(expirationTime)) {
-        return null;
-    }
-
-    if (expirationTime !== 0 && expirationTime <= Date.now()) {
-        return null;
-    }
-
-    const userID = Number(userIDString);
-    return Number.isInteger(userID) ? userID : null;
-}
-
-function setSessionCookie(res, userID, rememberMe) {
-    const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : SESSION_DURATION;
-    const sessionPayload = createSessionPayload(userID, sessionDuration);
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieParameters = [
-        `${SESSION_NAME}=${encodeURIComponent(sessionPayload)}`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict",
-        "Priority=High"
-    ];
-
-    if (sessionDuration) {
-        cookieParameters.push(`Max-Age=${Math.floor(sessionDuration / 1000)}`);
-    }
-
-    if (isProduction) {
-        cookieParameters.push("Secure");
-    }
-
-
-    res.setHeader("Set-Cookie", cookieParameters.join("; "));
-}
-
-function clearSessionCookie(res) {
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieParameters = [
-        `${SESSION_NAME}=`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict",
-        "Max-Age=0",
-        "Priority=High"
-    ];
-
-    if (isProduction) {
-        cookieParameters.push("Secure");
-    }
-
-    res.setHeader(
-        "Set-Cookie",
-        cookieParameters.join("; ")
-    );
-}
-
 async function getLoginRateLimit(username) {
     const loginRateLimitResult = await query(
         `SELECT 
             id, 
-            failed_attempts, 
+            attempt_count,
             start_time, 
             expiration_time
          FROM 
@@ -1199,7 +831,7 @@ async function recordFailedLoginAttempt(username, ipAddress) {
                 (
                 username,
                 ip_address,
-                failed_attempts,
+                attempt_count,
                 start_time,
                 update_time
                 )
@@ -1217,7 +849,7 @@ async function recordFailedLoginAttempt(username, ipAddress) {
         || (currentTime - startTime) > LOGIN_RATE_LIMIT_WINDOW;
     const newFailedAttempts = windowHasExpired
         ? 1
-        : Number(existingLoginRateLimit.failed_attempts || 0) + 1;
+        : Number(existingLoginRateLimit.attempt_count || 0) + 1;
     const shouldBlock = newFailedAttempts >= LOGIN_RATE_LIMIT_FAILURES;
     const expirationTime = shouldBlock
         ? new Date(currentTime + LOGIN_RATE_LIMIT_TIMEOUT).toISOString()
@@ -1227,8 +859,8 @@ async function recordFailedLoginAttempt(username, ipAddress) {
         `UPDATE 
             login_rate_limits
          SET 
-            ip_address = $2,
-             failed_attempts = $3,
+             ip_address = $2,
+             attempt_count = $3,
              start_time = CASE
                  WHEN $4 THEN NOW()
                  ELSE start_time
@@ -1257,51 +889,6 @@ async function clearLoginRateLimit(username) {
     );
 }
 
-function getSessionUserID(req) {
-    if (req.authenticatedUserID !== undefined) return req.authenticatedUserID;
-
-    req.authenticatedUserID = getSessionUserIDFromCookie(req);
-    return req.authenticatedUserID;
-}
-
-function existentSession(req) {
-    return Boolean(getSessionUserID(req));
-}
-
-function existentSessionRedirect(req, res) {
-    const sessionExists = existentSession(req);
-
-    if (sessionExists) {
-        res.redirect("/home");
-        return true;
-    }
-    return false;
-}
-
-function nonexistentSessionRedirect(req, res) {
-    const sessionExists = existentSession(req);
-
-    if (!sessionExists) {
-        res.redirect("/login");
-        return true;
-    }
-
-    setNoStoreHeaders(res);
-    return false;
-}
-
-function setNoStoreHeaders(res) {
-    res.set({
-        "Cache-Control": "no-store, no-cache, must-revalidate, private",
-        Pragma: "no-cache",
-        Expires: "0"
-    });
-}
-
-function getPageLayoutTemplate(userID) {
-    return userID ? "layouts/app.njk" : "layouts/main.njk";
-}
-
 async function getResetPasswordEvent(token, db = { query }, options = {}) {
     if (!token) {
         return null;
@@ -1310,15 +897,15 @@ async function getResetPasswordEvent(token, db = { query }, options = {}) {
     const hashedResetToken = hashResetToken(token);
     const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
     const resetPasswordEventResult = await db.query(
-        `SELECT 
-            id, user_id, 
-            expiration_time, 
+        `SELECT
+            id, user_id,
+            expiration_time,
             reset_time
-         FROM 
+         FROM
             password_reset_events
-         WHERE 
+         WHERE
             hashed_token = $1
-         LIMIT 1 
+         LIMIT 1
             ${lockClause}`,
         [hashedResetToken]
     );
@@ -1340,6 +927,10 @@ function getResetPasswordErrorMessage(resetPasswordEvent) {
     }
 
     return "";
+}
+
+function hashResetToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 module.exports = router;

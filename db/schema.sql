@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS password_change_events (
 CREATE TABLE IF NOT EXISTS email_change_events (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    previous_email VARCHAR(255) NOT NULL,
-    next_email VARCHAR(255) NOT NULL,
+    old_email VARCHAR(255) NOT NULL,
+    new_email VARCHAR(255) NOT NULL,
     change_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS login_rate_limits (
     id BIGSERIAL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
     ip_address INET,
-    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
     start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expiration_time TIMESTAMPTZ,
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -50,12 +50,12 @@ CREATE TABLE IF NOT EXISTS user_trades (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     side VARCHAR(5) NOT NULL CHECK (side IN ('long', 'short')),
-    total_contracts NUMERIC(5, 1) NOT NULL,
-    initial_exit_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
-    initial_entry_plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+    contract_count NUMERIC(5, 1) NOT NULL,
+    initial_exit JSONB NOT NULL DEFAULT '{}'::jsonb,
+    initial_entry JSONB NOT NULL DEFAULT '{}'::jsonb,
     actual_exit JSONB NOT NULL DEFAULT '{}'::jsonb,
     actual_entry JSONB NOT NULL DEFAULT '{}'::jsonb,
-    earnings NUMERIC (10, 3) NOT NULL,
+    points NUMERIC (10, 3) NOT NULL,
     process_deviation BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT CHECK (length(notes) <= 1500),
     creation_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -64,30 +64,30 @@ CREATE TABLE IF NOT EXISTS user_trades (
 
 CREATE TABLE IF NOT EXISTS user_stats (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    total_trades INTEGER NOT NULL DEFAULT 0,
-    total_earnings NUMERIC(10, 3) NOT NULL DEFAULT 0,
-    total_days_traded INTEGER NOT NULL DEFAULT 0,
-    days_since_first_trade INTEGER,
+    trades_count INTEGER NOT NULL DEFAULT 0,
+    points_count NUMERIC(10, 3) NOT NULL DEFAULT 0,
+    days_traded_count INTEGER NOT NULL DEFAULT 0,
+    days_total_count INTEGER,
     expectancy_per_contract NUMERIC(10, 3),
     expectancy_per_trade NUMERIC(10, 3),
     expectancy_with_process_deviation NUMERIC(10, 3),
     expectancy_without_process_deviation NUMERIC(10, 3),
     average_scale_ins NUMERIC(5,2),
     average_scale_outs NUMERIC(5,2),
-    biggest_win_per_contract NUMERIC(10, 3),
-    biggest_loss_per_contract NUMERIC(10, 3),
-    biggest_win_per_trade NUMERIC(10, 3),
-    biggest_loss_per_trade NUMERIC(10, 3),
+    biggest_win_contract NUMERIC(10, 3),
+    biggest_loss_contract NUMERIC(10, 3),
+    biggest_win_trade NUMERIC(10, 3),
+    biggest_loss_trade NUMERIC(10, 3),
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS price_data (
     id BIGSERIAL PRIMARY KEY,
     open_time TIMESTAMPTZ NOT NULL UNIQUE,
-    open NUMERIC(10, 2) NOT NULL,
-    high NUMERIC(10, 2) NOT NULL,
-    low NUMERIC(10, 2) NOT NULL,
-    close NUMERIC(10, 2) NOT NULL
+    open_price NUMERIC(10, 2) NOT NULL,
+    high_price NUMERIC(10, 2) NOT NULL,
+    low_price NUMERIC(10, 2) NOT NULL,
+    close_price NUMERIC(10, 2) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS password_reset_events_user_id_idx
