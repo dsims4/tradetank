@@ -33,7 +33,7 @@ async function findUser(userID) {
 }
 
 async function loadUser(req, res, next) {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
 
     if (!userID) return res.redirect("/login");
 
@@ -59,7 +59,7 @@ async function loadUser(req, res, next) {
 }
 
 async function loadUserOptional(req, res, next) {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
 
     if (!userID) {
         req.user = null;
@@ -86,16 +86,16 @@ async function loadUserOptional(req, res, next) {
     }
 }
 
-function redirectAuthenticated(req, res, next) {
-    const userID = getSessionUserID(req);
+async function redirectAuthenticated(req, res, next) {
+    const userID = await getSessionUserID(req);
 
     if (userID) return res.redirect("/home");
 
     return next();
 }
 
-function redirectUnauthenticated(req, res, next) {
-    const userID = getSessionUserID(req);
+async function redirectUnauthenticated(req, res, next) {
+    const userID = await getSessionUserID(req);
 
     if (!userID) return res.redirect("/login");
 

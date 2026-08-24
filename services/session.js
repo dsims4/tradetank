@@ -1,9 +1,12 @@
 const crypto = require("crypto");
+const { query } = require("./db");
 
 const SESSION_NAME = "tradetank_session";
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_DURATION = 1000 * 60 * 60 * 24;
 const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;
+
+if (!SESSION_SECRET) throw new Error("SESSION_SECRET environment variable is not initialized.");
 
 function parseCookies(cookieHeader = "") {
     if (!cookieHeader) {
@@ -25,64 +28,10 @@ function parseCookies(cookieHeader = "") {
     );
 }
 
-function signSessionPayload(payload) {
-    return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
-}
-
-function createSessionPayload(userID, sessionDuration) {
-    const expirationTime = sessionDuration ? Date.now() + sessionDuration : 0;
-    const payload = `${userID}.${expirationTime}`;
-    const signature = signSessionPayload(payload);
-
-    return `${payload}.${signature}`;
-}
-
-function getSessionUserIDFromCookie(req) {
-    const cookies = parseCookies(req.headers.cookie);
-    const sessionPayload = cookies[SESSION_NAME];
-
-    if (!sessionPayload) {
-        return null;
-    }
-
-    const [userIDString, expirationString, signature] = sessionPayload.split(".");
-
-    if (!userIDString || !expirationString || !signature) {
-        return null;
-    }
-
-    const payload = `${userIDString}.${expirationString}`;
-    const actualSignatureBuffer = Buffer.from(signature, "hex");
-    const expectedSignatureBuffer = Buffer.from(signSessionPayload(payload), "hex");
-
-    if (actualSignatureBuffer.length !== expectedSignatureBuffer.length) {
-        return null;
-    }
-
-    if (!crypto.timingSafeEqual(actualSignatureBuffer, expectedSignatureBuffer)) {
-        return null;
-    }
-
-    const expirationTime = Number(expirationString);
-
-    if (!Number.isFinite(expirationTime)) {
-        return null;
-    }
-
-    if (expirationTime !== 0 && expirationTime <= Date.now()) {
-        return null;
-    }
-
-    const userID = Number(userIDString);
-    return Number.isInteger(userID) ? userID : null;
-}
-
-function setSessionCookie(res, userID, rememberMe) {
-    const sessionDuration = rememberMe ? SESSION_DURATION_REMEMBER_ME : SESSION_DURATION;
-    const sessionPayload = createSessionPayload(userID, sessionDuration);
+function writeSessionCookie(res, cookieValue, sessionDuration) {
     const isProduction = process.env.NODE_ENV === "production";
     const cookieParameters = [
-        `${SESSION_NAME}=${encodeURIComponent(sessionPayload)}`,
+        `${SESSION_NAME}=${encodeURIComponent(cookieValue)}`,
         "Path=/",
         "HttpOnly",
         "SameSite=Strict",
@@ -90,7 +39,9 @@ function setSessionCookie(res, userID, rememberMe) {
     ];
 
     if (sessionDuration) {
-        cookieParameters.push(`Max-Age=${Math.floor(sessionDuration / 1000)}`);
+        cookieParameters.push(
+            `Max-Age=${Math.floor(sessionDuration / 1000)}`
+        );
     }
 
     if (isProduction) {
@@ -98,6 +49,10 @@ function setSessionCookie(res, userID, rememberMe) {
     }
 
     res.setHeader("Set-Cookie", cookieParameters.join("; "));
+}
+
+async function setSessionCookie(res, userID, rememberMe) {
+    await setDatabaseSessionCookie(res, userID, rememberMe);
 }
 
 function clearSessionCookie(res) {
@@ -121,10 +76,111 @@ function clearSessionCookie(res) {
     );
 }
 
-function getSessionUserID(req) {
+async function getSessionUserID(req) {
+    return getDatabaseSessionUserID(req);
+}
+
+function createSessionToken() {
+    return crypto.randomBytes(32).toString("hex");
+}
+
+function hashSessionToken(token) {
+    return crypto
+        .createHmac("sha256", SESSION_SECRET)
+        .update(token)
+        .digest("hex");
+}
+
+async function createSession(userID, rememberMe) {
+    const sessionDuration = rememberMe
+        ? SESSION_DURATION_REMEMBER_ME
+        : SESSION_DURATION;
+    const sessionToken = createSessionToken();
+    const hashedSessionToken = hashSessionToken(sessionToken);
+    const expirationTime = new Date(
+        Date.now() + sessionDuration
+    ).toISOString();
+
+    await query(
+        `INSERT INTO
+            user_sessions
+            (
+                user_id,
+                hashed_token,
+                expiration_time
+            )
+         VALUES
+            ($1, $2, $3)`,
+        [userID, hashedSessionToken, expirationTime]
+    );
+
+    return {
+        token: sessionToken,
+        duration: sessionDuration
+    };
+}
+
+function getSessionTokenFromCookie(req) {
+    const cookies = parseCookies(req.headers.cookie);
+    const sessionToken = cookies[SESSION_NAME];
+
+    if (!sessionToken) return null;
+
+    if (!/^[a-f0-9]{64}$/.test(sessionToken)) return null;
+
+    return sessionToken;
+}
+
+async function getSessionUserIDFromToken(sessionToken) {
+    if (!sessionToken) return null;
+
+    const hashedSessionToken = hashSessionToken(sessionToken);
+
+    const sessionResult = await query(
+        `SELECT
+            user_id
+         FROM
+            user_sessions
+         WHERE
+            hashed_token = $1
+         AND
+            invalidated_time IS NULL
+         AND
+            expiration_time > NOW()
+         LIMIT 1`,
+        [hashedSessionToken]
+    );
+
+    const userID = Number(sessionResult.rows[0]?.user_id);
+
+    return Number.isSafeInteger(userID) && userID > 0
+        ? userID
+        : null;
+}
+
+async function setDatabaseSessionCookie(res, userID, rememberMe) {
+    const session = await createSession(userID, rememberMe);
+
+    writeSessionCookie(
+        res,
+        session.token,
+        session.duration
+    );
+}
+
+async function getDatabaseSessionUserID(req) {
     if (req.authenticatedUserID !== undefined) return req.authenticatedUserID;
 
-    req.authenticatedUserID = getSessionUserIDFromCookie(req);
+    const sessionToken = getSessionTokenFromCookie(req);
+
+    if (!sessionToken) {
+        req.authenticatedUserID = null;
+        return null;
+    }
+
+    const userID = await getSessionUserIDFromToken(sessionToken);
+
+    req.authenticatedUserID = userID;
     return req.authenticatedUserID;
 }
 

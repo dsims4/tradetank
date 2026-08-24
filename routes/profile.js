@@ -25,7 +25,7 @@ const {
 } = require("../utilities/messages");
 
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
 
     try {
         const emailError = String(req.query.emailError || "");
@@ -93,7 +93,7 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
 });
 
 router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, next) => {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
 
     const colorScheme = String(req.body.changeColorScheme || "").trim().toLowerCase();
 
@@ -126,7 +126,7 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
 });
 
 router.post("/profile/change-email", redirectUnauthenticated, async (req, res, next) => {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
 
     const email = String(req.body.email || "").trim().toLowerCase();
     const confirmEmail = String(req.body.confirmEmail || "").trim().toLowerCase();
@@ -238,7 +238,7 @@ router.post("/profile/change-email", redirectUnauthenticated, async (req, res, n
 });
 
 router.post("/profile/change-password", redirectUnauthenticated, async (req, res, next) => {
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
     const newPassword = String(req.body.newPassword || "");
     const confirmPassword = String(req.body.confirmPassword || "");
 
@@ -283,6 +283,20 @@ router.post("/profile/change-password", redirectUnauthenticated, async (req, res
             [userID]
         );
 
+        await client.query(
+            `UPDATE
+                reset_password_events
+             SET
+                invalidated_time = NOW()
+             WHERE
+                user_id = $1
+             AND
+                reset_time IS NULL
+             AND
+                invalidated_time IS NULL`,
+            [userID]
+        );
+
         await client.query("COMMIT");
 
         const searchParams = new URLSearchParams({
@@ -307,7 +321,7 @@ router.post("/profile/delete-account", redirectUnauthenticated, async (req, res,
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
-    const userID = getSessionUserID(req);
+    const userID = await getSessionUserID(req);
     const client = await getClient();
 
     try {

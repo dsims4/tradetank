@@ -54,6 +54,71 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
     });
 });
 
+router.post("/login", async (req, res, next) => {
+    const username = String(req.body.username || "").trim();
+    const password = String(req.body.password || "");
+    const rememberMe = Boolean(req.body.remember);
+
+    if (!username || !password) {
+        const searchParams = new URLSearchParams({
+            error: "missing-fields",
+            username: username
+        });
+        return res.redirect(`/login?${searchParams.toString()}`);
+    }
+
+    try {
+        const loginRateLimit = await getLoginRateLimit(username);
+        const loginRateLimitExpirationTime = loginRateLimit?.expiration_time
+            ? new Date(loginRateLimit.expiration_time).getTime()
+            : null;
+
+        if (loginRateLimitExpirationTime && loginRateLimitExpirationTime > Date.now()) {
+            const searchParams = new URLSearchParams({
+                username: username,
+                error: "login-rate-limit"
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        const userResult = await query(
+            `SELECT id, hashed_password
+             FROM users
+             WHERE username = $1
+             LIMIT 1`,
+            [username]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+            await recordFailedLoginAttempt(username, req.ip);
+            const searchParams = new URLSearchParams({
+                error: "invalid-credentials",
+                username: username
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        const passwordIsValid = await verifyPassword(password, user.hashed_password);
+
+        if (!passwordIsValid) {
+            await recordFailedLoginAttempt(username, req.ip);
+            const searchParams = new URLSearchParams({
+                error: "invalid-credentials",
+                username: username
+            });
+            return res.redirect(`/login?${searchParams.toString()}`);
+        }
+
+        await clearLoginRateLimit(username);
+        await setSessionCookie(res, user.id, rememberMe);
+        return res.redirect("/home");
+    } catch (error) {
+        return next(error);
+    }
+});
+
 router.post("/signup", async (req, res, next) => {
     const username = String(req.body.username || "").trim();
     const email = String(req.body.email || "").trim().toLowerCase();
@@ -142,7 +207,7 @@ router.post("/signup", async (req, res, next) => {
 
             await client.query("COMMIT");
 
-            setSessionCookie(res, userID, false);
+            await setSessionCookie(res, userID, false);
             return res.redirect("/home");
         } catch (error) {
             await client.query("ROLLBACK");
@@ -150,71 +215,6 @@ router.post("/signup", async (req, res, next) => {
         } finally {
             client.release();
         }
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.post("/login", async (req, res, next) => {
-    const username = String(req.body.username || "").trim();
-    const password = String(req.body.password || "");
-    const rememberMe = Boolean(req.body.remember);
-
-    if (!username || !password) {
-        const searchParams = new URLSearchParams({
-            error: "missing-fields",
-            username: username
-        });
-        return res.redirect(`/login?${searchParams.toString()}`);
-    }
-
-    try {
-        const loginRateLimit = await getLoginRateLimit(username);
-        const loginRateLimitExpirationTime = loginRateLimit?.expiration_time
-            ? new Date(loginRateLimit.expiration_time).getTime()
-            : null;
-
-        if (loginRateLimitExpirationTime && loginRateLimitExpirationTime > Date.now()) {
-            const searchParams = new URLSearchParams({
-                username: username,
-                error: "login-rate-limit"
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        const userResult = await query(
-            `SELECT id, hashed_password
-             FROM users
-             WHERE username = $1
-             LIMIT 1`,
-            [username]
-        );
-
-        const user = userResult.rows[0];
-
-        if (!user) {
-            await recordFailedLoginAttempt(username, req.ip);
-            const searchParams = new URLSearchParams({
-                error: "invalid-credentials",
-                username: username
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        const passwordIsValid = await verifyPassword(password, user.hashed_password);
-
-        if (!passwordIsValid) {
-            await recordFailedLoginAttempt(username, req.ip);
-            const searchParams = new URLSearchParams({
-                error: "invalid-credentials",
-                username: username
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
-        await clearLoginRateLimit(username);
-        setSessionCookie(res, user.id, rememberMe);
-        return res.redirect("/home");
     } catch (error) {
         return next(error);
     }

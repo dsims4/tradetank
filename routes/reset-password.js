@@ -172,8 +172,24 @@ router.post("/reset-password", async (req, res, next) => {
              SET 
                 reset_time = NOW()
              WHERE 
-                id = $1`,
+                id = $1
+             AND
+                reset_time IS NULL`,
             [resetPasswordEvent.id]
+        );
+
+        await client.query(
+            `UPDATE
+                reset_password_events
+             SET
+                invalidated_time = NOW()
+             WHERE
+                user_id = $1
+             AND
+                reset_time IS NULL
+             AND
+                invalidated_time IS NULL`,
+            [resetPasswordEvent.user_id]
         );
 
         await client.query("COMMIT");
@@ -199,9 +215,11 @@ async function getResetPasswordEvent(token, db = { query }, options = {}) {
     const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
     const resetPasswordEventResult = await db.query(
         `SELECT
-            id, user_id,
+            id,
+            user_id,
             expiration_time,
-            reset_time
+            reset_time,
+            invalidated_time
          FROM
             reset_password_events
          WHERE
@@ -221,6 +239,10 @@ function getResetPasswordErrorMessage(resetPasswordEvent) {
 
     if (resetPasswordEvent.reset_time) {
         return "This password reset link has been used or expired.";
+    }
+
+    if (resetPasswordEvent.invalidated_time) {
+        return "This password reset link has been invalidated.";
     }
 
     if (new Date(resetPasswordEvent.expiration_time).getTime() <= Date.now()) {
