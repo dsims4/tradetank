@@ -121,18 +121,6 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     }
 });
 
-router.get("/forgot-password", (req, res) => {
-    res.render("forgot-password.njk", {
-        currentPage: "forgot-password"
-    });
-});
-
-router.get("/forgot-password-confirmation", (req, res) => {
-    res.render("forgot-password-confirmation.njk", {
-        currentPage: "forgot-password-confirmation"
-    });
-});
-
 router.get("/reset-password", async (req, res, next) => {
     const token = String(req.query.token || "").trim();
     let errorMessage = String(req.query.errorMessage || "");
