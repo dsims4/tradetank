@@ -1,6 +1,12 @@
 const express = require("express");
-const { query } = require("../services/db");
-const { verifyPassword } = require("../services/password");
+const {
+    getClient,
+    query
+} = require("../services/db");
+const {
+    hashPassword,
+    verifyPassword
+} = require("../services/password");
 const {
     clearSessionCookie,
     setSessionCookie
@@ -11,6 +17,107 @@ const router = express.Router();
 const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_FAILURES = 7;
 const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
+
+router.post("/signup", async (req, res, next) => {
+    const username = String(req.body.username || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    const confirmPassword = String(req.body.confirmPassword || "");
+
+    const error = (!username || !email || !password || !confirmPassword)
+        ? "missing-fields"
+        : (password !== confirmPassword)
+        ? "password-mismatch"
+        : "";
+
+    if (error) {
+        const searchParams = new URLSearchParams({
+            error: error,
+        });
+        return res.redirect(`/signup?${searchParams.toString()}`);
+    }
+
+    try {
+        const existingUsers = await query(
+            `SELECT
+                username,
+                email
+             FROM
+                users
+             WHERE
+                username = $1
+            OR
+                email = $2`,
+            [username, email]
+        );
+
+        if (existingUsers.rows.some((user) => user.username === username)) {
+            const searchParams = new URLSearchParams({
+                error: "username-taken"
+            });
+            return res.redirect(`/signup?${searchParams.toString()}`);
+        }
+
+        if (existingUsers.rows.some((user) => user.email === email)) {
+            const searchParams = new URLSearchParams({
+                error: "email-taken"
+            });
+            return res.redirect(`/signup?${searchParams.toString()}`);
+        }
+
+        const hashedPassword = await hashPassword(password);
+
+        const client = await getClient();
+
+        try {
+            await client.query("BEGIN");
+
+            const userResult = await client.query(
+                `INSERT INTO 
+                    users 
+                    (username, email, hashed_password)
+                VALUES 
+                    ($1, $2, $3)
+                RETURNING 
+                    id`,
+                [username, email, hashedPassword]
+            );
+
+            const userID = userResult?.rows[0]?.id;
+
+            await client.query(
+                `INSERT INTO 
+                    user_preferences 
+                    (user_id)
+                VALUES
+                    ($1)
+                `,
+                [userID]
+            );
+
+            await client.query(
+                `INSERT INTO
+                    user_stats
+                    (user_id)
+                VALUES
+                    ($1)`,
+                [userID]
+            );
+
+            await client.query("COMMIT");
+
+            setSessionCookie(res, userID, false);
+            return res.redirect("/home");
+        } catch (error) {
+            await client.query("ROLLBACK");
+            return next(error);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return next(error);
+    }
+});
 
 router.post("/login", async (req, res, next) => {
     const username = String(req.body.username || "").trim();
