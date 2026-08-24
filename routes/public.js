@@ -6,50 +6,30 @@ const {
 
 const router = express.Router();
 
+function createInformationalPageHandler(pageName) {
+    return (req, res) => {
+        return res.render(`${pageName}.njk`, {
+            currentPage: pageName,
+            layoutTemplate: req.user
+                ? "layouts/app.njk"
+                : "layouts/main.njk",
+            colorScheme: req.user?.colorScheme || "light"
+        });
+    };
+}
+
 router.get("/", redirectAuthenticated, (req, res) => {
     return res.render("index.njk", {
         currentPage: "index"
     });
 });
 
-router.get("/about", loadUserOptional, (req, res) => {
-    return res.render("about.njk", {
-        currentPage: "about",
-        layoutTemplate: req.user
-            ? "layouts/app.njk"
-            : "layouts/main.njk",
-        colorScheme: req.user?.colorScheme || "light"
-    });
-});
+router.get("/about", loadUserOptional, createInformationalPageHandler("about"));
 
-router.get("/contact", loadUserOptional, (req, res) => {
-    return res.render("contact.njk", {
-        currentPage: "contact",
-        layoutTemplate: req.user
-            ? "layouts/app.njk"
-            : "layouts/main.njk",
-        colorScheme: req.user?.colorScheme || "light"
-    });
-});
+router.get("/contact", loadUserOptional, createInformationalPageHandler("contact"));
 
-router.get("/privacy-policy", loadUserOptional, (req, res) => {
-    return res.render("privacy-policy.njk", {
-        currentPage: "privacy-policy",
-        layoutTemplate: req.user
-            ? "layouts/app.njk"
-            : "layouts/main.njk",
-        colorScheme: req.user?.colorScheme || "light"
-    });
-});
+router.get("/privacy-policy", loadUserOptional, createInformationalPageHandler("privacy-policy"));
 
-router.get("/terms-of-use", loadUserOptional, (req, res) => {
-    return res.render("terms-of-use.njk", {
-        currentPage: "terms-of-use",
-        layoutTemplate: req.user
-            ? "layouts/app.njk"
-            : "layouts/main.njk",
-        colorScheme: req.user?.colorScheme || "light"
-    });
-});
+router.get("/terms-of-use", loadUserOptional, createInformationalPageHandler("terms-of-use"));
 
 module.exports = router;
