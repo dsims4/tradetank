@@ -11,12 +11,48 @@ const {
     clearSessionCookie,
     setSessionCookie
 } = require("../services/session");
+const {
+    getErrorMessage,
+    getSuccessMessage
+} = require("../utilities/messages");
+const {
+    redirectAuthenticated
+} = require("../middleware/authentication");
 
 const router = express.Router();
 
 const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_FAILURES = 7;
 const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
+
+router.get("/login", redirectAuthenticated, (req, res) => {
+    const username = String(req.query.username || "").trim();
+    const error = String(req.query.error || "");
+    const success = String(req.query.success || "");
+
+    const errorMessage = getErrorMessage(error);
+    const successMessage = getSuccessMessage(success);
+
+    res.render("login.njk", {
+        currentPage: "login",
+        username: username,
+        errorMessage: errorMessage,
+        successMessage: successMessage
+    });
+});
+
+router.get("/signup", redirectAuthenticated, (req, res) => {
+    const error = req.query.error || "";
+    const errorMessage = getErrorMessage(error);
+    const success = req.query.success || "";
+    const successMessage = getSuccessMessage(success);
+
+    res.render("signup.njk", {
+        currentPage: "signup",
+        errorMessage: errorMessage,
+        successMessage: successMessage
+    });
+});
 
 router.get("/forgot-password", (req, res) => {
     res.render("forgot-password.njk", {

@@ -14,7 +14,6 @@ const {
 } = require("../services/session");
 
 const {
-    redirectAuthenticated,
     redirectUnauthenticated
 } = require("../middleware/authentication");
 
@@ -28,35 +27,6 @@ const {
 } = require("../utilities/messages");
 
 const RESET_TOKEN_DURATION = 1000 * 60 * 15;
-
-router.get("/login", redirectAuthenticated, (req, res) => {
-    const username = String(req.query.username || "").trim();
-    const error = String(req.query.error || "");
-    const success = String(req.query.success || "");
-
-    const errorMessage = getErrorMessage(error);
-    const successMessage = getSuccessMessage(success);
-
-    res.render("login.njk", {
-        currentPage: "login",
-        username: username,
-        errorMessage: errorMessage,
-        successMessage: successMessage
-    });
-});
-
-router.get("/signup", redirectAuthenticated, (req, res) => {
-    const error = req.query.error || "";
-    const errorMessage = getErrorMessage(error);
-    const success = req.query.success || "";
-    const successMessage = getSuccessMessage(success);
-
-    res.render("signup.njk", {
-        currentPage: "signup",
-        errorMessage: errorMessage,
-        successMessage: successMessage
-    });
-});
 
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
