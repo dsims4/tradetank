@@ -54,18 +54,6 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
     });
 });
 
-router.get("/forgot-password", (req, res) => {
-    res.render("forgot-password.njk", {
-        currentPage: "forgot-password"
-    });
-});
-
-router.get("/forgot-password-confirmation", (req, res) => {
-    res.render("forgot-password-confirmation.njk", {
-        currentPage: "forgot-password-confirmation"
-    });
-});
-
 router.post("/signup", async (req, res, next) => {
     const username = String(req.body.username || "").trim();
     const email = String(req.body.email || "").trim().toLowerCase();

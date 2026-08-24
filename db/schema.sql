@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS password_reset_events (
+CREATE TABLE IF NOT EXISTS reset_password_events (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     hashed_token TEXT NOT NULL UNIQUE,
@@ -90,11 +90,11 @@ CREATE TABLE IF NOT EXISTS price_data (
     close_price NUMERIC(10, 2) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS password_reset_events_user_id_idx
-    ON password_reset_events (user_id);
+CREATE INDEX IF NOT EXISTS reset_password_events_user_id_idx
+    ON reset_password_events (user_id);
 
-CREATE INDEX IF NOT EXISTS password_reset_events_expiration_time_idx
-    ON password_reset_events (expiration_time);
+CREATE INDEX IF NOT EXISTS reset_password_events_expiration_time_idx
+    ON reset_password_events (expiration_time);
 
 CREATE INDEX IF NOT EXISTS password_change_events_user_id_idx
     ON password_change_events (user_id);
