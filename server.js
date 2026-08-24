@@ -5,6 +5,7 @@ const express = require("express");
 const nunjucks = require("nunjucks");
 const path = require("path");
 
+const authRouter = require("./routes/auth");
 const pagesRouter = require("./routes/pages");
 const publicRouter = require("./routes/public");
 const appRouter = require("./routes/app");
@@ -22,6 +23,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use("/", authRouter);
 app.use("/", pagesRouter);
 app.use("/", appRouter);
 app.use("/", publicRouter);

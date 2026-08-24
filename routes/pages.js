@@ -327,11 +327,6 @@ router.post("/signup", async (req, res, next) => {
     }
 });
 
-router.post("/logout", (req, res) => {
-    clearSessionCookie(res);
-    res.redirect("/login");
-});
-
 router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, next) => {
     const userID = getSessionUserID(req);
 
