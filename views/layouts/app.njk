@@ -1,20 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        {% include "partials/head.njk" %}
+{% extends "layouts/base.njk" %}
 
-        <title>{% block title %}Trade Tank{% endblock %}</title>
-    </head>
-    
-    <body
-        data-protected-page
-        {% if colorScheme %}data-color-scheme="{{ colorScheme }}"{% endif %}>
-        {% include "partials/navbar-app.njk" %}
+{% block bodyAttributes %}
+    data-protected-page
+    {% if colorScheme %} data-color-scheme="{{ colorScheme }}"{% endif %}
+{% endblock %}
 
-        <main>
-            {% block content %}{% endblock %}
-        </main>
-
-        {% include "partials/footer.njk" %}
-    </body>
-</html>
+{% block navbar %}
+    {% include "partials/navbar-app.njk" %}
+{% endblock %}

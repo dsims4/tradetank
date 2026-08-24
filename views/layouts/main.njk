@@ -1,18 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        {% include "partials/head.njk" %}
+{% extends "layouts/base.njk" %}
 
-        <title>{% block title %}Trade Tank{% endblock %}</title>
-    </head>
-    
-    <body>
-        {% include "partials/navbar-main.njk" %}
-
-        <main>
-            {% block content %}{% endblock %}
-        </main>
-
-        {% include "partials/footer.njk" %}
-    </body>
-</html>
+{% block navbar %}
+    {% include "partials/navbar-main.njk" %}
+{% endblock %}
