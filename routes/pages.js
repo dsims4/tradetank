@@ -18,6 +18,11 @@ const {
     redirectUnauthenticated
 } = require("../middleware/authentication");
 
+const {
+    hashPassword,
+    verifyPassword
+} = require("../services/password");
+
 const RESET_TOKEN_DURATION = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_FAILURES = 7;
@@ -753,48 +758,6 @@ function getSuccessMessage(success) {
         : (success === "account-deleted")
         ? "Your account has been deleted."
         : "";
-}
-
-async function hashPassword(password) {
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hashedPassword = await new Promise((resolve, reject) => {
-        crypto.scrypt(password, salt, 64, (error, derivedKey) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve(`${salt}:${derivedKey.toString("hex")}`);
-        });
-    });
-    return hashedPassword;
-}
-
-async function verifyPassword(password, storedHashedPassword) {
-    const [salt, storedDerivedKey] = storedHashedPassword.split(":");
-
-    if (!salt || !storedDerivedKey) {
-        return false;
-    }
-
-    const derivedKey = await new Promise((resolve, reject) => {
-        crypto.scrypt(password, salt, 64, (error, key) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve(key);
-        });
-    });
-
-    const storedDerivedKeyBuffer = Buffer.from(storedDerivedKey, "hex");
-
-    if (derivedKey.length !== storedDerivedKeyBuffer.length) {
-        return false;
-    }
-
-    return crypto.timingSafeEqual(derivedKey, storedDerivedKeyBuffer);
 }
 
 async function getLoginRateLimit(username) {
