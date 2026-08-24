@@ -7,7 +7,7 @@ const path = require("path");
 
 const authenticationRouter = require("./routes/authentication");
 const resetPasswordRouter = require("./routes/reset-password");
-const pagesRouter = require("./routes/pages");
+const profileRouter = require("./routes/profile");
 const publicRouter = require("./routes/public");
 const appRouter = require("./routes/app");
 const apiRouter = require("./routes/api");
@@ -26,7 +26,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", authenticationRouter);
 app.use("/", resetPasswordRouter);
-app.use("/", pagesRouter);
+app.use("/", profileRouter);
 app.use("/", appRouter);
 app.use("/", publicRouter);
 app.use("/api", apiRouter);
