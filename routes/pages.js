@@ -22,6 +22,11 @@ const {
     hashPassword
 } = require("../services/password");
 
+const {
+    getErrorMessage,
+    getSuccessMessage
+} = require("../utilities/messages");
+
 const RESET_TOKEN_DURATION = 1000 * 60 * 15;
 
 router.get("/login", redirectAuthenticated, (req, res) => {
@@ -531,52 +536,6 @@ router.post("/reset-password", async (req, res, next) => {
         client.release();
     }
 });
-
-function getErrorMessage(error) {
-    return (error === "missing-fields")
-        ? "Some fields are missing."
-        : (error === "email-missing-fields")
-        ? "Some fields are missing."
-        : (error === "password-missing-fields")
-        ? "Some fields are missing."
-        : (error === "invalid-credentials")
-        ? "Those credentials are invalid."
-        : (error === "login-rate-limit")
-        ? "The login attempt limit has been reached and must expire."
-        : (error === "password-mismatch")
-        ? "The passwords do not match."
-        : (error === "username-taken")
-        ? "That username is already taken."
-        : (error === "email-taken")
-        ? "That email is already in use."
-        : (error === "email-mismatch")
-        ? "Those email addresses do not match."
-        : (error === "email-same")
-        ? "That email address is already used by this account."
-        : (error === "invalid-color-scheme")
-        ? "That color scheme is invalid."
-        : (error === "invalid-token")
-        ? "The password reset token is invalid."
-        : (error === "invalid-confirmation")
-        ? "You must enter DELETE to confirm account deletion."
-        : "";
-}
-
-function getSuccessMessage(success) {
-    return (success === "reset-success")
-        ? "Your password has been reset."
-        : (success === "email-updated")
-        ? "Your email address has been updated."
-        : (success === "password-updated")
-        ? "Your password has been updated."
-        : (success === "password-reset")
-        ? "Your password has been reset."
-        : (success === "color-scheme-updated")
-        ? "Your color scheme has been updated."
-        : (success === "account-deleted")
-        ? "Your account has been deleted."
-        : "";
-}
 
 async function getResetPasswordEvent(token, db = { query }, options = {}) {
     if (!token) {
