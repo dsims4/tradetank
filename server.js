@@ -12,6 +12,8 @@ const publicRouter = require("./routes/public");
 const appRouter = require("./routes/app");
 const apiRouter = require("./routes/api");
 
+const { verifySameOrigin } = require("./middleware/csrf");
+
 const app = express();
 
 nunjucks.configure("views", {
@@ -20,6 +22,7 @@ nunjucks.configure("views", {
   noCache: true,
 });
 
+app.use(verifySameOrigin);
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(express.static(path.join(__dirname, "public")));
