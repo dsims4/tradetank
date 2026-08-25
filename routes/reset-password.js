@@ -6,6 +6,7 @@ const {
 } = require("../services/db");
 const { hashPassword } = require("../services/password");
 const { getErrorMessage } = require("../utilities/messages");
+const { invalidateSessions } = require("../services/session");
 
 const router = express.Router();
 
@@ -191,6 +192,8 @@ router.post("/reset-password", async (req, res, next) => {
                 invalidated_time IS NULL`,
             [resetPasswordEvent.user_id]
         );
+
+        await invalidateSessions(resetPasswordEvent.user_id, client);
 
         await client.query("COMMIT");
 

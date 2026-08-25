@@ -8,7 +8,8 @@ const {
 
 const {
     getSessionUserID,
-    clearSessionCookie
+    clearSessionCookie,
+    invalidateOtherSessions
 } = require("../services/session");
 
 const {
@@ -296,6 +297,8 @@ router.post("/profile/change-password", redirectUnauthenticated, async (req, res
                 invalidated_time IS NULL`,
             [userID]
         );
+
+        await invalidateOtherSessions(req, userID, client);
 
         await client.query("COMMIT");
 

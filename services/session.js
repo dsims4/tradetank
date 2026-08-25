@@ -9,23 +9,27 @@ const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;
 if (!SESSION_SECRET) throw new Error("SESSION_SECRET environment variable is not initialized.");
 
 function parseCookies(cookieHeader = "") {
-    if (!cookieHeader) {
-        return {};
+    if (!cookieHeader) return {};
+
+    const cookies = {};
+
+    for (const cookie of cookieHeader.split(";")) {
+        const trimmedCookie = cookie.trim();
+        const separatorIndex = trimmedCookie.indexOf("=");
+
+        if (separatorIndex <= 0) continue;
+
+        const key = trimmedCookie.slice(0, separatorIndex).trim();
+        const value = trimmedCookie.slice(separatorIndex + 1);
+
+        try {
+            cookies[key] = decodeURIComponent(value);
+        } catch {
+            continue;
+        }
     }
 
-    return Object.fromEntries(
-        cookieHeader
-            .split(";")
-            .map((cookie) => cookie.trim())
-            .filter(Boolean)
-            .map((cookie) => {
-                const separatorIndex = cookie.indexOf("=");
-                const key = cookie.slice(0, separatorIndex);
-                const value = cookie.slice(separatorIndex + 1);
-
-                return [key, decodeURIComponent(value)];
-            })
-    );
+    return cookies;
 }
 
 function writeSessionCookie(res, cookieValue, sessionDuration) {
@@ -184,8 +188,81 @@ async function getDatabaseSessionUserID(req) {
     return req.authenticatedUserID;
 }
 
+async function invalidateSession(req) {
+    const sessionToken = getSessionTokenFromCookie(req);
+
+    if (!sessionToken) {
+        req.authenticatedUserID = null;
+        return false;
+    }
+
+    const hashedSessionToken = hashSessionToken(sessionToken);
+
+    const result = await query(
+        `UPDATE
+            user_sessions
+         SET
+            invalidated_time = NOW()
+         WHERE
+            hashed_token = $1
+         AND
+            invalidated_time IS NULL`,
+        [hashedSessionToken]
+    );
+
+    req.authenticatedUserID = null;
+    return result.rowCount > 0;
+}
+
+async function invalidateSessions(userID, db = { query }) {
+    const result = await db.query(
+        `UPDATE
+            user_sessions
+         SET
+            invalidated_time = NOW()
+         WHERE
+            user_id = $1
+         AND
+            invalidated_time IS NULL
+         AND
+            expiration_time > NOW()`,
+        [userID]
+    );
+
+    return result.rowCount;
+}
+
+async function invalidateOtherSessions(req, userID, db = { query }) {
+    const sessionToken = getSessionTokenFromCookie(req);
+
+    if (!sessionToken) throw new Error("A valid session token wasn't passed.");
+
+    const hashedSessionToken = hashSessionToken(sessionToken);
+
+    const result = await db.query(
+        `UPDATE
+            user_sessions
+         SET
+            invalidated_time = NOW()
+         WHERE
+            user_id = $1
+         AND
+            hashed_token <> $2
+         AND
+            invalidated_time IS NULL
+         AND
+            expiration_time > NOW()`,
+        [userID, hashedSessionToken]
+    );
+
+    return result.rowCount;
+}
+
 module.exports = {
     getSessionUserID,
     setSessionCookie,
-    clearSessionCookie
+    clearSessionCookie,
+    invalidateSession,
+    invalidateSessions,
+    invalidateOtherSessions
 };

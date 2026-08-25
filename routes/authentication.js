@@ -9,7 +9,8 @@ const {
 } = require("../services/password");
 const {
     clearSessionCookie,
-    setSessionCookie
+    setSessionCookie,
+    invalidateSession
 } = require("../services/session");
 const {
     getErrorMessage,
@@ -220,9 +221,15 @@ router.post("/signup", async (req, res, next) => {
     }
 });
 
-router.post("/logout", (req, res) => {
-    clearSessionCookie(res);
-    res.redirect("/login");
+router.post("/logout", async (req, res, next) => {
+    try {
+        await invalidateSession(req);
+        clearSessionCookie(res);
+        return res.redirect("/login");
+    } catch (error) {
+        clearSessionCookie(res);
+        return next(error);
+    }
 });
 
 async function getLoginRateLimit(username) {
