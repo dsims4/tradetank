@@ -322,9 +322,28 @@ function runCandlestickChart() {
     chart.resize();
 }
 
+function runColorSchemeForm() {
+    const colorSchemeForm = document.querySelector(
+        "[data-color-scheme-form]"
+    );
+
+    if (!colorSchemeForm) return;
+
+    const colorSchemeInputs = colorSchemeForm.querySelectorAll(
+        "input[name='changeColorScheme']"
+    );
+
+    colorSchemeInputs.forEach((input) => {
+        input.addEventListener("change", () => {
+            HTMLFormElement.prototype.submit.call(colorSchemeForm);
+        });
+    });
+}
+
 runSlideshow();
 runSignupForm();
 runLoginForm();
+runColorSchemeForm();
 runResetPasswordForm();
 runDeleteAccountForm();
 runQueryCleaner();

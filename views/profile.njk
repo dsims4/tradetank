@@ -29,7 +29,10 @@
                         </div>
                     </div>
 
-                    <form method="POST" action="/profile/color-scheme" class="profile-settings-group">
+                    <form method="POST"
+                          action="/profile/color-scheme"
+                          class="profile-settings-group"
+                        data-color-scheme-form>
                         <div class="form-row">
                             <div class="form-field">
                                 <span>Created:</span>
@@ -44,7 +47,6 @@
                                             type="radio"
                                             name="changeColorScheme"
                                             value="light"
-                                            onchange="this.form.submit()"
                                             {% if profile.colorScheme == "light" %}checked{% endif %}>
                                         <span>Light</span>
                                     </label>
@@ -54,7 +56,6 @@
                                             type="radio"
                                             name="changeColorScheme"
                                             value="dark"
-                                            onchange="this.form.submit()"
                                             {% if profile.colorScheme == "dark" %}checked{% endif %}>
                                         <span>Dark</span>
                                     </label>

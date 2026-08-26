@@ -1,8 +1,10 @@
 require("dotenv").config();
 const PORT = process.env.PORT;
+const isProduction = process.env.NODE_ENV === "production";
 
 const express = require("express");
 const nunjucks = require("nunjucks");
+const helmet = require("helmet");
 const path = require("path");
 
 const authenticationRouter = require("./routes/authentication");
@@ -21,6 +23,15 @@ nunjucks.configure("views", {
   express: app,
   noCache: true,
 });
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            upgradeInsecureRequests: isProduction ? [] : null
+        }
+    },
+    strictTransportSecurity: isProduction ? {} : false
+}));
 
 app.use(verifySameOrigin);
 app.use(express.json());
