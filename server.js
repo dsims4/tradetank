@@ -30,6 +30,9 @@ app.use(helmet({
             upgradeInsecureRequests: isProduction ? [] : null
         }
     },
+    referrerPolicy: {
+        policy: "same-origin"
+    },
     strictTransportSecurity: isProduction ? {} : false
 }));
 

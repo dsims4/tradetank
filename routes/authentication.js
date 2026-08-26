@@ -19,6 +19,12 @@ const {
 const {
     redirectAuthenticated
 } = require("../middleware/authentication");
+const {
+    getStringInput,
+    isValidUsername,
+    isValidEmail,
+    isValidPassword
+} = require("../utilities/validation");
 
 const router = express.Router();
 
@@ -56,14 +62,21 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
 });
 
 router.post("/login", async (req, res, next) => {
-    const username = String(req.body.username || "").trim();
-    const password = String(req.body.password || "");
-    const rememberMe = Boolean(req.body.remember);
+    const username = getStringInput(req.body.username).trim();
+    const password = getStringInput(req.body.password);
+    const rememberMe = getStringInput(req.body.remember) === "on";
 
     if (!username || !password) {
         const searchParams = new URLSearchParams({
             error: "missing-fields",
-            username: username
+            username: isValidUsername(username) ? username : ""
+        });
+        return res.redirect(`/login?${searchParams.toString()}`);
+    }
+
+    if (!isValidUsername(username) || !isValidPassword(password)) {
+        const searchParams = new URLSearchParams({
+            error: "invalid-credentials"
         });
         return res.redirect(`/login?${searchParams.toString()}`);
     }
@@ -121,13 +134,19 @@ router.post("/login", async (req, res, next) => {
 });
 
 router.post("/signup", async (req, res, next) => {
-    const username = String(req.body.username || "").trim();
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const password = String(req.body.password || "");
-    const confirmPassword = String(req.body.confirmPassword || "");
+    const username = getStringInput(req.body.username).trim();
+    const email = getStringInput(req.body.email).trim().toLowerCase();
+    const password = getStringInput(req.body.password);
+    const confirmPassword = getStringInput(req.body.confirmPassword);
 
     const error = (!username || !email || !password || !confirmPassword)
         ? "missing-fields"
+        : (!isValidUsername(username))
+        ? "invalid-username"
+        : (!isValidEmail(email))
+        ? "invalid-email"
+        : (!isValidPassword(password))
+        ? "invalid-password"
         : (password !== confirmPassword)
         ? "password-mismatch"
         : "";

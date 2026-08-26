@@ -4,6 +4,12 @@ const {
     getClient,
     query
 } = require("../services/db");
+const {
+    getStringInput,
+    isValidEmail,
+    isValidPassword,
+    isValidResetPasswordToken
+} = require("../utilities/validation");
 const { hashPassword } = require("../services/password");
 const { getErrorMessage } = require("../utilities/messages");
 const { invalidateSessions } = require("../services/session");
@@ -54,9 +60,9 @@ router.get("/reset-password", async (req, res, next) => {
 });
 
 router.post("/forgot-password", (req, res) => {
-    const email = String(req.body.email || "").trim().toLowerCase();
+    const email = getStringInput(req.body.email).trim().toLowerCase();
 
-    if (!email) {
+    if (!email || !isValidEmail(email)) {
         return res.redirect("/forgot-password");
     }
 
@@ -100,14 +106,13 @@ router.post("/forgot-password", (req, res) => {
 });
 
 router.post("/reset-password", async (req, res, next) => {
-    const token = String(req.body.token || "").trim();
-    const newPassword = String(req.body.password || "");
-    const confirmPassword = String(req.body.confirmPassword || "");
+    const token = getStringInput(req.body.token).trim();
+    const newPassword = getStringInput(req.body.password);
+    const confirmPassword = getStringInput(req.body.confirmPassword);
 
-    if (!token) {
+    if (!isValidResetPasswordToken(token)) {
         const errorMessage = getErrorMessage("invalid-token");
         const searchParams = new URLSearchParams({
-            token: token,
             errorMessage: errorMessage,
             linkIsValid: "false"
         });
@@ -116,6 +121,16 @@ router.post("/reset-password", async (req, res, next) => {
 
     if (!newPassword || !confirmPassword) {
         const errorMessage = getErrorMessage("missing-fields");
+        const searchParams = new URLSearchParams({
+            token: token,
+            errorMessage: errorMessage,
+            linkIsValid: "true"
+        });
+        return res.redirect(`/reset-password?${searchParams.toString()}`);
+    }
+
+    if (!isValidPassword(newPassword)) {
+        const errorMessage = getErrorMessage("invalid-password");
         const searchParams = new URLSearchParams({
             token: token,
             errorMessage: errorMessage,
@@ -210,7 +225,7 @@ router.post("/reset-password", async (req, res, next) => {
 });
 
 async function getResetPasswordEvent(token, db = { query }, options = {}) {
-    if (!token) {
+    if (!isValidResetPasswordToken(token)) {
         return null;
     }
 

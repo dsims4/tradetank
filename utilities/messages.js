@@ -25,6 +25,12 @@ function getErrorMessage(error) {
         ? "The password reset token is invalid."
         : (error === "invalid-confirmation")
         ? "You must enter DELETE to confirm account deletion."
+        : (error === "invalid-username")
+        ? "Usernames must be at least 1 character, and less than 33 characters."
+        : (error === "invalid-email")
+        ? "Email addresses must have the correct format and be less than 256 characters."
+        : (error === "invalid-password")
+        ? "Passwords must be at least 1 character, and less than 129 characters."
         : "";
 }
 

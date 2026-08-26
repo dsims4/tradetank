@@ -88,7 +88,10 @@
                                     type="email"
                                     id="profile-change-email"
                                     class="form-input"
-                                    name="email">
+                                    name="email"
+                                    autocomplete="email"
+                                    maxlength="255"
+                                    required>
                             </div>
 
                             <div class="form-field">
@@ -97,7 +100,10 @@
                                     type="email"
                                     id="profile-confirm-email"
                                     class="form-input"
-                                    name="confirmEmail">
+                                    name="confirmEmail"
+                                    autocomplete="email"
+                                    maxlength="255"
+                                    required>
                             </div>
                         </div>
 
@@ -123,7 +129,9 @@
                                     id="profile-new-password"
                                     class="form-input"
                                     name="newPassword"
-                                    autocomplete="new-password">
+                                    autocomplete="new-password"
+                                    maxlength="128"
+                                    required>
                             </div>
 
                             <div class="form-field">
@@ -133,7 +141,9 @@
                                     id="profile-confirm-password"
                                     class="form-input"
                                     name="confirmPassword"
-                                    autocomplete="new-password">
+                                    autocomplete="new-password"
+                                    maxlength="128"
+                                    required>
                             </div>
                         </div>
 
@@ -142,12 +152,11 @@
                         </div>
                     </form>
 
-                    <form 
-                        method="POST" 
-                        action="/profile/delete-account" 
+                    <form
+                        method="POST"
+                        action="/profile/delete-account"
                         class="profile-settings-group"
-                        data-delete-account-form
-                    >
+                        data-delete-account-form>
 
                         {% if deleteErrorMessage %}
                             <p class="form-message form-message--error">{{ deleteErrorMessage }}</p>
@@ -162,6 +171,7 @@
                                     class="form-input"
                                     name="deleteConfirmation"
                                     pattern="DELETE"
+                                    maxlength="6"
                                     autocomplete="off"
                                     required>
                             </div>

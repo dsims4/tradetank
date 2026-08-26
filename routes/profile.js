@@ -1,29 +1,29 @@
 const express = require("express");
 const router = express.Router();
-
 const {
     getClient,
     query
 } = require("../services/db");
-
 const {
     getSessionUserID,
     clearSessionCookie,
     invalidateOtherSessions
 } = require("../services/session");
-
 const {
     redirectUnauthenticated
 } = require("../middleware/authentication");
-
 const {
     hashPassword
 } = require("../services/password");
-
 const {
     getErrorMessage,
     getSuccessMessage
 } = require("../utilities/messages");
+const {
+    getStringInput,
+    isValidEmail,
+    isValidPassword
+} = require("../utilities/validation");
 
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
@@ -96,7 +96,8 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
 router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
 
-    const colorScheme = String(req.body.changeColorScheme || "").trim().toLowerCase();
+    const colorScheme =
+        getStringInput(req.body.changeColorScheme).trim().toLowerCase();
 
     if (!["light", "dark"].includes(colorScheme)) {
         const searchParams = new URLSearchParams({
@@ -129,12 +130,20 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
 router.post("/profile/change-email", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
 
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const confirmEmail = String(req.body.confirmEmail || "").trim().toLowerCase();
+    const email = getStringInput(req.body.email).trim().toLowerCase();
+    const confirmEmail =
+        getStringInput(req.body.confirmEmail).trim().toLowerCase();
 
     if (!email || !confirmEmail) {
         const searchParams = new URLSearchParams({
             emailError: "email-missing-fields"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    }
+
+    if (!isValidEmail(email)) {
+        const searchParams = new URLSearchParams({
+            emailError: "invalid-email"
         });
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
@@ -240,12 +249,19 @@ router.post("/profile/change-email", redirectUnauthenticated, async (req, res, n
 
 router.post("/profile/change-password", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
-    const newPassword = String(req.body.newPassword || "");
-    const confirmPassword = String(req.body.confirmPassword || "");
+    const newPassword = getStringInput(req.body.newPassword);
+    const confirmPassword = getStringInput(req.body.confirmPassword);
 
     if (!newPassword || !confirmPassword) {
         const searchParams = new URLSearchParams({
             passwordError: "password-missing-fields"
+        });
+        return res.redirect(`/profile?${searchParams.toString()}`);
+    }
+
+    if (!isValidPassword(newPassword)) {
+        const searchParams = new URLSearchParams({
+            passwordError: "invalid-password"
         });
         return res.redirect(`/profile?${searchParams.toString()}`);
     }
@@ -315,7 +331,7 @@ router.post("/profile/change-password", redirectUnauthenticated, async (req, res
 });
 
 router.post("/profile/delete-account", redirectUnauthenticated, async (req, res, next) => {
-    const confirmation = String(req.body.deleteConfirmation || "");
+    const confirmation = getStringInput(req.body.deleteConfirmation);
 
     if (confirmation !== "DELETE") {
         const searchParams = new URLSearchParams({

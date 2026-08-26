@@ -23,7 +23,7 @@ function verifySameOrigin(req, res, next) {
 
     const origin = req.get("origin");
 
-    if (origin) {
+    if (origin && origin !== "null") {
         return origin === appOrigin
             ? next()
             : res.status(403).send("Forbidden");
