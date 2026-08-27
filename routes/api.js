@@ -1,15 +1,19 @@
 const express = require("express");
 const router = express.Router();
 const { query } = require("../services/db");
+const {
+    getStringInput,
+    isValidUsername,
+    isValidEmail
+} = require("../utilities/validation");
 
-router.get("/signup-availability", async (req, res, next) => {
-    const username = String(req.query.username || "").trim();
-    const email = String(req.query.email || "").trim().toLowerCase();
+router.post("/signup-availability", async (req, res, next) => {
+    const username = getStringInput(req.body.username).trim();
+    const email = getStringInput(req.body.email).trim().toLowerCase();
 
-    if (!username && !email) {
-        return res.json({
-            usernameAvailable: true,
-            emailAvailable: true
+    if (!isValidUsername(username) || !isValidEmail(email)) {
+        return res.status(400).json({
+            error: "At least one input is misformatted."
         });
     }
 

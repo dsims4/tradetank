@@ -109,11 +109,16 @@ function runSignupForm() {
             return true;
         }
 
-        const searchParams = new URLSearchParams({
-            username: usernameInput.value,
-            email: emailInput.value
+        const response = await fetch("/api/signup-availability", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                username: usernameInput.value,
+                email: emailInput.value
+            })
         });
-        const response = await fetch(`/api/signup-availability?${searchParams.toString()}`);
 
         if (!response.ok) {
             throw new Error("Signup availability check failed.");
@@ -158,7 +163,7 @@ function runSignupForm() {
                 return;
             }
         } catch {
-            return;
+            // This is intentionally blank.
         }
 
         HTMLFormElement.prototype.submit.call(signupForm);

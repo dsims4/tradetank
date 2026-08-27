@@ -31,28 +31,22 @@ router.get("/forgot-password-confirmation", (req, res) => {
 });
 
 router.get("/reset-password", async (req, res, next) => {
-    const token = String(req.query.token || "").trim();
-    let errorMessage = String(req.query.errorMessage || "");
-    const linkIsValid = req.query.linkIsValid === "true";
+    const token = getStringInput(req.query.token).trim();
+    const error = getStringInput(req.query.error);
 
-    if (errorMessage) {
+    try {
+        const resetPasswordEvent = await getResetPasswordEvent(token);
+        const resetPasswordErrorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
+        const linkIsValid = !resetPasswordErrorMessage;
+        const errorMessage = linkIsValid
+            ? getErrorMessage(error)
+            : resetPasswordErrorMessage;
+
         return res.render("reset-password.njk", {
             currentPage: "reset-password",
             token: token,
             errorMessage: errorMessage,
             linkIsValid: linkIsValid
-        });
-    }
-
-    try {
-        const resetPasswordEvent = await getResetPasswordEvent(token);
-        errorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
-
-        return res.render("reset-password.njk", {
-            currentPage: "reset-password",
-            token: token,
-            errorMessage: errorMessage,
-            linkIsValid: !errorMessage
         });
     } catch (error) {
         return next(error);
@@ -81,8 +75,10 @@ router.post("/forgot-password", (req, res) => {
         if (user) {
             const resetPasswordToken = crypto.randomBytes(32).toString("hex");
             const hashedResetPasswordToken = hashResetPasswordToken(resetPasswordToken);
-            const expirationTime = new Date(Date.now() + RESET_PASSWORD_TOKEN_DURATION).toISOString();
-            const resetPasswordURL = `${req.protocol}://${req.get("host")}/reset-password?token=${resetPasswordToken}`;
+            const expirationTime =
+                new Date(Date.now() + RESET_PASSWORD_TOKEN_DURATION).toISOString();
+            const resetPasswordURL =
+                `${req.protocol}://${req.get("host")}/reset-password?token=${resetPasswordToken}`;
 
             await query(
                 `INSERT INTO 
@@ -111,40 +107,29 @@ router.post("/reset-password", async (req, res, next) => {
     const confirmPassword = getStringInput(req.body.confirmPassword);
 
     if (!isValidResetPasswordToken(token)) {
-        const errorMessage = getErrorMessage("invalid-token");
-        const searchParams = new URLSearchParams({
-            errorMessage: errorMessage,
-            linkIsValid: "false"
-        });
-        return res.redirect(`/reset-password?${searchParams.toString()}`);
+        return res.redirect("/reset-password");
     }
 
     if (!newPassword || !confirmPassword) {
-        const errorMessage = getErrorMessage("missing-fields");
         const searchParams = new URLSearchParams({
             token: token,
-            errorMessage: errorMessage,
-            linkIsValid: "true"
+            error: "missing-fields"
         });
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     if (!isValidPassword(newPassword)) {
-        const errorMessage = getErrorMessage("invalid-password");
         const searchParams = new URLSearchParams({
             token: token,
-            errorMessage: errorMessage,
-            linkIsValid: "true"
+            error: "invalid-password"
         });
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
 
     if (newPassword !== confirmPassword) {
-        const errorMessage = getErrorMessage("password-mismatch");
         const searchParams = new URLSearchParams({
             token: token,
-            errorMessage: errorMessage,
-            linkIsValid: "true"
+            error: "password-mismatch"
         });
         return res.redirect(`/reset-password?${searchParams.toString()}`);
     }
@@ -162,9 +147,7 @@ router.post("/reset-password", async (req, res, next) => {
         if (errorMessage) {
             await client.query("ROLLBACK");
             const searchParams = new URLSearchParams({
-                token: token,
-                errorMessage: errorMessage,
-                linkIsValid: "false"
+                token: token
             });
             return res.redirect(`/reset-password?${searchParams.toString()}`);
         }

@@ -33,10 +33,13 @@ const LOGIN_RATE_LIMIT_FAILURES = 7;
 const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
 
 router.get("/login", redirectAuthenticated, (req, res) => {
-    const username = String(req.query.username || "").trim();
-    const error = String(req.query.error || "");
-    const success = String(req.query.success || "");
+    const usernameInput = getStringInput(req.query.username).trim();
+    const username = (isValidUsername(usernameInput))
+        ? usernameInput
+        : "";
 
+    const error = getStringInput(req.query.error);
+    const success = getStringInput(req.query.success);
     const errorMessage = getErrorMessage(error);
     const successMessage = getSuccessMessage(success);
 
@@ -49,9 +52,9 @@ router.get("/login", redirectAuthenticated, (req, res) => {
 });
 
 router.get("/signup", redirectAuthenticated, (req, res) => {
-    const error = req.query.error || "";
+    const error = getStringInput(req.query.error);
+    const success = getStringInput(req.query.success);
     const errorMessage = getErrorMessage(error);
-    const success = req.query.success || "";
     const successMessage = getSuccessMessage(success);
 
     res.render("signup.njk", {
@@ -189,6 +192,7 @@ router.post("/signup", async (req, res, next) => {
         const hashedPassword = await hashPassword(password);
 
         const client = await getClient();
+        let userID;
 
         try {
             await client.query("BEGIN");
@@ -204,7 +208,7 @@ router.post("/signup", async (req, res, next) => {
                 [username, email, hashedPassword]
             );
 
-            const userID = userResult?.rows[0]?.id;
+            userID = userResult?.rows[0]?.id;
 
             await client.query(
                 `INSERT INTO 
@@ -226,15 +230,34 @@ router.post("/signup", async (req, res, next) => {
             );
 
             await client.query("COMMIT");
-
-            await setSessionCookie(res, userID, false);
-            return res.redirect("/home");
         } catch (error) {
             await client.query("ROLLBACK");
+
+            const signupError = (
+                error.code === "23505" &&
+                error.constraint === "users_username_key"
+            )   ? "username-taken"
+                : (
+                    error.code === "23505" &&
+                    error.constraint === "users_email_key"
+                )
+                ? "email-taken"
+                : "";
+
+            if (signupError) {
+                const searchParams = new URLSearchParams({
+                    error: signupError
+                });
+                return res.redirect(`/signup?${searchParams.toString()}`);
+            }
+
             return next(error);
         } finally {
             client.release();
         }
+
+        await setSessionCookie(res, userID, false);
+        return res.redirect("/home");
     } catch (error) {
         return next(error);
     }

@@ -29,12 +29,12 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
 
     try {
-        const emailError = String(req.query.emailError || "");
-        const passwordError = String(req.query.passwordError || "");
-        const colorSchemeError = String(req.query.colorSchemeError || "");
-        const deleteError = String(req.query.deleteError || "");
-        const emailSuccess = String(req.query.emailSuccess || "");
-        const passwordSuccess = String(req.query.passwordSuccess || "");
+        const emailError = getStringInput(req.query.emailError);
+        const passwordError = getStringInput(req.query.passwordError);
+        const colorSchemeError = getStringInput(req.query.colorSchemeError);
+        const deleteError = getStringInput(req.query.deleteError);
+        const emailSuccess = getStringInput(req.query.emailSuccess);
+        const passwordSuccess = getStringInput(req.query.passwordSuccess);
 
         const emailErrorMessage = getErrorMessage(emailError);
         const passwordErrorMessage = getErrorMessage(passwordError);
