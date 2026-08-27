@@ -26,14 +26,12 @@ const {
     isValidPassword
 } = require("../utilities/validation");
 const {
-    loginIPRateLimit
+    loginIPRateLimit,
+    accountIPRateLimit,
+    clearAccountIPRateLimit
 } = require("../middleware/rate-limits");
 
 const router = express.Router();
-
-const LOGIN_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
-const LOGIN_RATE_LIMIT_FAILURES = 7;
-const LOGIN_RATE_LIMIT_TIMEOUT = 1000 * 60 * 15;
 
 router.get("/login", redirectAuthenticated, (req, res) => {
     const usernameInput = getStringInput(req.query.username).trim();
@@ -67,7 +65,7 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
     });
 });
 
-router.post("/login", loginIPRateLimit, async (req, res, next) => {
+router.post("/login", loginIPRateLimit, accountIPRateLimit, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();
     const password = getStringInput(req.body.password);
     const rememberMe = getStringInput(req.body.remember) === "on";
@@ -88,19 +86,6 @@ router.post("/login", loginIPRateLimit, async (req, res, next) => {
     }
 
     try {
-        const loginRateLimit = await getLoginRateLimit(username);
-        const loginRateLimitExpirationTime = loginRateLimit?.expiration_time
-            ? new Date(loginRateLimit.expiration_time).getTime()
-            : null;
-
-        if (loginRateLimitExpirationTime && loginRateLimitExpirationTime > Date.now()) {
-            const searchParams = new URLSearchParams({
-                username: username,
-                error: "login-rate-limit"
-            });
-            return res.redirect(`/login?${searchParams.toString()}`);
-        }
-
         const userResult = await query(
             `SELECT id, hashed_password
              FROM users
@@ -112,7 +97,6 @@ router.post("/login", loginIPRateLimit, async (req, res, next) => {
         const user = userResult.rows[0];
 
         if (!user) {
-            await recordFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
                 username: username
@@ -123,7 +107,6 @@ router.post("/login", loginIPRateLimit, async (req, res, next) => {
         const passwordIsValid = await verifyPassword(password, user.hashed_password);
 
         if (!passwordIsValid) {
-            await recordFailedLoginAttempt(username, req.ip);
             const searchParams = new URLSearchParams({
                 error: "invalid-credentials",
                 username: username
@@ -131,7 +114,7 @@ router.post("/login", loginIPRateLimit, async (req, res, next) => {
             return res.redirect(`/login?${searchParams.toString()}`);
         }
 
-        await clearLoginRateLimit(username);
+        await clearAccountIPRateLimit(req);
         await setSessionCookie(res, user.id, rememberMe);
         return res.redirect("/home");
     } catch (error) {
@@ -276,91 +259,5 @@ router.post("/logout", async (req, res, next) => {
         return next(error);
     }
 });
-
-async function getLoginRateLimit(username) {
-    const loginRateLimitResult = await query(
-        `SELECT
-            id,
-            attempt_count,
-            start_time,
-            expiration_time
-         FROM
-            login_rate_limits
-         WHERE
-            username = $1
-         LIMIT 1`,
-        [username]
-    );
-    return loginRateLimitResult.rows[0] || null;
-}
-
-async function recordFailedLoginAttempt(username, ipAddress) {
-    const existingLoginRateLimit = await getLoginRateLimit(username);
-    const currentTime = Date.now();
-
-    if (!existingLoginRateLimit) {
-        await query(
-            `INSERT INTO
-                login_rate_limits
-                (
-                username,
-                ip_address,
-                attempt_count,
-                start_time,
-                update_time
-                )
-             VALUES
-                (
-                $1, $2, 1, NOW(), NOW()
-                )`,
-            [username, ipAddress || null]
-        );
-        return;
-    }
-
-    const startTime = new Date(existingLoginRateLimit.start_time).getTime();
-    const windowHasExpired = !Number.isFinite(startTime)
-        || (currentTime - startTime) > LOGIN_RATE_LIMIT_WINDOW;
-    const newFailedAttempts = windowHasExpired
-        ? 1
-        : Number(existingLoginRateLimit.attempt_count || 0) + 1;
-    const shouldBlock = newFailedAttempts >= LOGIN_RATE_LIMIT_FAILURES;
-    const expirationTime = shouldBlock
-        ? new Date(currentTime + LOGIN_RATE_LIMIT_TIMEOUT).toISOString()
-        : null;
-
-    await query(
-        `UPDATE
-            login_rate_limits
-         SET
-             ip_address = $2,
-             attempt_count = $3,
-             start_time = CASE
-                 WHEN $4 THEN NOW()
-                 ELSE start_time
-             END,
-             expiration_time = $5,
-             update_time = NOW()
-         WHERE
-            id = $1`,
-        [
-            existingLoginRateLimit.id,
-            ipAddress || null,
-            newFailedAttempts,
-            windowHasExpired,
-            expirationTime
-        ]
-    );
-}
-
-async function clearLoginRateLimit(username) {
-    await query(
-        `DELETE FROM
-            login_rate_limits
-         WHERE
-            username = $1`,
-        [username]
-    );
-}
 
 module.exports = router;

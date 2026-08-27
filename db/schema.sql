@@ -40,16 +40,6 @@ CREATE TABLE IF NOT EXISTS email_change_events (
     change_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS login_rate_limits (
-    id BIGSERIAL PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    ip_address INET,
-    attempt_count INTEGER NOT NULL DEFAULT 0,
-    start_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expiration_time TIMESTAMPTZ,
-    update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     color_scheme VARCHAR(20) NOT NULL DEFAULT 'light',
@@ -123,6 +113,3 @@ CREATE INDEX IF NOT EXISTS email_change_events_user_id_idx
 
 CREATE INDEX IF NOT EXISTS email_change_events_change_time_idx
     ON email_change_events (change_time);
-
-CREATE INDEX IF NOT EXISTS login_rate_limits_expiration_time_idx
-    ON login_rate_limits (expiration_time);
