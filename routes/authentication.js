@@ -25,6 +25,9 @@ const {
     isValidEmail,
     isValidPassword
 } = require("../utilities/validation");
+const {
+    loginIPRateLimit
+} = require("../middleware/rate-limits");
 
 const router = express.Router();
 
@@ -64,7 +67,7 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
     });
 });
 
-router.post("/login", async (req, res, next) => {
+router.post("/login", loginIPRateLimit, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();
     const password = getStringInput(req.body.password);
     const rememberMe = getStringInput(req.body.remember) === "on";
