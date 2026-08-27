@@ -6,8 +6,11 @@ const {
     isValidUsername,
     isValidEmail
 } = require("../utilities/validation");
+const {
+    signupAvailabilityIPRateLimit
+} = require("../middleware/rate-limits");
 
-router.post("/signup-availability", async (req, res, next) => {
+router.post("/signup-availability", signupAvailabilityIPRateLimit, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();
     const email = getStringInput(req.body.email).trim().toLowerCase();
 

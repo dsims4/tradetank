@@ -31,6 +31,8 @@ function getErrorMessage(error) {
         ? "Email addresses must have the correct format and be less than 256 characters."
         : (error === "invalid-password")
         ? "Passwords must be at least 1 character, and less than 129 characters."
+        : (error === "signup-rate-limit")
+        ? "Too many signup requests have been made. Try again later."
         : "";
 }
 

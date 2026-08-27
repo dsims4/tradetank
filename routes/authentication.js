@@ -28,6 +28,7 @@ const {
 const {
     loginIPRateLimit,
     accountIPRateLimit,
+    signupIPRateLimit,
     clearAccountIPRateLimit
 } = require("../middleware/rate-limits");
 
@@ -122,7 +123,7 @@ router.post("/login", loginIPRateLimit, accountIPRateLimit, async (req, res, nex
     }
 });
 
-router.post("/signup", async (req, res, next) => {
+router.post("/signup", signupIPRateLimit, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();
     const email = getStringInput(req.body.email).trim().toLowerCase();
     const password = getStringInput(req.body.password);
