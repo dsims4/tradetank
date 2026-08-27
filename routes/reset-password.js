@@ -14,7 +14,8 @@ const { hashPassword } = require("../services/password");
 const { getErrorMessage } = require("../utilities/messages");
 const { invalidateSessions } = require("../services/session");
 const {
-    forgotPasswordIPRateLimit
+    forgotPasswordIPRateLimit,
+    resetPasswordIPRateLimit
 } = require("../middleware/rate-limits");
 
 const router = express.Router();
@@ -104,7 +105,7 @@ router.post("/forgot-password", forgotPasswordIPRateLimit, (req, res) => {
         });
 });
 
-router.post("/reset-password", async (req, res, next) => {
+router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) => {
     const token = getStringInput(req.body.token).trim();
     const newPassword = getStringInput(req.body.password);
     const confirmPassword = getStringInput(req.body.confirmPassword);

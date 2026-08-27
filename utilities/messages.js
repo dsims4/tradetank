@@ -35,6 +35,8 @@ function getErrorMessage(error) {
         ? "Too many signup requests have been made. Try again later."
         : (error === "forgot-password-rate-limit")
         ? "Too many password reset requests have been made. Try again later."
+        : (error === "reset-password-rate-limit")
+        ? "Too many password reset attempts have been made. Try again later."
         : "";
 }
 

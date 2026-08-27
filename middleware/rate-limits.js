@@ -4,7 +4,8 @@ const {
 } = require("express-rate-limit");
 const {
     getStringInput,
-    isValidUsername
+    isValidUsername,
+    isValidResetPasswordToken
 } = require("../utilities/validation");
 const { getErrorMessage } = require("../utilities/messages");
 
@@ -12,11 +13,13 @@ const SIGNUP_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
 const FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
 const LOGIN_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
+const RESET_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_IP_RATE_LIMIT_REQUESTS = 32;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_REQUESTS = 32;
 const ACCOUNT_IP_RATE_LIMIT_REQUESTS = 8;
 const SIGNUP_IP_RATE_LIMIT_REQUESTS = 8;
 const FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
+const RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
 
 const loginIPRateLimit = rateLimit({
     windowMs: LOGIN_IP_RATE_LIMIT_WINDOW,
@@ -59,6 +62,14 @@ const forgotPasswordIPRateLimit = rateLimit({
     handler: handleForgotPasswordIPRateLimit
 });
 
+const resetPasswordIPRateLimit = rateLimit({
+    windowMs: RESET_PASSWORD_IP_RATE_LIMIT_WINDOW,
+    limit: RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    handler: handleResetPasswordIPRateLimit
+});
+
 function handleLoginIPRateLimit(req, res) {
     const usernameInput = getStringInput(req.body?.username).trim();
     const username = isValidUsername(usernameInput)
@@ -99,6 +110,17 @@ function handleForgotPasswordIPRateLimit(req, res) {
     });
 }
 
+function handleResetPasswordIPRateLimit(req, res) {
+    const token = getStringInput(req.body?.token).trim();
+
+    return res.status(429).render("reset-password.njk", {
+        currentPage: "reset-password",
+        token: token,
+        errorMessage: getErrorMessage("reset-password-rate-limit"),
+        linkIsValid: isValidResetPasswordToken(token)
+    });
+}
+
 async function clearAccountIPRateLimit(req) {
     const key = getAccountIPRateLimitKey(req);
     await accountIPRateLimit.resetKey(key);
@@ -110,5 +132,6 @@ module.exports = {
     accountIPRateLimit,
     signupAvailabilityIPRateLimit,
     forgotPasswordIPRateLimit,
+    resetPasswordIPRateLimit,
     clearAccountIPRateLimit
 };
