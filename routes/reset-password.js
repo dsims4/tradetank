@@ -13,6 +13,9 @@ const {
 const { hashPassword } = require("../services/password");
 const { getErrorMessage } = require("../utilities/messages");
 const { invalidateSessions } = require("../services/session");
+const {
+    forgotPasswordIPRateLimit
+} = require("../middleware/rate-limits");
 
 const router = express.Router();
 
@@ -53,7 +56,7 @@ router.get("/reset-password", async (req, res, next) => {
     }
 });
 
-router.post("/forgot-password", (req, res) => {
+router.post("/forgot-password", forgotPasswordIPRateLimit, (req, res) => {
     const email = getStringInput(req.body.email).trim().toLowerCase();
 
     if (!email || !isValidEmail(email)) {

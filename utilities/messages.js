@@ -33,6 +33,8 @@ function getErrorMessage(error) {
         ? "Passwords must be at least 1 character, and less than 129 characters."
         : (error === "signup-rate-limit")
         ? "Too many signup requests have been made. Try again later."
+        : (error === "forgot-password-rate-limit")
+        ? "Too many password reset requests have been made. Try again later."
         : "";
 }
 

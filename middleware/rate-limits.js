@@ -9,12 +9,14 @@ const {
 const { getErrorMessage } = require("../utilities/messages");
 
 const SIGNUP_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
+const FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
 const LOGIN_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const LOGIN_IP_RATE_LIMIT_REQUESTS = 32;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_REQUESTS = 32;
 const ACCOUNT_IP_RATE_LIMIT_REQUESTS = 8;
 const SIGNUP_IP_RATE_LIMIT_REQUESTS = 8;
+const FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
 
 const loginIPRateLimit = rateLimit({
     windowMs: LOGIN_IP_RATE_LIMIT_WINDOW,
@@ -47,6 +49,14 @@ const signupAvailabilityIPRateLimit = rateLimit({
     standardHeaders: "draft-8",
     legacyHeaders: false,
     handler: handleSignupAvailabilityIPRateLimit
+});
+
+const forgotPasswordIPRateLimit = rateLimit({
+    windowMs: FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW,
+    limit: FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    handler: handleForgotPasswordIPRateLimit
 });
 
 function handleLoginIPRateLimit(req, res) {
@@ -82,6 +92,13 @@ function handleSignupAvailabilityIPRateLimit(req, res) {
     });
 }
 
+function handleForgotPasswordIPRateLimit(req, res) {
+    return res.status(429).render("forgot-password.njk", {
+        currentPage: "forgot-password",
+        errorMessage: getErrorMessage("forgot-password-rate-limit")
+    });
+}
+
 async function clearAccountIPRateLimit(req) {
     const key = getAccountIPRateLimitKey(req);
     await accountIPRateLimit.resetKey(key);
@@ -92,5 +109,6 @@ module.exports = {
     signupIPRateLimit,
     accountIPRateLimit,
     signupAvailabilityIPRateLimit,
+    forgotPasswordIPRateLimit,
     clearAccountIPRateLimit
 };
