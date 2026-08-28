@@ -24,6 +24,9 @@ const {
     isValidEmail,
     isValidPassword
 } = require("../utilities/validation");
+const {
+    changeEmailUserRateLimit
+} = require("../middleware/rate-limits");
 
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     const userID = await getSessionUserID(req);
@@ -127,7 +130,11 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
     }
 });
 
-router.post("/profile/change-email", redirectUnauthenticated, async (req, res, next) => {
+router.post(
+    "/profile/change-email", 
+    redirectUnauthenticated, changeEmailUserRateLimit,
+    async (req, res, next) => {
+    
     const userID = await getSessionUserID(req);
 
     const email = getStringInput(req.body.email).trim().toLowerCase();

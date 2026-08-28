@@ -11,6 +11,7 @@ const { getErrorMessage } = require("../utilities/messages");
 
 const SIGNUP_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
 const FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
+const PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
 const LOGIN_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
 const RESET_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
@@ -20,6 +21,7 @@ const ACCOUNT_IP_RATE_LIMIT_REQUESTS = 8;
 const SIGNUP_IP_RATE_LIMIT_REQUESTS = 8;
 const FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
 const RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
+const PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS = 4;
 
 const loginIPRateLimit = rateLimit({
     windowMs: LOGIN_IP_RATE_LIMIT_WINDOW,
@@ -68,6 +70,15 @@ const resetPasswordIPRateLimit = rateLimit({
     standardHeaders: "draft-8",
     legacyHeaders: false,
     handler: handleResetPasswordIPRateLimit
+});
+
+const changeEmailUserRateLimit = rateLimit({
+    windowMs: PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW,
+    limit: PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    keyGenerator: getAuthenticatedUserKey,
+    handler: handleChangeEmailUserRateLimit
 });
 
 function handleLoginIPRateLimit(req, res) {
@@ -121,6 +132,17 @@ function handleResetPasswordIPRateLimit(req, res) {
     });
 }
 
+function getAuthenticatedUserKey(req) {
+    return String(req.authenticatedUserID);
+}
+
+function handleChangeEmailUserRateLimit(req, res) {
+    const searchParams = new URLSearchParams({
+        emailError: "change-email-rate-limit"
+    });
+    return res.redirect(`/profile?${searchParams.toString()}`);
+}
+
 async function clearAccountIPRateLimit(req) {
     const key = getAccountIPRateLimitKey(req);
     await accountIPRateLimit.resetKey(key);
@@ -133,5 +155,6 @@ module.exports = {
     signupAvailabilityIPRateLimit,
     forgotPasswordIPRateLimit,
     resetPasswordIPRateLimit,
+    changeEmailUserRateLimit,
     clearAccountIPRateLimit
 };
