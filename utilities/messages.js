@@ -39,6 +39,8 @@ function getErrorMessage(error) {
         ? "Too many password reset attempts have been made. Try again later."
         : (error === "change-email-rate-limit")
         ? "Too many email change attempts have been made. Try again later."
+        : (error === "change-password-rate-limit")
+        ? "Too many password change attempts have been made. Try again later."
         : "";
 }
 

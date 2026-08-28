@@ -25,7 +25,8 @@ const {
     isValidPassword
 } = require("../utilities/validation");
 const {
-    changeEmailUserRateLimit
+    changeEmailUserRateLimit,
+    changePasswordUserRateLimit
 } = require("../middleware/rate-limits");
 
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
@@ -130,11 +131,9 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
     }
 });
 
-router.post(
-    "/profile/change-email", 
-    redirectUnauthenticated, changeEmailUserRateLimit,
-    async (req, res, next) => {
-    
+router.post("/profile/change-email", redirectUnauthenticated,
+    changeEmailUserRateLimit, async (req, res, next) => {
+
     const userID = await getSessionUserID(req);
 
     const email = getStringInput(req.body.email).trim().toLowerCase();
@@ -254,7 +253,9 @@ router.post(
     }
 });
 
-router.post("/profile/change-password", redirectUnauthenticated, async (req, res, next) => {
+router.post("/profile/change-password", redirectUnauthenticated,
+    changePasswordUserRateLimit, async (req, res, next) => {
+
     const userID = await getSessionUserID(req);
     const newPassword = getStringInput(req.body.newPassword);
     const confirmPassword = getStringInput(req.body.confirmPassword);

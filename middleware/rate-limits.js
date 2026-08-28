@@ -81,6 +81,15 @@ const changeEmailUserRateLimit = rateLimit({
     handler: handleChangeEmailUserRateLimit
 });
 
+const changePasswordUserRateLimit = rateLimit({
+    windowMs: PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW,
+    limit: PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    keyGenerator: getAuthenticatedUserKey,
+    handler: handleChangePasswordUserRateLimit
+});
+
 function handleLoginIPRateLimit(req, res) {
     const usernameInput = getStringInput(req.body?.username).trim();
     const username = isValidUsername(usernameInput)
@@ -143,6 +152,13 @@ function handleChangeEmailUserRateLimit(req, res) {
     return res.redirect(`/profile?${searchParams.toString()}`);
 }
 
+function handleChangePasswordUserRateLimit(req, res) {
+    const searchParams = new URLSearchParams({
+        passwordError: "change-password-rate-limit"
+    });
+    return res.redirect(`/profile?${searchParams.toString()}`);
+}
+
 async function clearAccountIPRateLimit(req) {
     const key = getAccountIPRateLimitKey(req);
     await accountIPRateLimit.resetKey(key);
@@ -156,5 +172,6 @@ module.exports = {
     forgotPasswordIPRateLimit,
     resetPasswordIPRateLimit,
     changeEmailUserRateLimit,
+    changePasswordUserRateLimit,
     clearAccountIPRateLimit
 };
