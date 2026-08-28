@@ -9,6 +9,40 @@ const {
 const {
     signupAvailabilityIPRateLimit
 } = require("../middleware/rate-limits");
+const {
+    getCandles
+} = require("../services/price-data");
+const {
+    requireAPIAuthentication
+} = require("../middleware/authentication");
+
+router.get("/candles", requireAPIAuthentication, async (req, res, next) => {
+    const start = getStringInput(req.query.start);
+    const end = getStringInput(req.query.end);
+
+    const startTime = new Date(start);
+    const endTime = new Date(end);
+
+    const datesAreInvalid =
+        !start ||
+        !end ||
+        Number.isNaN(startTime.getTime()) ||
+        Number.isNaN(endTime.getTime()) ||
+        startTime >= endTime;
+
+    if (datesAreInvalid) {
+        return res.status(400).json({
+            error: "A valid start and end time are required."
+        });
+    }
+
+    try {
+        const candles = await getCandles(startTime, endTime);
+        return res.json({ candles });
+    } catch (error) {
+        return next(error);
+    }
+});
 
 router.post("/signup-availability", signupAvailabilityIPRateLimit, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();

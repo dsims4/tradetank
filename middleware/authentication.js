@@ -103,9 +103,23 @@ async function redirectUnauthenticated(req, res, next) {
     return next();
 }
 
+async function requireAPIAuthentication(req, res, next) {
+    const userID = await getSessionUserID(req);
+
+    if (!userID) {
+        return res.status(401).json({
+            error: "Authentication is required."
+        });
+    }
+
+    setNoStoreHeaders(res);
+    return next();
+}
+
 module.exports = {
     loadUser,
     loadUserOptional,
     redirectAuthenticated,
-    redirectUnauthenticated
+    redirectUnauthenticated,
+    requireAPIAuthentication
 };
