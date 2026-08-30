@@ -90,6 +90,13 @@ CREATE TABLE IF NOT EXISTS candlesticks (
     close_price NUMERIC(10, 2) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS trading_sessions (
+    trading_date DATE PRIMARY KEY,
+    open_time TIMESTAMPTZ NOT NULL,
+    close_time TIMESTAMPTZ NOT NULL,
+    CHECK (open_time < close_time)
+);
+
 CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx
     ON user_sessions (user_id);
 

@@ -89,19 +89,34 @@ async function saveCandlesticks(candlesticks, db = { query }) {
          ON CONFLICT
             (open_time)
          DO NOTHING`,
-         [
+        [
             candlesticks.map((candlestick) => candlestick.openTime),
             candlesticks.map((candlestick) => candlestick.openPrice),
             candlesticks.map((candlestick) => candlestick.highPrice),
             candlesticks.map((candlestick) => candlestick.lowPrice),
             candlesticks.map((candlestick) => candlestick.closePrice)
-         ]
+        ]
     );
 
     return result.rowCount;
 }
 
+async function getCandlestickTimeRange(db = { query }) {
+    const result = await db.query(
+        `SELECT
+            MIN(open_time) AS oldest_time,
+            MAX(open_time) AS newest_time
+         FROM candlesticks`
+    );
+
+    return {
+        oldestTime: result.rows[0].oldest_time,
+        newestTime: result.rows[0].newest_time
+    };
+}
+
 module.exports = {
     getCandlesticks,
-    saveCandlesticks
+    saveCandlesticks,
+    getCandlestickTimeRange
 };

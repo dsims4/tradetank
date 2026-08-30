@@ -16,7 +16,7 @@ function formatDataBentoCandlestick(record) {
     };
 }
 
-function parseDataBentoCandlesticks(responseText) {
+function parseDataBentoRecords(responseText) {
     if (typeof responseText !== "string") {
         throw new TypeError("The DataBento response must be a string.");
     }
@@ -25,11 +25,29 @@ function parseDataBentoCandlesticks(responseText) {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((line) => JSON.parse(line))
+        .map((line) => JSON.parse(line));
+}
+
+function parseDataBentoCandlesticks(responseText) {
+    return parseDataBentoRecords(responseText)
         .map((record) => formatDataBentoCandlestick(record));
 }
 
-async function fetchDataBentoCandlesticks(startTime, endTime) {
+function formatDataBentoStatus(record) {
+    return {
+        eventTime: new Date(record?.hd?.ts_event),
+        reason: Number(record?.reason),
+        tradingEvent: Number(record?.trading_event),
+        isTrading: record?.is_trading
+    };
+}
+
+function parseDataBentoStatuses(responseText) {
+    return parseDataBentoRecords(responseText)
+        .map((record) => formatDataBentoStatus(record));
+}
+
+async function fetchDataBentoResponse(schema, startTime, endTime) {
     const apiKey = process.env.DATABENTO_API_KEY;
 
     if (!apiKey) {
@@ -40,7 +58,7 @@ async function fetchDataBentoCandlesticks(startTime, endTime) {
         dataset: "GLBX.MDP3",
         symbols: "ES.v.0",
         stype_in: "continuous",
-        schema: "ohlcv-1m",
+        schema,
         start: startTime.toISOString(),
         end: endTime.toISOString(),
         encoding: "json",
@@ -68,12 +86,65 @@ async function fetchDataBentoCandlesticks(startTime, endTime) {
         );
     }
 
-    const responseText = await response.text();
+    return response.text();
+}
+
+async function fetchDataBentoCandlesticks(startTime, endTime) {
+    const responseText = await fetchDataBentoResponse(
+        "ohlcv-1m",
+        startTime,
+        endTime
+    );
+
     return parseDataBentoCandlesticks(responseText);
+}
+
+async function fetchDataBentoStatuses(startTime, endTime) {
+    const responseText = await fetchDataBentoResponse(
+        "status",
+        startTime,
+        endTime
+    );
+
+    return parseDataBentoStatuses(responseText);
+}
+
+function getScheduledDataBentoStatuses(statuses) {
+    if (!Array.isArray(statuses)) {
+        throw new TypeError("The DataBento statuses must be in an array.");
+    }
+
+    const uniqueStatuses = new Map();
+
+    for (const status of statuses) {
+        const eventTimeIsValid =
+            status?.eventTime instanceof Date &&
+            !Number.isNaN(status.eventTime.getTime());
+
+        const statusIsRelevant =
+            eventTimeIsValid &&
+            status.reason === 1 &&
+            status.tradingEvent === 0 &&
+            ["Y", "N"].includes(status.isTrading);
+
+        if (!statusIsRelevant) continue;
+
+        const statusKey =
+            `${status.eventTime.toISOString()}:${status.isTrading}`;
+
+        if (!uniqueStatuses.has(statusKey)) uniqueStatuses.set(statusKey, status);
+    }
+
+    return [...uniqueStatuses.values()]
+        .sort((first, second) => first.eventTime - second.eventTime);
 }
 
 module.exports = {
     formatDataBentoCandlestick,
     parseDataBentoCandlesticks,
-    fetchDataBentoCandlesticks
+    fetchDataBentoCandlesticks,
+    formatDataBentoStatus,
+    parseDataBentoStatuses,
+    fetchDataBentoStatuses,
+    getScheduledDataBentoStatuses
 };
