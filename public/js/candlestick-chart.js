@@ -1,6 +1,6 @@
 class CandlestickChart {
-    constructor(canvas, candles = []) {
-        this.candles = candles;
+    constructor(canvas, candlesticks = []) {
+        this.candlesticks = candlesticks;
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
         this.width = 0;

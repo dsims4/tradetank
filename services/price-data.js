@@ -1,6 +1,6 @@
 const { query } = require("./db");
 
-async function getCandles(startTime, endTime, db = { query }) {
+async function getCandlesticks(startTime, endTime, db = { query }) {
     const result = await db.query(
         `SELECT
             open_time,
@@ -9,7 +9,7 @@ async function getCandles(startTime, endTime, db = { query }) {
             low_price,
             close_price
          FROM
-            price_data
+            candlesticks
          WHERE
             open_time >= $1
          AND
@@ -28,47 +28,47 @@ async function getCandles(startTime, endTime, db = { query }) {
     }));
 }
 
-function isValidCandle(candle) {
-    if (!candle || typeof candle !== "object") return false;
+function isValidCandlestick(candlestick) {
+    if (!candlestick || typeof candlestick !== "object") return false;
 
     const prices = [
-        candle.openPrice,
-        candle.highPrice,
-        candle.lowPrice,
-        candle.closePrice
+        candlestick.openPrice,
+        candlestick.highPrice,
+        candlestick.lowPrice,
+        candlestick.closePrice
     ];
 
     return (
-        candle.openTime instanceof Date &&
-        !Number.isNaN(candle.openTime.getTime()) &&
+        candlestick.openTime instanceof Date &&
+        !Number.isNaN(candlestick.openTime.getTime()) &&
         prices.every(Number.isFinite) &&
-        candle.highPrice >= Math.max(
-            candle.openPrice,
-            candle.lowPrice,
-            candle.closePrice
+        candlestick.highPrice >= Math.max(
+            candlestick.openPrice,
+            candlestick.lowPrice,
+            candlestick.closePrice
         ) &&
-        candle.lowPrice <= Math.min(
-            candle.openPrice,
-            candle.highPrice,
-            candle.closePrice
+        candlestick.lowPrice <= Math.min(
+            candlestick.openPrice,
+            candlestick.highPrice,
+            candlestick.closePrice
         )
     );
 }
 
-async function saveCandles(candles, db = { query }) {
-    if (!Array.isArray(candles)) {
-        throw new TypeError("The candles must be in an array.");
+async function saveCandlesticks(candlesticks, db = { query }) {
+    if (!Array.isArray(candlesticks)) {
+        throw new TypeError("The candlesticks must be in an array.");
     }
 
-    if (!candles.every(isValidCandle)) {
-        throw new TypeError("At least one candle is invalid.");
+    if (!candlesticks.every(isValidCandlestick)) {
+        throw new TypeError("At least one candlestick is invalid.");
     }
 
-    if (candles.length === 0) return 0;
+    if (candlesticks.length === 0) return 0;
 
     const result = await db.query(
         `INSERT INTO
-            price_data
+            candlesticks
             (
                 open_time,
                 open_price,
@@ -90,11 +90,11 @@ async function saveCandles(candles, db = { query }) {
             (open_time)
          DO NOTHING`,
          [
-            candles.map((candle) => candle.openTime),
-            candles.map((candle) => candle.openPrice),
-            candles.map((candle) => candle.highPrice),
-            candles.map((candle) => candle.lowPrice),
-            candles.map((candle) => candle.closePrice)
+            candlesticks.map((candlestick) => candlestick.openTime),
+            candlesticks.map((candlestick) => candlestick.openPrice),
+            candlesticks.map((candlestick) => candlestick.highPrice),
+            candlesticks.map((candlestick) => candlestick.lowPrice),
+            candlesticks.map((candlestick) => candlestick.closePrice)
          ]
     );
 
@@ -102,6 +102,6 @@ async function saveCandles(candles, db = { query }) {
 }
 
 module.exports = {
-    getCandles,
-    saveCandles
+    getCandlesticks,
+    saveCandlesticks
 };

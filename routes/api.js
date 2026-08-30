@@ -10,13 +10,13 @@ const {
     signupAvailabilityIPRateLimit
 } = require("../middleware/rate-limits");
 const {
-    getCandles
+    getCandlesticks
 } = require("../services/price-data");
 const {
     requireAPIAuthentication
 } = require("../middleware/authentication");
 
-router.get("/candles", requireAPIAuthentication, async (req, res, next) => {
+router.get("/candlesticks", requireAPIAuthentication, async (req, res, next) => {
     const start = getStringInput(req.query.start);
     const end = getStringInput(req.query.end);
 
@@ -37,8 +37,8 @@ router.get("/candles", requireAPIAuthentication, async (req, res, next) => {
     }
 
     try {
-        const candles = await getCandles(startTime, endTime);
-        return res.json({ candles });
+        const candlesticks = await getCandlesticks(startTime, endTime);
+        return res.json({ candlesticks });
     } catch (error) {
         return next(error);
     }
