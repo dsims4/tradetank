@@ -1,3 +1,5 @@
+const DATABENTO_REQUEST_TIMEOUT = 1000 * 30;
+
 function isValidDataBentoCondition(value) {
     return [
         "available",
@@ -90,7 +92,8 @@ async function fetchDataBentoResponse(schema, startTime, endTime) {
             headers: {
                 Authorization: getDataBentoAuthorization()
             },
-            body: requestBody
+            body: requestBody,
+            signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
         }
     );
 
@@ -178,7 +181,8 @@ async function fetchDataBentoAvailableRanges() {
         {
             headers: {
                 Authorization: getDataBentoAuthorization()
-            }
+            },
+            signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
         }
     );
 
@@ -223,7 +227,8 @@ async function fetchDataBentoCondition(tradingDate) {
         {
             headers: {
                 Authorization: getDataBentoAuthorization()
-            }
+            },
+            signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
         }
     );
 
