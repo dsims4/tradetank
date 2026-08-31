@@ -55,6 +55,48 @@ function isValidCandlestick(candlestick) {
     );
 }
 
+function areCandlesticksValidForRange(candlesticks, startTime, endTime) {
+    const rangeIsValid =
+        startTime instanceof Date &&
+        !Number.isNaN(startTime.getTime()) &&
+        endTime instanceof Date &&
+        !Number.isNaN(endTime.getTime()) &&
+        startTime < endTime;
+
+    if (
+        !Array.isArray(candlesticks) ||
+        candlesticks.length === 0 ||
+        !rangeIsValid
+    ) {
+        return false;
+    }
+
+    return candlesticks.every((candlestick, index) => {
+        if (!isValidCandlestick(candlestick)) return false;
+
+        const openTime = candlestick.openTime;
+        const previousCandlestick = candlesticks[index - 1];
+
+        const beginsOnExactMinute =
+            openTime.getUTCSeconds() === 0 &&
+            openTime.getUTCMilliseconds() === 0;
+
+        const isInsideRange =
+            openTime >= startTime &&
+            openTime < endTime;
+
+        const isStrictlyIncreasing =
+            !previousCandlestick ||
+            openTime > previousCandlestick.openTime;
+
+        return (
+            beginsOnExactMinute &&
+            isInsideRange &&
+            isStrictlyIncreasing
+        );
+    });
+}
+
 async function saveCandlesticks(candlesticks, db = { query }) {
     if (!Array.isArray(candlesticks)) {
         throw new TypeError("The candlesticks must be in an array.");
@@ -118,5 +160,6 @@ async function getCandlestickTimeRange(db = { query }) {
 module.exports = {
     getCandlesticks,
     saveCandlesticks,
-    getCandlestickTimeRange
+    getCandlestickTimeRange,
+    areCandlesticksValidForRange
 };

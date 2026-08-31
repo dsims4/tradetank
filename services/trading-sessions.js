@@ -1,5 +1,6 @@
 const { query } = require("./db");
 const {
+    isValidDataBentoCondition,
     fetchDataBentoStatuses,
     getScheduledDataBentoStatuses,
     isDataBentoRangeAvailable
@@ -144,7 +145,10 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
             state,
             open_time,
             close_time,
-            candlesticks_synced_time
+            candlesticks_synced_time,
+            candlesticks_retry_time,
+            data_condition,
+            data_condition_checked_time
          FROM
             trading_sessions
          WHERE
@@ -161,7 +165,10 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
         state: row.state,
         openTime: row.open_time,
         closeTime: row.close_time,
-        candlesticksSyncedTime: row.candlesticks_synced_time
+        candlesticksSyncedTime: row.candlesticks_synced_time,
+        candlesticksRetryTime: row.candlesticks_retry_time,
+        dataCondition: row.data_condition,
+        dataConditionCheckedTime: row.data_condition_checked_time
     };
 }
 
@@ -229,7 +236,8 @@ async function markTradingSessionCandlesticksSynced(tradingDate, db = { query })
         `UPDATE
             trading_sessions
          SET
-            candlesticks_synced_time = NOW()
+            candlesticks_synced_time = NOW(),
+            candlesticks_retry_time = NULL
          WHERE
             trading_date = $1
          AND
@@ -246,6 +254,80 @@ async function markTradingSessionCandlesticksSynced(tradingDate, db = { query })
     }
 
     return result.rows[0].candlesticks_synced_time;
+}
+
+async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) {
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError(
+            "The trading date must use YYYY-MM-DD format."
+        );
+    }
+
+    const result = await db.query(
+        `UPDATE
+            trading_sessions
+         SET
+            candlesticks_retry_time =
+                NOW() + INTERVAL '24 hours'
+         WHERE
+            trading_date = $1
+         AND
+            state IN ('normal', 'shortened')
+         RETURNING
+            candlesticks_retry_time`,
+        [tradingDate]
+    );
+
+    if (result.rows.length === 0) {
+        throw new Error(
+            "A resolved open trading session is required."
+        );
+    }
+
+    return result.rows[0].candlesticks_retry_time;
+}
+
+async function updateTradingSessionDataCondition(
+    tradingDate, dataCondition, db = { query }) {
+
+    const conditionIsValid = isValidDataBentoCondition(dataCondition);
+
+    if (
+        !isValidTradingDate(tradingDate) ||
+        !conditionIsValid
+    ) {
+        throw new TypeError(
+            "A valid trading date and data condition are required."
+        );
+    }
+
+    const result = await db.query(
+        `UPDATE
+            trading_sessions
+         SET
+            data_condition = $2,
+            data_condition_checked_time = NOW()
+         WHERE
+            trading_date = $1
+         AND
+            state IN ('normal', 'shortened')
+         RETURNING
+            data_condition,
+            data_condition_checked_time`,
+        [tradingDate, dataCondition]
+    );
+
+    if (result.rows.length === 0) {
+        throw new Error(
+            "A resolved open trading session is required."
+        );
+    }
+
+    return {
+        dataCondition: result.rows[0].data_condition,
+        dataConditionCheckedTime:
+            result.rows[0].data_condition_checked_time
+    };
 }
 
 async function getOrResolveTradingSession(tradingDate) {
@@ -296,5 +378,7 @@ module.exports = {
     getStoredTradingSession,
     saveTradingSession,
     getOrResolveTradingSession,
-    markTradingSessionCandlesticksSynced
+    markTradingSessionCandlesticksSynced,
+    updateTradingSessionDataCondition,
+    delayTradingSessionCandlestickRetry
 };

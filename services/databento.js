@@ -1,3 +1,25 @@
+function isValidDataBentoCondition(value) {
+    return [
+        "available",
+        "degraded",
+        "pending",
+        "missing"
+    ].includes(value);
+}
+
+function getDataBentoAuthorization() {
+    const apiKey = process.env.DATABENTO_API_KEY;
+
+    if (!apiKey) {
+        throw new Error("DATABENTO_API_KEY is required.");
+    }
+
+    const credentials =
+        Buffer.from(`${apiKey}:`).toString("base64");
+
+    return `Basic ${credentials}`;
+}
+
 function formatDataBentoPrice(value) {
     const valueIsNumeric =
         (typeof value === "string" && value !== "") ||
@@ -48,12 +70,6 @@ function parseDataBentoStatuses(responseText) {
 }
 
 async function fetchDataBentoResponse(schema, startTime, endTime) {
-    const apiKey = process.env.DATABENTO_API_KEY;
-
-    if (!apiKey) {
-        throw new Error("DATABENTO_API_KEY is required.");
-    }
-
     const requestBody = new URLSearchParams({
         dataset: "GLBX.MDP3",
         symbols: "ES.v.0",
@@ -67,14 +83,12 @@ async function fetchDataBentoResponse(schema, startTime, endTime) {
         map_symbols: "true"
     });
 
-    const credentials = Buffer.from(`${apiKey}:`).toString("base64");
-
     const response = await fetch(
         "https://hist.databento.com/v0/timeseries.get_range",
         {
             method: "POST",
             headers: {
-                Authorization: `Basic ${credentials}`
+                Authorization: getDataBentoAuthorization()
             },
             body: requestBody
         }
@@ -154,23 +168,16 @@ function isValidDate(value) {
 }
 
 async function fetchDataBentoAvailableRanges() {
-    const apiKey = process.env.DATABENTO_API_KEY;
-
-    if (!apiKey) throw new Error("DATABENTO_API_KEY is required.");
-
     const parameters = new URLSearchParams({
         dataset: "GLBX.MDP3"
     });
-
-    const credentials =
-        Buffer.from(`${apiKey}:`).toString("base64");
 
     const response = await fetch(
         `https://hist.databento.com/v0/` +
         `metadata.get_dataset_range?${parameters}`,
         {
             headers: {
-                Authorization: `Basic ${credentials}`
+                Authorization: getDataBentoAuthorization()
             }
         }
     );
@@ -192,6 +199,54 @@ async function fetchDataBentoAvailableRanges() {
             responseData?.schema?.status
         )
     };
+}
+
+async function fetchDataBentoCondition(tradingDate) {
+    if (
+        typeof tradingDate !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(tradingDate)
+    ) {
+        throw new TypeError(
+            "The trading date must use YYYY-MM-DD format."
+        );
+    }
+
+    const parameters = new URLSearchParams({
+        dataset: "GLBX.MDP3",
+        start_date: tradingDate,
+        end_date: tradingDate
+    });
+
+    const response = await fetch(
+        `https://hist.databento.com/v0/` +
+        `metadata.get_dataset_condition?${parameters}`,
+        {
+            headers: {
+                Authorization: getDataBentoAuthorization()
+            }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `The DataBento condition request failed with ` +
+            `status ${response.status}.`
+        );
+    }
+
+    const responseData = await response.json();
+
+    const condition = responseData.find(
+        (record) => record?.date === tradingDate
+    )?.condition;
+
+    if (!isValidDataBentoCondition(condition)) {
+        throw new Error(
+            "DataBento did not return a valid data condition."
+        );
+    }
+
+    return condition;
 }
 
 async function isDataBentoRangeAvailable(schema, startTime, endTime) {
@@ -232,6 +287,7 @@ async function isDataBentoRangeAvailable(schema, startTime, endTime) {
 }
 
 module.exports = {
+    isValidDataBentoCondition,
     formatDataBentoCandlestick,
     parseDataBentoCandlesticks,
     fetchDataBentoCandlesticks,
@@ -239,5 +295,6 @@ module.exports = {
     parseDataBentoStatuses,
     fetchDataBentoStatuses,
     getScheduledDataBentoStatuses,
-    isDataBentoRangeAvailable
+    isDataBentoRangeAvailable,
+    fetchDataBentoCondition
 };

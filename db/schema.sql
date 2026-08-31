@@ -97,6 +97,17 @@ CREATE TABLE IF NOT EXISTS trading_sessions (
     open_time TIMESTAMPTZ,
     close_time TIMESTAMPTZ,
     candlesticks_synced_time TIMESTAMPTZ,
+    candlesticks_retry_time TIMESTAMPTZ,
+    data_condition VARCHAR(10)
+        CHECK (
+            data_condition IN (
+                'available',
+                'degraded',
+                'pending',
+                'missing'
+            )
+        ),
+    data_condition_checked_time TIMESTAMPTZ,
     CHECK (
         (
             state = 'closed' AND

@@ -1,17 +1,102 @@
 const {
+    isValidDataBentoCondition,
     fetchDataBentoCandlesticks,
-    isDataBentoRangeAvailable
+    isDataBentoRangeAvailable,
+    fetchDataBentoCondition
 } = require("./databento");
 const {
     getCandlesticks,
-    saveCandlesticks
+    saveCandlesticks,
+    areCandlesticksValidForRange
 } = require("./price-data");
 const {
     getOrResolveTradingSession,
-    markTradingSessionCandlesticksSynced
+    markTradingSessionCandlesticksSynced,
+    updateTradingSessionDataCondition,
+    delayTradingSessionCandlestickRetry
 } = require("./trading-sessions");
 
+const PENDING_CONDITION_CACHE_DURATION = 1000 * 60 * 5;
+const STABLE_CONDITION_CACHE_DURATION = 1000 * 60 * 60 * 24;
+
 const pendingCandlestickSyncs = new Map();
+const pendingDataConditionRefreshes = new Map();
+
+function isDataConditionFresh(tradingSession) {
+    const {
+        dataCondition,
+        dataConditionCheckedTime
+    } = tradingSession;
+
+    const checkedTimeIsValid =
+        dataConditionCheckedTime instanceof Date &&
+        !Number.isNaN(dataConditionCheckedTime.getTime());
+
+    if (
+        !isValidDataBentoCondition(dataCondition) ||
+        !checkedTimeIsValid
+    ) {
+        return false;
+    }
+
+    const cacheDuration =
+        dataCondition === "pending"
+            ? PENDING_CONDITION_CACHE_DURATION
+            : STABLE_CONDITION_CACHE_DURATION;
+
+    return (
+        Date.now() - dataConditionCheckedTime.getTime() <
+        cacheDuration
+    );
+}
+
+function isCandlestickRetryDelayed(tradingSession) {
+    const retryTime = tradingSession.candlesticksRetryTime;
+
+    return (
+        retryTime instanceof Date &&
+        !Number.isNaN(retryTime.getTime()) &&
+        retryTime > new Date()
+    );
+}
+
+async function getOrRefreshDataCondition(tradingSession) {
+    if (isDataConditionFresh(tradingSession)) {
+        return tradingSession.dataCondition;
+    }
+
+    const tradingDate = tradingSession.tradingDate;
+    let pendingRefresh =
+        pendingDataConditionRefreshes.get(tradingDate);
+
+    if (!pendingRefresh) {
+        pendingRefresh = (async () => {
+            const dataCondition =
+                await fetchDataBentoCondition(tradingDate);
+
+            const updatedCondition =
+                await updateTradingSessionDataCondition(
+                    tradingDate,
+                    dataCondition
+                );
+
+            return updatedCondition.dataCondition;
+        })();
+
+        pendingDataConditionRefreshes.set(
+            tradingDate,
+            pendingRefresh
+        );
+    }
+
+    try {
+        return await pendingRefresh;
+    } finally {
+        if (pendingDataConditionRefreshes.get(tradingDate) === pendingRefresh) {
+            pendingDataConditionRefreshes.delete(tradingDate);
+        }
+    }
+}
 
 async function syncCandlesticks(tradingSession) {
     const {
@@ -19,6 +104,30 @@ async function syncCandlesticks(tradingSession) {
         openTime,
         closeTime
     } = tradingSession;
+
+    if (isCandlestickRetryDelayed(tradingSession)) {
+        return {
+            candlestickState: "unavailable",
+            dataCondition: tradingSession.dataCondition,
+            fetchedCount: 0,
+            savedCount: 0
+        };
+    }
+
+    const dataCondition =
+        await getOrRefreshDataCondition(tradingSession);
+
+    if (dataCondition !== "available") {
+        return {
+            candlestickState:
+                dataCondition === "pending"
+                    ? "pending"
+                    : "unavailable",
+            dataCondition,
+            fetchedCount: 0,
+            savedCount: 0
+        };
+    }
 
     const rangeIsAvailable = await isDataBentoRangeAvailable(
         "ohlcv-1m",
@@ -28,7 +137,8 @@ async function syncCandlesticks(tradingSession) {
 
     if (!rangeIsAvailable) {
         return {
-            state: "pending",
+            candlestickState: "pending",
+            dataCondition,
             fetchedCount: 0,
             savedCount: 0
         };
@@ -36,12 +146,30 @@ async function syncCandlesticks(tradingSession) {
 
     const candlesticks = await fetchDataBentoCandlesticks(openTime, closeTime);
 
+    if (
+        !areCandlesticksValidForRange(
+            candlesticks,
+            openTime,
+            closeTime
+        )
+    ) {
+        await delayTradingSessionCandlestickRetry(tradingDate);
+
+        return {
+            candlestickState: "unavailable",
+            dataCondition,
+            fetchedCount: candlesticks.length,
+            savedCount: 0
+        };
+    }
+
     const savedCount = await saveCandlesticks(candlesticks);
 
     await markTradingSessionCandlesticksSynced(tradingDate);
 
     return {
-        state: "available",
+        candlestickState: "available",
+        dataCondition,
         fetchedCount: candlesticks.length,
         savedCount
     };
@@ -56,8 +184,12 @@ async function getOrSyncCandlesticks(tradingSession) {
     } = tradingSession;
 
     if (candlesticksSyncedTime) {
+        const dataCondition =
+            await getOrRefreshDataCondition(tradingSession);
+
         return {
-            state: "available",
+            candlestickState: "available",
+            dataCondition,
             candlesticks: await getCandlesticks(openTime, closeTime)
         };
     }
@@ -80,15 +212,17 @@ async function getOrSyncCandlesticks(tradingSession) {
         }
     }
 
-    if (syncResult.state === "pending") {
+    if (syncResult.candlestickState !== "available") {
         return {
-            state: "pending",
+            candlestickState: syncResult.candlestickState,
+            dataCondition: syncResult.dataCondition,
             candlesticks: []
         };
     }
 
     return {
-        state: "available",
+        candlestickState: "available",
+        dataCondition: syncResult.dataCondition,
         candlesticks: await getCandlesticks(openTime, closeTime)
     };
 }
@@ -112,7 +246,8 @@ async function getCandlesticksForTradingDate(tradingDate) {
 
     return {
         ...tradingSession,
-        candlestickState: candlestickResult.state,
+        candlestickState: candlestickResult.candlestickState,
+        dataCondition: candlestickResult.dataCondition,
         candlesticks: candlestickResult.candlesticks
     };
 }
