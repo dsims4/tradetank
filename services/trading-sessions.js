@@ -1,7 +1,14 @@
 const { query } = require("./db");
 const {
-    getScheduledDataBentoStatuses
+    fetchDataBentoStatuses,
+    getScheduledDataBentoStatuses,
+    isDataBentoRangeAvailable
 } = require("./databento");
+
+const STATUS_LOOKBACK_DURATION = 1000 * 60 * 60 * 24;
+const TRADING_SESSION_INCEPTION_DATE = "2026-09-01";
+
+const pendingTradingSessionResolutions = new Map();
 
 function isValidDate(value) {
     return (
@@ -46,11 +53,7 @@ function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
 }
 
 async function getPlannedTradingSession(tradingDate, db = { query }) {
-    const dateHasValidFormat =
-        typeof tradingDate === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(tradingDate);
-
-    if (!dateHasValidFormat) {
+    if (!isValidTradingDate(tradingDate)) {
         throw new TypeError("The trading date must use YYYY-MM-DD format.");
     }
 
@@ -71,7 +74,194 @@ async function getPlannedTradingSession(tradingDate, db = { query }) {
     };
 }
 
+async function resolveTradingSession(tradingDate) {
+    const plannedSession =
+        await getPlannedTradingSession(tradingDate);
+
+    if (
+        plannedSession.tradingDate <
+        TRADING_SESSION_INCEPTION_DATE
+    ) {
+        return {
+            tradingDate: plannedSession.tradingDate,
+            state: "unsupported"
+        };
+    }
+
+    const statusStartTime = new Date(
+        plannedSession.openTime.getTime() -
+        STATUS_LOOKBACK_DURATION
+    );
+
+    const statusRangeIsAvailable =
+        await isDataBentoRangeAvailable(
+            "status",
+            statusStartTime,
+            plannedSession.closeTime
+        );
+
+    if (!statusRangeIsAvailable) {
+        return {
+            tradingDate: plannedSession.tradingDate,
+            state: "unavailable"
+        };
+    }
+
+    const statuses = await fetchDataBentoStatuses(
+        statusStartTime,
+        plannedSession.closeTime
+    );
+
+    const resolvedSession = getTradingSession(
+        statuses,
+        plannedSession.openTime,
+        plannedSession.closeTime
+    );
+
+    return {
+        tradingDate: plannedSession.tradingDate,
+        ...resolvedSession
+    };
+}
+
+function isValidTradingDate(value) {
+    return (
+        typeof value === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value)
+    );
+}
+
+async function getStoredTradingSession(tradingDate, db = { query }) {
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError(
+            "The trading date must use YYYY-MM-DD format."
+        );
+    }
+
+    const result = await db.query(
+        `SELECT
+            trading_date,
+            state,
+            open_time,
+            close_time
+         FROM
+            trading_sessions
+         WHERE
+            trading_date = $1`,
+        [tradingDate]
+    );
+
+    if (result.rows.length === 0) return null;
+
+    const row = result.rows[0];
+
+    return {
+        tradingDate: row.trading_date,
+        state: row.state,
+        openTime: row.open_time,
+        closeTime: row.close_time
+    };
+}
+
+async function saveTradingSession(session, db = { query }) {
+    const tradingDate = session?.tradingDate;
+    const state = session?.state;
+    const openTime = session?.openTime ?? null;
+    const closeTime = session?.closeTime ?? null;
+
+    const stateIsValid =
+        ["normal", "shortened", "closed"].includes(state);
+
+    const boundariesAreValid =
+        state === "closed"
+            ? openTime === null && closeTime === null
+            : (
+                isValidDate(openTime) &&
+                isValidDate(closeTime) &&
+                openTime < closeTime
+            );
+
+    if (
+        !isValidTradingDate(tradingDate) ||
+        !stateIsValid ||
+        !boundariesAreValid
+    ) {
+        throw new TypeError(
+            "A valid resolved trading session is required."
+        );
+    }
+
+    await db.query(
+        `INSERT INTO
+            trading_sessions
+            (
+                trading_date,
+                state,
+                open_time,
+                close_time
+            )
+         VALUES
+            ($1, $2, $3, $4)
+         ON CONFLICT
+            (trading_date)
+         DO NOTHING`,
+        [
+            tradingDate,
+            state,
+            openTime,
+            closeTime
+        ]
+    );
+
+    return getStoredTradingSession(tradingDate, db);
+}
+
+async function getOrResolveTradingSession(tradingDate) {
+    const storedSession =
+        await getStoredTradingSession(tradingDate);
+
+    if (storedSession) return storedSession;
+
+    let pendingResolution =
+        pendingTradingSessionResolutions.get(tradingDate);
+
+    if (!pendingResolution) {
+        pendingResolution = (async () => {
+            const resolvedSession =
+                await resolveTradingSession(tradingDate);
+
+            if (
+                resolvedSession.state === "unavailable" ||
+                resolvedSession.state === "unsupported"
+            ) {
+                return resolvedSession;
+            }
+
+            return saveTradingSession(resolvedSession);
+        })();
+
+        pendingTradingSessionResolutions.set(
+            tradingDate,
+            pendingResolution
+        );
+    }
+
+    try {
+        return await pendingResolution;
+    } finally {
+        if (
+            pendingTradingSessionResolutions.get(tradingDate) === pendingResolution
+        ) {
+            pendingTradingSessionResolutions.delete(tradingDate);
+        }
+    }
+}
+
 module.exports = {
     getTradingSession,
-    getPlannedTradingSession
+    getPlannedTradingSession,
+    resolveTradingSession,
+    getStoredTradingSession,
+    saveTradingSession,
+    getOrResolveTradingSession
 };

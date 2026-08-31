@@ -92,9 +92,24 @@ CREATE TABLE IF NOT EXISTS candlesticks (
 
 CREATE TABLE IF NOT EXISTS trading_sessions (
     trading_date DATE PRIMARY KEY,
-    open_time TIMESTAMPTZ NOT NULL,
-    close_time TIMESTAMPTZ NOT NULL,
-    CHECK (open_time < close_time)
+    state VARCHAR(10) NOT NULL
+        CHECK (state IN ('normal', 'shortened', 'closed')),
+    open_time TIMESTAMPTZ,
+    close_time TIMESTAMPTZ,
+    CHECK (
+        (
+            state = 'closed' AND
+            open_time IS NULL AND
+            close_time IS NULL
+        )
+        OR
+        (
+            state IN ('normal', 'shortened') AND
+            open_time IS NOT NULL AND
+            close_time IS NOT NULL AND
+            open_time < close_time
+        )
+    )
 );
 
 CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx

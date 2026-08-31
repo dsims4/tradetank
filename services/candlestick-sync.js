@@ -5,6 +5,9 @@ const {
     getCandlesticks,
     saveCandlesticks
 } = require("./price-data");
+const {
+    getOrResolveTradingSession
+} = require("./trading-sessions");
 
 const pendingCandlestickSyncs = new Map();
 
@@ -47,7 +50,34 @@ async function getOrSyncCandlesticks(startTime, endTime) {
     return getCandlesticks(startTime, endTime);
 }
 
+async function getCandlesticksForTradingDate(tradingDate) {
+    const tradingSession =
+        await getOrResolveTradingSession(tradingDate);
+
+    if (
+        tradingSession.state === "closed" ||
+        tradingSession.state === "unavailable" ||
+        tradingSession.state === "unsupported"
+    ) {
+        return {
+            ...tradingSession,
+            candlesticks: []
+        };
+    }
+
+    const candlesticks = await getOrSyncCandlesticks(
+        tradingSession.openTime,
+        tradingSession.closeTime
+    );
+
+    return {
+        ...tradingSession,
+        candlesticks
+    };
+}
+
 module.exports = {
     syncCandlesticks,
-    getOrSyncCandlesticks
+    getOrSyncCandlesticks,
+    getCandlesticksForTradingDate
 };

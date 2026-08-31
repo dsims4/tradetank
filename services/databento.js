@@ -139,6 +139,98 @@ function getScheduledDataBentoStatuses(statuses) {
         .sort((first, second) => first.eventTime - second.eventTime);
 }
 
+function formatDataBentoTimeRange(range) {
+    return {
+        startTime: new Date(range?.start),
+        endTime: new Date(range?.end)
+    };
+}
+
+function isValidDate(value) {
+    return (
+        value instanceof Date &&
+        !Number.isNaN(value.getTime())
+    );
+}
+
+async function fetchDataBentoAvailableRanges() {
+    const apiKey = process.env.DATABENTO_API_KEY;
+
+    if (!apiKey) throw new Error("DATABENTO_API_KEY is required.");
+
+    const parameters = new URLSearchParams({
+        dataset: "GLBX.MDP3"
+    });
+
+    const credentials =
+        Buffer.from(`${apiKey}:`).toString("base64");
+
+    const response = await fetch(
+        `https://hist.databento.com/v0/` +
+        `metadata.get_dataset_range?${parameters}`,
+        {
+            headers: {
+                Authorization: `Basic ${credentials}`
+            }
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `The DataBento metadata request failed with ` +
+            `status ${response.status}.`
+        );
+    }
+
+    const responseData = await response.json();
+
+    return {
+        candlesticks: formatDataBentoTimeRange(
+            responseData?.schema?.["ohlcv-1m"]
+        ),
+        statuses: formatDataBentoTimeRange(
+            responseData?.schema?.status
+        )
+    };
+}
+
+async function isDataBentoRangeAvailable(schema, startTime, endTime) {
+    const rangeNames = {
+        "ohlcv-1m": "candlesticks",
+        status: "statuses"
+    };
+
+    const rangeName = rangeNames[schema];
+
+    if (
+        !rangeName ||
+        !isValidDate(startTime) ||
+        !isValidDate(endTime) ||
+        startTime >= endTime
+    ) {
+        throw new TypeError(
+            "A valid DataBento schema and time range are required."
+        );
+    }
+
+    const availableRanges =
+        await fetchDataBentoAvailableRanges();
+
+    const availableRange = availableRanges[rangeName];
+
+    if (
+        !isValidDate(availableRange.startTime) ||
+        !isValidDate(availableRange.endTime)
+    ) {
+        return false;
+    }
+
+    return (
+        startTime >= availableRange.startTime &&
+        endTime <= availableRange.endTime
+    );
+}
+
 module.exports = {
     formatDataBentoCandlestick,
     parseDataBentoCandlesticks,
@@ -146,5 +238,6 @@ module.exports = {
     formatDataBentoStatus,
     parseDataBentoStatuses,
     fetchDataBentoStatuses,
-    getScheduledDataBentoStatuses
+    getScheduledDataBentoStatuses,
+    isDataBentoRangeAvailable
 };
