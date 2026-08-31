@@ -10,17 +10,24 @@ const {
     areCandlesticksValidForRange
 } = require("./price-data");
 const {
+    getNewYorkDate,
+    isValidTradingDate,
     getOrResolveTradingSession,
     markTradingSessionCandlesticksSynced,
     updateTradingSessionDataCondition,
     delayTradingSessionCandlestickRetry
 } = require("./trading-sessions");
 
-const PENDING_CONDITION_CACHE_DURATION = 1000 * 60 * 5;
 const STABLE_CONDITION_CACHE_DURATION = 1000 * 60 * 60 * 24;
+const PENDING_CONDITION_CACHE_DURATION = 1000 * 60 * 5;
+const LATEST_CANDLESTICK_CACHE_DURATION = 1000 * 60 * 5;
+const MAXIMUM_CANDLESTICK_LOOKBACK_DAYS = 14;
 
 const pendingCandlestickSyncs = new Map();
 const pendingDataConditionRefreshes = new Map();
+
+let latestCandlestickCache = null;
+let pendingLatestCandlestickSearch = null;
 
 function isDataConditionFresh(tradingSession) {
     const {
@@ -252,8 +259,95 @@ async function getCandlesticksForTradingDate(tradingDate) {
     };
 }
 
+async function findLatestAvailableCandlesticks(currentNewYorkDate) {
+    const candidateDate =
+        new Date(`${currentNewYorkDate}T00:00:00.000Z`);
+
+    for (
+        let dayOffset = 0;
+        dayOffset < MAXIMUM_CANDLESTICK_LOOKBACK_DAYS;
+        dayOffset += 1
+    ) {
+        const tradingDate =
+            candidateDate.toISOString().slice(0, 10);
+
+        if (isValidTradingDate(tradingDate)) {
+            const candlestickResult =
+                await getCandlesticksForTradingDate(tradingDate);
+
+            if (
+                candlestickResult.candlestickState === "available" &&
+                candlestickResult.dataCondition === "available"
+            ) {
+                return candlestickResult;
+            }
+        }
+
+        candidateDate.setUTCDate(
+            candidateDate.getUTCDate() - 1
+        );
+    }
+
+    return {
+        tradingDate: null,
+        state: "unavailable",
+        candlestickState: "unavailable",
+        dataCondition: null,
+        candlesticks: []
+    };
+}
+
+async function getLatestAvailableCandlesticks(now = new Date()) {
+    const currentNewYorkDate = getNewYorkDate(now);
+
+    const cacheIsFresh =
+        latestCandlestickCache?.newYorkDate === currentNewYorkDate &&
+        Date.now() - latestCandlestickCache.checkedTime <
+            LATEST_CANDLESTICK_CACHE_DURATION;
+
+    if (cacheIsFresh) {
+        return latestCandlestickCache.result;
+    }
+
+    if (
+        pendingLatestCandlestickSearch?.newYorkDate ===
+        currentNewYorkDate
+    ) {
+        return pendingLatestCandlestickSearch.promise;
+    }
+
+    const pendingSearch =
+        findLatestAvailableCandlesticks(
+            currentNewYorkDate
+        );
+
+    pendingLatestCandlestickSearch = {
+        newYorkDate: currentNewYorkDate,
+        promise: pendingSearch
+    };
+
+    try {
+        const result = await pendingSearch;
+
+        latestCandlestickCache = {
+            newYorkDate: currentNewYorkDate,
+            checkedTime: Date.now(),
+            result
+        };
+
+        return result;
+    } finally {
+        if (
+            pendingLatestCandlestickSearch?.promise === pendingSearch
+        ) {
+            pendingLatestCandlestickSearch = null;
+        }
+    }
+}
+
 module.exports = {
     syncCandlesticks,
     getOrSyncCandlesticks,
-    getCandlesticksForTradingDate
+    getCandlesticksForTradingDate,
+    getLatestAvailableCandlesticks
 };

@@ -8,6 +8,15 @@ const {
 
 const STATUS_LOOKBACK_DURATION = 1000 * 60 * 60 * 24;
 const TRADING_SESSION_INCEPTION_DATE = "2026-09-01";
+const NEW_YORK_DATE_FORMATTER = new Intl.DateTimeFormat(
+    "en-US",
+    {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }
+);
 
 const pendingTradingSessionResolutions = new Map();
 
@@ -15,6 +24,25 @@ function isValidDate(value) {
     return (
         value instanceof Date &&
         !Number.isNaN(value.getTime())
+    );
+}
+
+function getNewYorkDate(date = new Date()) {
+    if (!isValidDate(date)) {
+        throw new TypeError("A valid date is required.");
+    }
+
+    const dateParts = Object.fromEntries(
+        NEW_YORK_DATE_FORMATTER
+            .formatToParts(date)
+            .filter((part) => part.type !== "literal")
+            .map((part) => [part.type, part.value])
+    );
+
+    return (
+        `${dateParts.year}-` +
+        `${dateParts.month}-` +
+        `${dateParts.day}`
     );
 }
 
@@ -393,6 +421,7 @@ async function getOrResolveTradingSession(tradingDate) {
 }
 
 module.exports = {
+    getNewYorkDate,
     getTradingSession,
     getPlannedTradingSession,
     resolveTradingSession,

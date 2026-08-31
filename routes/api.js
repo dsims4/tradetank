@@ -10,41 +10,68 @@ const {
     signupAvailabilityIPRateLimit
 } = require("../middleware/rate-limits");
 const {
-    getCandlesticks
-} = require("../services/price-data");
+    getInputChartData,
+    getTradesChartData,
+    getLatestInputChartData
+} = require("../services/chart-data");
 const {
     requireAPIAuthentication
 } = require("../middleware/authentication");
+const {
+    isValidTradingDate
+} = require("../services/trading-sessions");
 
-router.get("/candlesticks", requireAPIAuthentication, async (req, res, next) => {
-    const start = getStringInput(req.query.start);
-    const end = getStringInput(req.query.end);
+router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
+    const tradingDate =
+        getStringInput(req.query.date);
 
-    const startTime = new Date(start);
-    const endTime = new Date(end);
-
-    const datesAreInvalid =
-        !start ||
-        !end ||
-        Number.isNaN(startTime.getTime()) ||
-        Number.isNaN(endTime.getTime()) ||
-        startTime >= endTime;
-
-    if (datesAreInvalid) {
+    if (tradingDate && !isValidTradingDate(tradingDate)) {
         return res.status(400).json({
-            error: "A valid start and end time are required."
+            error: "A valid trading date is required."
         });
     }
 
     try {
-        const candlesticks = await getCandlesticks(startTime, endTime);
-        return res.json({ candlesticks });
+        const chartData = tradingDate
+            ? await getInputChartData(
+                req.authenticatedUserID,
+                tradingDate
+            )
+            : await getLatestInputChartData(
+                req.authenticatedUserID
+            );
+
+        return res.json(chartData);
     } catch (error) {
         return next(error);
     }
 });
 
-router.post("/signup-availability", signupAvailabilityIPRateLimit, async (req, res, next) => {
+router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => {
+    const tradingDate =
+        getStringInput(req.query.date);
+
+    if (!isValidTradingDate(tradingDate)) {
+        return res.status(400).json({
+            error: "A valid trading date is required."
+        });
+    }
+
+    try {
+        const chartData = await getTradesChartData(
+            req.authenticatedUserID,
+            tradingDate
+        );
+
+        return res.json(chartData);
+    } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/signup-availability", signupAvailabilityIPRateLimit,
+    async (req, res, next) => {
+
     const username = getStringInput(req.body.username).trim();
     const email = getStringInput(req.body.email).trim().toLowerCase();
 
@@ -62,8 +89,10 @@ router.post("/signup-availability", signupAvailabilityIPRateLimit, async (req, r
             [username, email]
         );
 
-        const usernameAvailable = !existingUsers.rows.some((user) => user.username === username);
-        const emailAvailable = !existingUsers.rows.some((user) => user.email === email);
+        const usernameAvailable =
+            !existingUsers.rows.some((user) => user.username === username);
+        const emailAvailable =
+            !existingUsers.rows.some((user) => user.email === email);
 
         return res.json({
             usernameAvailable,

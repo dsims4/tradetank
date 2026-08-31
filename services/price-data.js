@@ -1,5 +1,7 @@
 const { query } = require("./db");
 
+const FIVE_MINUTE_DURATION = 1000 * 60 * 5;
+
 async function getCandlesticks(startTime, endTime, db = { query }) {
     const result = await db.query(
         `SELECT
@@ -53,6 +55,76 @@ function isValidCandlestick(candlestick) {
             candlestick.closePrice
         )
     );
+}
+
+function aggregateFiveMinuteCandlesticks(candlesticks) {
+    if (!Array.isArray(candlesticks)) {
+        throw new TypeError(
+            "The candlesticks must be in an array."
+        );
+    }
+
+    const aggregatedCandlesticks = [];
+    let previousOpenTime = null;
+
+    for (const candlestick of candlesticks) {
+        const openTime = new Date(candlestick?.openTime);
+        const normalizedCandlestick = {
+            ...candlestick,
+            openTime
+        };
+
+        if (
+            !isValidCandlestick(normalizedCandlestick) ||
+            (
+                previousOpenTime &&
+                openTimem <= previousOpenTime
+            )
+        ) {
+            throw new TypeError(
+                "Ordered valid candlesticks are required."
+            );
+        }
+
+        const intervalOpenTime = new Date(
+            Math.floor(
+                openTime.getTime() / FIVE_MINUTE_DURATION
+            ) * FIVE_MINUTE_DURATION
+        ).toISOString();
+
+        const currentCandlestick =
+            aggregatedCandlesticks[
+                aggregatedCandlesticks.length - 1
+            ];
+
+        if (
+            !currentCandlestick ||
+            currentCandlestick.openTime !== intervalOpenTime
+        ) {
+            aggregatedCandlesticks.push({
+                openTime: intervalOpenTime,
+                openPrice: intervalOpenPrice,
+                highPrice: candlestick.highPrice,
+                lowPrice: candlestick.lowPrice,
+                closePrice: candlestick.closePrice
+            });
+        } else {
+            currentCandlestick.highPrice = Math.max(
+                currentCandlestick.highPrice,
+                candlestick.highPrice
+            );
+            currentCandlestick.lowPrice = Math.min(
+                currentCandlestick.lowPrice,
+                candlestick.lowPrice
+            );
+            currentCandlestick.closePrice =
+                candlestick.closePrice;
+        }
+
+        previousOpenTime = openTime;
+    }
+
+    return aggregatedCandlesticks;
 }
 
 function areCandlesticksValidForRange(candlesticks, startTime, endTime) {
@@ -161,5 +233,6 @@ module.exports = {
     getCandlesticks,
     saveCandlesticks,
     getCandlestickTimeRange,
-    areCandlesticksValidForRange
+    areCandlesticksValidForRange,
+    aggregateFiveMinuteCandlesticks
 };

@@ -4,8 +4,33 @@
 
 {% block content %}
     <div class="main-container">
-        <div class="candlestick-chart-container">
-            <canvas id="candlestick-chart"></canvas>
+        <div class="input-chart-page">
+            <form class="input-chart-controls" data-input-chart-controls>
+                <label for="trading-date">Trading date</label>
+                <input
+                    id="trading-date"
+                    name="tradingDate"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="10"
+                    pattern="\d{4}-\d{2}-\d{2}"
+                    placeholder="YYYY-MM-DD"
+                    autocomplete="off"
+                    required
+                    data-input-chart-date
+                >
+                <button type="submit" class="button">Load</button>
+            </form>
+
+            <p data-input-chart-status aria-live="polite"></p>
+
+            <div class="candlestick-chart-container">
+                <canvas
+                    id="candlestick-chart"
+                    role="img"
+                    aria-label="Five-minute candlestick chart"
+                ></canvas>
+            </div>
         </div>
     </div>
 {% endblock %}
