@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS trading_sessions (
         CHECK (state IN ('normal', 'shortened', 'closed')),
     open_time TIMESTAMPTZ,
     close_time TIMESTAMPTZ,
+    candlesticks_synced_time TIMESTAMPTZ,
     CHECK (
         (
             state = 'closed' AND

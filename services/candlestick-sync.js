@@ -1,53 +1,96 @@
 const {
-    fetchDataBentoCandlesticks
+    fetchDataBentoCandlesticks,
+    isDataBentoRangeAvailable
 } = require("./databento");
 const {
     getCandlesticks,
     saveCandlesticks
 } = require("./price-data");
 const {
-    getOrResolveTradingSession
+    getOrResolveTradingSession,
+    markTradingSessionCandlesticksSynced
 } = require("./trading-sessions");
 
 const pendingCandlestickSyncs = new Map();
 
-function getCandlestickSyncKey(startTime, endTime) {
-    return `${startTime.toISOString()}:${endTime.toISOString()}`;
-}
+async function syncCandlesticks(tradingSession) {
+    const {
+        tradingDate,
+        openTime,
+        closeTime
+    } = tradingSession;
 
-async function syncCandlesticks(startTime, endTime) {
-    const candlesticks = await fetchDataBentoCandlesticks(startTime, endTime);
+    const rangeIsAvailable = await isDataBentoRangeAvailable(
+        "ohlcv-1m",
+        openTime,
+        closeTime
+    );
+
+    if (!rangeIsAvailable) {
+        return {
+            state: "pending",
+            fetchedCount: 0,
+            savedCount: 0
+        };
+    }
+
+    const candlesticks = await fetchDataBentoCandlesticks(openTime, closeTime);
 
     const savedCount = await saveCandlesticks(candlesticks);
 
+    await markTradingSessionCandlesticksSynced(tradingDate);
+
     return {
+        state: "available",
         fetchedCount: candlesticks.length,
         savedCount
     };
 }
 
-async function getOrSyncCandlesticks(startTime, endTime) {
-    const storedCandlesticks = await getCandlesticks(startTime, endTime);
+async function getOrSyncCandlesticks(tradingSession) {
+    const {
+        tradingDate,
+        openTime,
+        closeTime,
+        candlesticksSyncedTime
+    } = tradingSession;
 
-    if (storedCandlesticks.length > 0) return storedCandlesticks;
+    if (candlesticksSyncedTime) {
+        return {
+            state: "available",
+            candlesticks: await getCandlesticks(openTime, closeTime)
+        };
+    }
 
-    const syncKey = getCandlestickSyncKey(startTime, endTime);
+    const syncKey = tradingDate;
     let pendingSync = pendingCandlestickSyncs.get(syncKey);
 
     if (!pendingSync) {
-        pendingSync = syncCandlesticks(startTime, endTime);
+        pendingSync = syncCandlesticks(tradingSession);
         pendingCandlestickSyncs.set(syncKey, pendingSync);
     }
 
+    let syncResult;
+
     try {
-        await pendingSync;
+        syncResult = await pendingSync;
     } finally {
         if (pendingCandlestickSyncs.get(syncKey) === pendingSync) {
             pendingCandlestickSyncs.delete(syncKey);
         }
     }
 
-    return getCandlesticks(startTime, endTime);
+    if (syncResult.state === "pending") {
+        return {
+            state: "pending",
+            candlesticks: []
+        };
+    }
+
+    return {
+        state: "available",
+        candlesticks: await getCandlesticks(openTime, closeTime)
+    };
 }
 
 async function getCandlesticksForTradingDate(tradingDate) {
@@ -65,14 +108,12 @@ async function getCandlesticksForTradingDate(tradingDate) {
         };
     }
 
-    const candlesticks = await getOrSyncCandlesticks(
-        tradingSession.openTime,
-        tradingSession.closeTime
-    );
+    const candlestickResult = await getOrSyncCandlesticks(tradingSession);
 
     return {
         ...tradingSession,
-        candlesticks
+        candlestickState: candlestickResult.state,
+        candlesticks: candlestickResult.candlesticks
     };
 }
 

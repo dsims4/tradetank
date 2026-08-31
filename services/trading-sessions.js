@@ -143,7 +143,8 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
             trading_date,
             state,
             open_time,
-            close_time
+            close_time,
+            candlesticks_synced_time
          FROM
             trading_sessions
          WHERE
@@ -159,7 +160,8 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
         tradingDate: row.trading_date,
         state: row.state,
         openTime: row.open_time,
-        closeTime: row.close_time
+        closeTime: row.close_time,
+        candlesticksSyncedTime: row.candlesticks_synced_time
     };
 }
 
@@ -216,6 +218,36 @@ async function saveTradingSession(session, db = { query }) {
     return getStoredTradingSession(tradingDate, db);
 }
 
+async function markTradingSessionCandlesticksSynced(tradingDate, db = { query }) {
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError(
+            "The trading date must use YYYY-MM-DD format."
+        );
+    }
+
+    const result = await db.query(
+        `UPDATE
+            trading_sessions
+         SET
+            candlesticks_synced_time = NOW()
+         WHERE
+            trading_date = $1
+         AND
+            state IN ('normal', 'shortened')
+         RETURNING
+            candlesticks_synced_time`,
+        [tradingDate]
+    );
+
+    if (result.rows.length === 0) {
+        throw new Error(
+            "A resolved open trading session is required."
+        );
+    }
+
+    return result.rows[0].candlesticks_synced_time;
+}
+
 async function getOrResolveTradingSession(tradingDate) {
     const storedSession =
         await getStoredTradingSession(tradingDate);
@@ -263,5 +295,6 @@ module.exports = {
     resolveTradingSession,
     getStoredTradingSession,
     saveTradingSession,
-    getOrResolveTradingSession
+    getOrResolveTradingSession,
+    markTradingSessionCandlesticksSynced
 };
