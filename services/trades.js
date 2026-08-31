@@ -50,6 +50,32 @@ async function getUserTradesForDate(userID, tradingDate, db = { query }) {
     }));
 }
 
+async function hasUserTradingDay(userID, tradingDate, db = { query }) {
+    if (!Number.isSafeInteger(userID) || userID <= 0) {
+        throw new TypeError("A valid user ID is required.");
+    }
+
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError("A valid trading date is required.");
+    }
+
+    const result = await db.query(
+        `SELECT EXISTS (
+            SELECT
+                1
+            FROM
+                user_trading_days
+            WHERE
+                user_id = $1 AND
+                trading_date = $2
+         ) AS trading_day_exists`,
+        [userID, tradingDate]
+    );
+
+    return result.rows[0].trading_day_exists;
+}
+
 module.exports = {
-    getUserTradesForDate
+    getUserTradesForDate,
+    hasUserTradingDay
 }
