@@ -104,11 +104,12 @@ CREATE TABLE IF NOT EXISTS user_trades (
     user_id BIGINT NOT NULL,
     trading_date DATE NOT NULL,
     side VARCHAR(5) NOT NULL CHECK (side IN ('long', 'short')),
-    contract_count NUMERIC(5, 1) NOT NULL,
-    initial_exit JSONB NOT NULL DEFAULT '{}'::jsonb,
-    initial_entry JSONB NOT NULL DEFAULT '{}'::jsonb,
-    actual_exit JSONB NOT NULL DEFAULT '{}'::jsonb,
-    actual_entry JSONB NOT NULL DEFAULT '{}'::jsonb,
+    contract_count INTEGER NOT NULL
+        CHECK (contract_count > 0),
+    entries JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(entries) = 'array'),
+    exits JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(exits) = 'array'),
     points NUMERIC (10, 3) NOT NULL,
     process_deviation BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT CHECK (length(notes) <= 1500),

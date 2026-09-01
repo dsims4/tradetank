@@ -78,7 +78,7 @@ function aggregateFiveMinuteCandlesticks(candlesticks) {
             !isValidCandlestick(normalizedCandlestick) ||
             (
                 previousOpenTime &&
-                openTimem <= previousOpenTime
+                openTime <= previousOpenTime
             )
         ) {
             throw new TypeError(
@@ -103,7 +103,7 @@ function aggregateFiveMinuteCandlesticks(candlesticks) {
         ) {
             aggregatedCandlesticks.push({
                 openTime: intervalOpenTime,
-                openPrice: intervalOpenPrice,
+                openPrice: candlestick.openPrice,
                 highPrice: candlestick.highPrice,
                 lowPrice: candlestick.lowPrice,
                 closePrice: candlestick.closePrice

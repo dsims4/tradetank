@@ -1,13 +1,13 @@
 const { query } = require("./db");
 const {
-    isValidDataBentoCondition,
-    fetchDataBentoStatuses,
-    getScheduledDataBentoStatuses,
-    isDataBentoRangeAvailable
+    isValidDatabentoCondition,
+    fetchDatabentoStatuses,
+    getScheduledDatabentoStatuses,
+    isDatabentoRangeAvailable
 } = require("./databento");
 
 const STATUS_LOOKBACK_DURATION = 1000 * 60 * 60 * 24;
-const TRADING_SESSION_INCEPTION_DATE = "2026-09-01";
+const TRADING_SESSION_INCEPTION_DATE = "2026-08-28";
 const NEW_YORK_DATE_FORMATTER = new Intl.DateTimeFormat(
     "en-US",
     {
@@ -55,7 +55,7 @@ function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
         throw new TypeError("Valid ordered session boundaries are required.");
     }
 
-    const scheduledStatuses = getScheduledDataBentoStatuses(statuses);
+    const scheduledStatuses = getScheduledDatabentoStatuses(statuses);
 
     let stateAtOpen;
 
@@ -88,7 +88,7 @@ async function getPlannedTradingSession(tradingDate, db = { query }) {
 
     const result = await db.query(
         `SELECT
-            $1::DATE AS trading_date,
+            TO_CHAR($1::DATE, 'YYYY-MM-DD') AS trading_date,
             ($1::DATE + TIME '09:30')
                 AT TIME ZONE 'America/New_York' AS open_time,
             ($1::DATE + TIME '16:15')
@@ -123,7 +123,7 @@ async function resolveTradingSession(tradingDate) {
     );
 
     const statusRangeIsAvailable =
-        await isDataBentoRangeAvailable(
+        await isDatabentoRangeAvailable(
             "status",
             statusStartTime,
             plannedSession.closeTime
@@ -136,7 +136,7 @@ async function resolveTradingSession(tradingDate) {
         };
     }
 
-    const statuses = await fetchDataBentoStatuses(
+    const statuses = await fetchDatabentoStatuses(
         statusStartTime,
         plannedSession.closeTime
     );
@@ -190,7 +190,7 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
 
     const result = await db.query(
         `SELECT
-            trading_date,
+            TO_CHAR(trading_date, 'YYYY-MM-DD') AS trading_date,
             state,
             open_time,
             close_time,
@@ -339,7 +339,7 @@ async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) 
 async function updateTradingSessionDataCondition(
     tradingDate, dataCondition, db = { query }) {
 
-    const conditionIsValid = isValidDataBentoCondition(dataCondition);
+    const conditionIsValid = isValidDatabentoCondition(dataCondition);
 
     if (
         !isValidTradingDate(tradingDate) ||

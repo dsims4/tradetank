@@ -1,8 +1,8 @@
 const {
-    isValidDataBentoCondition,
-    fetchDataBentoCandlesticks,
-    isDataBentoRangeAvailable,
-    fetchDataBentoCondition
+    isValidDatabentoCondition,
+    fetchDatabentoCandlesticks,
+    isDatabentoRangeAvailable,
+    fetchDatabentoCondition
 } = require("./databento");
 const {
     getCandlesticks,
@@ -40,7 +40,7 @@ function isDataConditionFresh(tradingSession) {
         !Number.isNaN(dataConditionCheckedTime.getTime());
 
     if (
-        !isValidDataBentoCondition(dataCondition) ||
+        !isValidDatabentoCondition(dataCondition) ||
         !checkedTimeIsValid
     ) {
         return false;
@@ -79,7 +79,7 @@ async function getOrRefreshDataCondition(tradingSession) {
     if (!pendingRefresh) {
         pendingRefresh = (async () => {
             const dataCondition =
-                await fetchDataBentoCondition(tradingDate);
+                await fetchDatabentoCondition(tradingDate);
 
             const updatedCondition =
                 await updateTradingSessionDataCondition(
@@ -136,7 +136,7 @@ async function syncCandlesticks(tradingSession) {
         };
     }
 
-    const rangeIsAvailable = await isDataBentoRangeAvailable(
+    const rangeIsAvailable = await isDatabentoRangeAvailable(
         "ohlcv-1m",
         openTime,
         closeTime
@@ -151,7 +151,7 @@ async function syncCandlesticks(tradingSession) {
         };
     }
 
-    const candlesticks = await fetchDataBentoCandlesticks(openTime, closeTime);
+    const candlesticks = await fetchDatabentoCandlesticks(openTime, closeTime);
 
     if (
         !areCandlesticksValidForRange(

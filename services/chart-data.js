@@ -6,6 +6,9 @@ const {
     getUserTradesForDate,
     hasUserTradingDay
 } = require("./trades");
+const {
+    aggregateFiveMinuteCandlesticks
+} = require("./price-data");
 
 async function getInputChartData(userID, tradingDate) {
     const [candlestickResult, alreadySubmitted] =
@@ -27,7 +30,9 @@ async function getInputChartData(userID, tradingDate) {
         alreadySubmitted,
         canSubmit,
         candlesticks: candlesticksCanBeViewed
-            ? candlestickResult.candlesticks
+            ? aggregateFiveMinuteCandlesticks(
+                candlestickResult.candlesticks
+            )
             : []
     };
 }
@@ -57,7 +62,9 @@ async function getTradesChartData(userID, tradingDate) {
         ...candlestickResult,
         hasTrades: true,
         candlesticks: candlesticksCanBeViewed
-            ? candlestickResult.candlesticks
+            ? aggregateFiveMinuteCandlesticks(
+                candlestickResult.candlesticks
+            )
             : [],
         trades
     };
@@ -84,7 +91,10 @@ async function getLatestInputChartData(userID, now = new Date()) {
     return {
         ...candlestickResult,
         alreadySubmitted,
-        canSubmit: !alreadySubmitted
+        canSubmit: !alreadySubmitted,
+        candlesticks: aggregateFiveMinuteCandlesticks(
+            candlestickResult.candlesticks
+        )
     };
 }
 

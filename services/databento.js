@@ -1,6 +1,6 @@
 const DATABENTO_REQUEST_TIMEOUT = 1000 * 30;
 
-function isValidDataBentoCondition(value) {
+function isValidDatabentoCondition(value) {
     return [
         "available",
         "degraded",
@@ -9,7 +9,7 @@ function isValidDataBentoCondition(value) {
     ].includes(value);
 }
 
-function getDataBentoAuthorization() {
+function getDatabentoAuthorization() {
     const apiKey = process.env.DATABENTO_API_KEY;
 
     if (!apiKey) {
@@ -22,7 +22,7 @@ function getDataBentoAuthorization() {
     return `Basic ${credentials}`;
 }
 
-function formatDataBentoPrice(value) {
+function formatDatabentoPrice(value) {
     const valueIsNumeric =
         (typeof value === "string" && value !== "") ||
         typeof value === "number";
@@ -30,19 +30,19 @@ function formatDataBentoPrice(value) {
     return valueIsNumeric ? Number(value) : Number.NaN;
 }
 
-function formatDataBentoCandlestick(record) {
+function formatDatabentoCandlestick(record) {
     return {
         openTime: new Date(record?.hd?.ts_event),
-        openPrice: formatDataBentoPrice(record?.open),
-        highPrice: formatDataBentoPrice(record?.high),
-        lowPrice: formatDataBentoPrice(record?.low),
-        closePrice: formatDataBentoPrice(record?.close)
+        openPrice: formatDatabentoPrice(record?.open),
+        highPrice: formatDatabentoPrice(record?.high),
+        lowPrice: formatDatabentoPrice(record?.low),
+        closePrice: formatDatabentoPrice(record?.close)
     };
 }
 
-function parseDataBentoRecords(responseText) {
+function parseDatabentoRecords(responseText) {
     if (typeof responseText !== "string") {
-        throw new TypeError("The DataBento response must be a string.");
+        throw new TypeError("The Databento response must be a string.");
     }
 
     return responseText
@@ -52,12 +52,12 @@ function parseDataBentoRecords(responseText) {
         .map((line) => JSON.parse(line));
 }
 
-function parseDataBentoCandlesticks(responseText) {
-    return parseDataBentoRecords(responseText)
-        .map((record) => formatDataBentoCandlestick(record));
+function parseDatabentoCandlesticks(responseText) {
+    return parseDatabentoRecords(responseText)
+        .map((record) => formatDatabentoCandlestick(record));
 }
 
-function formatDataBentoStatus(record) {
+function formatDatabentoStatus(record) {
     return {
         eventTime: new Date(record?.hd?.ts_event),
         reason: Number(record?.reason),
@@ -66,12 +66,12 @@ function formatDataBentoStatus(record) {
     };
 }
 
-function parseDataBentoStatuses(responseText) {
-    return parseDataBentoRecords(responseText)
-        .map((record) => formatDataBentoStatus(record));
+function parseDatabentoStatuses(responseText) {
+    return parseDatabentoRecords(responseText)
+        .map((record) => formatDatabentoStatus(record));
 }
 
-async function fetchDataBentoResponse(schema, startTime, endTime) {
+async function fetchDatabentoResponse(schema, startTime, endTime) {
     const requestBody = new URLSearchParams({
         dataset: "GLBX.MDP3",
         symbols: "ES.v.0",
@@ -90,7 +90,7 @@ async function fetchDataBentoResponse(schema, startTime, endTime) {
         {
             method: "POST",
             headers: {
-                Authorization: getDataBentoAuthorization()
+                Authorization: getDatabentoAuthorization()
             },
             body: requestBody,
             signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
@@ -99,36 +99,36 @@ async function fetchDataBentoResponse(schema, startTime, endTime) {
 
     if (!response.ok) {
         throw new Error(
-            `The DataBento request failed with status ${response.status}.`
+            `The Databento request failed with status ${response.status}.`
         );
     }
 
     return response.text();
 }
 
-async function fetchDataBentoCandlesticks(startTime, endTime) {
-    const responseText = await fetchDataBentoResponse(
+async function fetchDatabentoCandlesticks(startTime, endTime) {
+    const responseText = await fetchDatabentoResponse(
         "ohlcv-1m",
         startTime,
         endTime
     );
 
-    return parseDataBentoCandlesticks(responseText);
+    return parseDatabentoCandlesticks(responseText);
 }
 
-async function fetchDataBentoStatuses(startTime, endTime) {
-    const responseText = await fetchDataBentoResponse(
+async function fetchDatabentoStatuses(startTime, endTime) {
+    const responseText = await fetchDatabentoResponse(
         "status",
         startTime,
         endTime
     );
 
-    return parseDataBentoStatuses(responseText);
+    return parseDatabentoStatuses(responseText);
 }
 
-function getScheduledDataBentoStatuses(statuses) {
+function getScheduledDatabentoStatuses(statuses) {
     if (!Array.isArray(statuses)) {
-        throw new TypeError("The DataBento statuses must be in an array.");
+        throw new TypeError("The Databento statuses must be in an array.");
     }
 
     const uniqueStatuses = new Map();
@@ -156,7 +156,7 @@ function getScheduledDataBentoStatuses(statuses) {
         .sort((first, second) => first.eventTime - second.eventTime);
 }
 
-function formatDataBentoTimeRange(range) {
+function formatDatabentoTimeRange(range) {
     return {
         startTime: new Date(range?.start),
         endTime: new Date(range?.end)
@@ -170,7 +170,7 @@ function isValidDate(value) {
     );
 }
 
-async function fetchDataBentoAvailableRanges() {
+async function fetchDatabentoAvailableRanges() {
     const parameters = new URLSearchParams({
         dataset: "GLBX.MDP3"
     });
@@ -180,7 +180,7 @@ async function fetchDataBentoAvailableRanges() {
         `metadata.get_dataset_range?${parameters}`,
         {
             headers: {
-                Authorization: getDataBentoAuthorization()
+                Authorization: getDatabentoAuthorization()
             },
             signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
         }
@@ -188,7 +188,7 @@ async function fetchDataBentoAvailableRanges() {
 
     if (!response.ok) {
         throw new Error(
-            `The DataBento metadata request failed with ` +
+            `The Databento metadata request failed with ` +
             `status ${response.status}.`
         );
     }
@@ -196,16 +196,16 @@ async function fetchDataBentoAvailableRanges() {
     const responseData = await response.json();
 
     return {
-        candlesticks: formatDataBentoTimeRange(
+        candlesticks: formatDatabentoTimeRange(
             responseData?.schema?.["ohlcv-1m"]
         ),
-        statuses: formatDataBentoTimeRange(
+        statuses: formatDatabentoTimeRange(
             responseData?.schema?.status
         )
     };
 }
 
-async function fetchDataBentoCondition(tradingDate) {
+async function fetchDatabentoCondition(tradingDate) {
     if (
         typeof tradingDate !== "string" ||
         !/^\d{4}-\d{2}-\d{2}$/.test(tradingDate)
@@ -226,7 +226,7 @@ async function fetchDataBentoCondition(tradingDate) {
         `metadata.get_dataset_condition?${parameters}`,
         {
             headers: {
-                Authorization: getDataBentoAuthorization()
+                Authorization: getDatabentoAuthorization()
             },
             signal: AbortSignal.timeout(DATABENTO_REQUEST_TIMEOUT)
         }
@@ -234,7 +234,7 @@ async function fetchDataBentoCondition(tradingDate) {
 
     if (!response.ok) {
         throw new Error(
-            `The DataBento condition request failed with ` +
+            `The Databento condition request failed with ` +
             `status ${response.status}.`
         );
     }
@@ -245,16 +245,16 @@ async function fetchDataBentoCondition(tradingDate) {
         (record) => record?.date === tradingDate
     )?.condition;
 
-    if (!isValidDataBentoCondition(condition)) {
+    if (!isValidDatabentoCondition(condition)) {
         throw new Error(
-            "DataBento did not return a valid data condition."
+            "Databento did not return a valid data condition."
         );
     }
 
     return condition;
 }
 
-async function isDataBentoRangeAvailable(schema, startTime, endTime) {
+async function isDatabentoRangeAvailable(schema, startTime, endTime) {
     const rangeNames = {
         "ohlcv-1m": "candlesticks",
         status: "statuses"
@@ -269,12 +269,12 @@ async function isDataBentoRangeAvailable(schema, startTime, endTime) {
         startTime >= endTime
     ) {
         throw new TypeError(
-            "A valid DataBento schema and time range are required."
+            "A valid Databento schema and time range are required."
         );
     }
 
     const availableRanges =
-        await fetchDataBentoAvailableRanges();
+        await fetchDatabentoAvailableRanges();
 
     const availableRange = availableRanges[rangeName];
 
@@ -292,14 +292,14 @@ async function isDataBentoRangeAvailable(schema, startTime, endTime) {
 }
 
 module.exports = {
-    isValidDataBentoCondition,
-    formatDataBentoCandlestick,
-    parseDataBentoCandlesticks,
-    fetchDataBentoCandlesticks,
-    formatDataBentoStatus,
-    parseDataBentoStatuses,
-    fetchDataBentoStatuses,
-    getScheduledDataBentoStatuses,
-    isDataBentoRangeAvailable,
-    fetchDataBentoCondition
+    isValidDatabentoCondition,
+    formatDatabentoCandlestick,
+    parseDatabentoCandlesticks,
+    fetchDatabentoCandlesticks,
+    formatDatabentoStatus,
+    parseDatabentoStatuses,
+    fetchDatabentoStatuses,
+    getScheduledDatabentoStatuses,
+    isDatabentoRangeAvailable,
+    fetchDatabentoCondition
 };

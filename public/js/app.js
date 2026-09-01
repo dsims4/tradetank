@@ -291,7 +291,10 @@ function runQueryCleaner() {
     });
 
     const cleanSearch = cleanParameters.toString();
-    const cleanURL = `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ""}${window.location.hash}`;
+    const cleanURL =
+        `${window.location.pathname}${cleanSearch
+        ? `?${cleanSearch}`
+        : ""}${window.location.hash}`;
 
     window.history.replaceState({}, document.title, cleanURL);
 }
@@ -315,8 +318,16 @@ function runProtectedPageGuard() {
 
 function runCandlestickChart() {
     const canvas = document.getElementById("candlestick-chart");
+    const controls = document.querySelector("[data-input-chart-controls]");
+    const dateInput = document.querySelector("[data-input-chart-date]");
+    const status = document.querySelector("[data-input-chart-status]");
 
-    if (!canvas) {
+    if (
+        !canvas ||
+        !controls ||
+        !dateInput ||
+        !status
+    ) {
         return;
     }
 
@@ -325,6 +336,59 @@ function runCandlestickChart() {
 
     resizeObserver.observe(canvas);
     chart.resize();
+
+    async function loadChart(tradingDate = "") {
+        const searchParameters =
+            new URLSearchParams();
+
+        if (tradingDate) {
+            searchParameters.set("date", tradingDate);
+        }
+
+        const query = searchParameters.toString();
+        const requestURL = `/api/input-chart${query ? `?${query}` : ""}`;
+
+        status.textContent = "Loading chart...";
+
+        try {
+            const response = await fetch(requestURL);
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    responseData.error ||
+                    "The chart request failed."
+                );
+            }
+
+            if (responseData.tradingDate) {
+                dateInput.value = responseData.tradingDate;
+            }
+
+            chart.setCandlesticks(
+                responseData.candlesticks
+            );
+
+            status.textContent =
+                `Loaded ${responseData.candlesticks.length} ` +
+                `five-minute candlesticks.`;
+        } catch (error) {
+            chart.setCandlesticks([]);
+            status.textContent = error.message;
+        }
+    }
+
+    controls.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        dateInput.value = dateInput.value.trim();
+
+        if (!controls.reportValidity()) return;
+
+        loadChart(dateInput.value);
+    });
+
+    loadChart();
 }
 
 function runColorSchemeForm() {
