@@ -321,23 +321,72 @@ function runCandlestickChart() {
     const controls = document.querySelector("[data-input-chart-controls]");
     const dateInput = document.querySelector("[data-input-chart-date]");
     const status = document.querySelector("[data-input-chart-status]");
+    const tradeFieldset = document.querySelector(
+        "[data-input-trade-fieldset]"
+    );
+    const tradeActionButtons = document.querySelectorAll(
+        "[data-trade-action]"
+    );
+    const closeTradeButton = document.querySelector(
+        '[data-trade-action="close"]'
+    );
 
     if (
         !canvas ||
         !controls ||
         !dateInput ||
-        !status
+        !status ||
+        !tradeFieldset ||
+        !closeTradeButton
     ) {
         return;
     }
 
     const chart = new CandlestickChart(canvas);
-    const resizeObserver = new ResizeObserver(() => chart.resize());
+    const tradeDraft = new TradeDraft();
 
+    let selectedTradeAction = null;
+
+    function clearSelectedTradeAction() {
+        selectedTradeAction = null;
+
+        tradeActionButtons.forEach((button) => {
+            button.setAttribute("aria-pressed", "false");
+        });
+    }
+
+    function updateTradeActionAvailability() {
+        closeTradeButton.disabled =
+            !tradeDraft.hasActiveTrade();
+    }
+
+    tradeActionButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            selectedTradeAction = button.dataset.tradeAction;
+
+            tradeActionButtons.forEach((actionButton) => {
+                actionButton.setAttribute(
+                    "aria-pressed",
+                    String(actionButton === button)
+                );
+            });
+
+            status.textContent =
+                `${button.textContent.trim()} selected. ` +
+                "Click the chart to place the order.";
+        });
+    });
+
+    const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(canvas);
     chart.resize();
 
     async function loadChart(tradingDate = "") {
+        tradeDraft.clear();
+        clearSelectedTradeAction();
+        updateTradeActionAvailability();
+        tradeFieldset.disabled = true;
+
         const searchParameters =
             new URLSearchParams();
 
@@ -368,6 +417,8 @@ function runCandlestickChart() {
             chart.setCandlesticks(
                 responseData.candlesticks
             );
+
+            tradeFieldset.disabled = !responseData.canSubmit;
 
             status.textContent =
                 `Loaded ${responseData.candlesticks.length} ` +

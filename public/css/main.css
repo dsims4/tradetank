@@ -143,13 +143,67 @@
     }
 }
 
+.input-chart-page {
+    width: 100%;
+}
+
+.input-chart-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 14rem;
+    align-items: stretch;
+    gap: 1rem;
+    width: 100%;
+}
+
 .candlestick-chart-container {
-    width: clamp(18rem, 100%, 55rem);
-    height: clamp(20rem, 60vh, 40rem);
+    width: 100%;
+    height: clamp(20rem, 70vh, 48rem);
 }
 
 #candlestick-chart {
     display: block;
     width: 100%;
     height: 100%;
+}
+
+.input-trade-sidebar form {
+    height: 100%;
+}
+
+.input-trade-sidebar fieldset {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 1rem;
+}
+
+.input-trade-sidebar input,
+.input-trade-sidebar textarea {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.input-trade-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-trade-sidebar textarea {
+    min-height: 8rem;
+    resize: vertical;
+}
+
+.input-trade-actions .button[aria-pressed="true"] {
+    border-color: var(--color-ink);
+    color: var(--color-contrast);
+    background-color: var(--color-ink);
+}
+
+#candlestick-chart {
+    cursor: crosshair;
 }
