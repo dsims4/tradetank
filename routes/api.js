@@ -20,6 +20,9 @@ const {
 const {
     isValidTradingDate
 } = require("../services/trading-sessions");
+const {
+    saveUserTradingDay
+} = require("../services/trades");
 
 router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =
@@ -99,6 +102,71 @@ router.post("/signup-availability", signupAvailabilityIPRateLimit,
             emailAvailable
         });
     } catch (error) {
+        return next(error);
+    }
+});
+
+router.post("/input-chart", requireAPIAuthentication, async (req, res, next) => {
+    if (!req.is("application/json")) {
+        return res.status(415).json({
+            error: "JSON content is required."
+        });
+    }
+
+    const tradingDate =
+        getStringInput(req.body?.tradingDate);
+
+    const trades = req.body?.trades;
+
+    if (!isValidTradingDate(tradingDate)) {
+        return res.status(400).json({
+            error: "A valid trading date is required."
+        });
+    }
+
+    try {
+        const chartData = await getInputChartData(
+            req.authenticatedUserID,
+            tradingDate
+        );
+
+        if (chartData.alreadySubmitted) {
+            return res.status(409).json({
+                error: "That trading day was already submitted."
+            });
+        }
+
+        if (!chartData.canSubmit) {
+            return res.status(409).json({
+                error: "That chart cannot currently be submitted."
+            });
+        }
+
+        const savedTradeCount =
+            await saveUserTradingDay(
+                req.authenticatedUserID,
+                tradingDate,
+                trades,
+                chartData.candlesticks
+            );
+
+        return res.status(201).json({
+            tradingDate,
+            savedTradeCount
+        });
+    } catch (error) {
+        if (error instanceof TypeError) {
+            return res.status(400).json({
+                error: error.message
+            });
+        }
+
+        if (error.code === "23505") {
+            return res.status(409).json({
+                error: "That trading day was already submitted."
+            });
+        }
+
         return next(error);
     }
 });
