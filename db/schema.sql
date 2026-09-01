@@ -106,11 +106,10 @@ CREATE TABLE IF NOT EXISTS user_trades (
     side VARCHAR(5) NOT NULL CHECK (side IN ('long', 'short')),
     contract_count INTEGER NOT NULL
         CHECK (contract_count > 0),
-    entries JSONB NOT NULL DEFAULT '[]'::jsonb
-        CHECK (jsonb_typeof(entries) = 'array'),
-    exits JSONB NOT NULL DEFAULT '[]'::jsonb
-        CHECK (jsonb_typeof(exits) = 'array'),
-    points NUMERIC (10, 3) NOT NULL,
+    order_events JSONB NOT NULL DEFAULT
+        '{"buySide": [], "sellSide": []}'::jsonb
+        CHECK (jsonb_typeof(order_events) = 'object'),
+    points_per_trade NUMERIC (10, 3) NOT NULL,
     process_deviation BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT CHECK (length(notes) <= 1500),
     creation_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
