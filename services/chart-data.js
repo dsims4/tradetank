@@ -4,6 +4,7 @@ const {
 } = require("./candlestick-sync");
 const {
     getUserTradesForDate,
+    getLatestUserTradingDate,
     hasUserTradingDay
 } = require("./trades");
 const {
@@ -70,6 +71,22 @@ async function getTradesChartData(userID, tradingDate) {
     };
 }
 
+async function getLatestTradesChartData(userID) {
+    const tradingDate =
+        await getLatestUserTradingDate(userID);
+
+    if (!tradingDate) {
+        return {
+            tradingDate: null,
+            hasTrades: false,
+            candlesticks: [],
+            trades: []
+        };
+    }
+
+    return getTradesChartData(userID, tradingDate);
+}
+
 async function getLatestInputChartData(userID, now = new Date()) {
     const candlestickResult =
         await getLatestAvailableCandlesticks(now);
@@ -101,5 +118,6 @@ async function getLatestInputChartData(userID, now = new Date()) {
 module.exports = {
     getInputChartData,
     getTradesChartData,
-    getLatestInputChartData
+    getLatestInputChartData,
+    getLatestTradesChartData
 };

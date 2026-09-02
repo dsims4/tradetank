@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const { query } = require("./db");
 
-const SESSION_NAME = "tradetank_session";
+const SESSION_NAME = "trade-tank-session";
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_DURATION = 1000 * 60 * 60 * 24;
 const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;

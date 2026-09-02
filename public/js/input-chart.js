@@ -313,7 +313,7 @@ function runCandlestickChart() {
             if (responseData.tradingDate) {
                 dateInput.value = responseData.tradingDate;
                 window.sessionStorage.setItem(
-                    "tradetankInputChartDate",
+                    "trade-tank-input-chart-date",
                     responseData.tradingDate
                 );
             }
@@ -324,9 +324,14 @@ function runCandlestickChart() {
 
             tradeFieldset.disabled = !responseData.canSubmit;
 
-            status.textContent =
-                `Loaded ${responseData.candlesticks.length} ` +
-                `five-minute candlesticks.`;
+            if (responseData.alreadySubmitted) {
+                status.textContent =
+                    "This chart has already been submitted.";
+            } else {
+                status.textContent =
+                    `Loaded ${responseData.candlesticks.length} ` +
+                    `five-minute candlesticks.`;
+            }
         } catch (error) {
             chart.setCandlesticks([]);
             status.textContent = error.message;
@@ -456,7 +461,7 @@ function runCandlestickChart() {
 
     const rememberedTradingDate =
         window.sessionStorage.getItem(
-            "tradetankInputChartDate"
+            "trade-tank-input-chart-date"
         ) || "";
 
     loadChart(rememberedTradingDate);

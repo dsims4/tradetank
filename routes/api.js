@@ -12,7 +12,8 @@ const {
 const {
     getInputChartData,
     getTradesChartData,
-    getLatestInputChartData
+    getLatestInputChartData,
+    getLatestTradesChartData
 } = require("../services/chart-data");
 const {
     requireAPIAuthentication
@@ -54,17 +55,21 @@ router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => 
     const tradingDate =
         getStringInput(req.query.date);
 
-    if (!isValidTradingDate(tradingDate)) {
+    if (tradingDate && !isValidTradingDate(tradingDate)) {
         return res.status(400).json({
             error: "A valid trading date is required."
         });
     }
 
     try {
-        const chartData = await getTradesChartData(
-            req.authenticatedUserID,
-            tradingDate
-        );
+        const chartData = tradingDate
+            ? await getTradesChartData(
+                req.authenticatedUserID,
+                tradingDate
+            )
+            : await getLatestTradesChartData(
+                req.authenticatedUserID
+            );
 
         return res.json(chartData);
     } catch (error) {

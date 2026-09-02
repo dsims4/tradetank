@@ -139,6 +139,27 @@ async function hasUserTradingDay(userID, tradingDate, db = { query }) {
     return result.rows[0].trading_day_exists;
 }
 
+async function getLatestUserTradingDate(userID, db = { query }) {
+    if (!Number.isSafeInteger(userID) || userID <= 0) {
+        throw new TypeError("A valid user ID is required.");
+    }
+
+    const result = await db.query(
+        `SELECT
+            TO_CHAR(
+                MAX(trading_date),
+                'YYYY-MM-DD'
+            ) AS trading_date
+         FROM
+            user_trading_days
+         WHERE
+            user_id = $1`,
+        [userID]
+    );
+
+    return result.rows[0].trading_date;
+}
+
 function getOrderEventSideSummary(orderEvents) {
     if (
         !Array.isArray(orderEvents) ||
@@ -390,6 +411,7 @@ async function saveUserTradingDay(userID, tradingDate,
 
 module.exports = {
     getUserTradesForDate,
+    getLatestUserTradingDate,
     hasUserTradingDay,
     saveUserTradingDay
 };

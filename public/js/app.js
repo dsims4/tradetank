@@ -262,8 +262,19 @@ function runDeleteAccountForm() {
         clearConfirmationValidation();
 
         if (confirmationInput.value !== "DELETE") {
-            confirmationInput.setCustomValidity('You must enter "DELETE" to confirm.');
+            confirmationInput.setCustomValidity(
+                'You must enter "DELETE" to confirm.'
+            );
             confirmationInput.reportValidity();
+            event.preventDefault();
+            return;
+        }
+
+        const shouldDelete = window.confirm(
+            "Delete account permanently?"
+        );
+
+        if (!shouldDelete) {
             event.preventDefault();
         }
     });

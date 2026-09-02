@@ -47,6 +47,18 @@
     padding: clamp(0.5rem, 1vw, 0.75rem) clamp(0.75rem, 2vw, 1.5rem);
 }
 
+.navbar-container--app {
+    flex-wrap: nowrap;
+    column-gap: clamp(1rem, 4vw, 4rem);
+    justify-content: space-between;
+}
+
+.navbar-container--app .navbar-links {
+    flex-wrap: nowrap;
+    gap: clamp(0.5rem, 1.5vw, 1.5rem);
+    flex-shrink: 0;
+}
+
 .navbar-brand {
     display: flex;
     align-items: center;
@@ -117,4 +129,17 @@
 .navbar-link.active,
 .navbar-brand.active {
     border-bottom-color: var(--color-contrast);
+}
+
+@media (max-width: 800px) {
+    .navbar-container--app {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .navbar-container--app .navbar-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        flex-shrink: 1;
+    }
 }

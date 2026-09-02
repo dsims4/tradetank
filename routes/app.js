@@ -24,6 +24,13 @@ router.get("/visualize", loadUser, (req, res) => {
     });
 });
 
+router.get("/trades", loadUser, (req, res) => {
+    return res.render("trades.njk", {
+        currentPage: "trades",
+        colorScheme: req.user.colorScheme
+    });
+});
+
 router.get("/input", loadUser, (req, res) => {
     return res.render("input.njk", {
         currentPage: "input",

@@ -1,15 +1,49 @@
 <header>
     <nav class="navbar">
-        <div class="navbar-container">
-            <a href="/home" class="navbar-brand {% if currentPage == 'home' %}active{% endif %}">
+        <div class="navbar-container navbar-container--app">
+            <a
+                href="/home"
+                class="navbar-brand {% if currentPage == 'home' %}active{% endif %}"
+            >
                 {% include "partials/logo.njk" %}
             </a>
             
             <div class="navbar-links">
-                <a href="/analyze" class="navbar-link {% if currentPage == 'analyze' %}active{% endif %}">Analyze</a>
-                <a href="/visualize" class="navbar-link {% if currentPage == 'visualize' %}active{% endif %}">Visualize</a>
-                <a href="/input" class="navbar-link {% if currentPage == 'input' %}active{% endif %}">Input</a>
-                <a href="/profile" class="navbar-link {% if currentPage == 'profile' %}active{% endif %}">Profile</a>
+                <a
+                    href="/analyze"
+                    class="navbar-link {% if currentPage == 'analyze' %}active{% endif %}"
+                >
+                    Analyze
+                </a>
+
+                <a
+                    href="/visualize"
+                    class="navbar-link {% if currentPage == 'visualize' %}active{% endif %}"
+                >
+                    Visualize
+                </a>
+
+                <a
+                    href="/trades"
+                    class="navbar-link {% if currentPage == 'trades' %}active{% endif %}"
+                >
+                    Trades
+                </a>
+
+                <a
+                    href="/input"
+                    class="navbar-link {% if currentPage == 'input' %}active{% endif %}"
+                >
+                    Input
+                </a>
+
+                <a
+                    href="/profile"
+                    class="navbar-link {% if currentPage == 'profile' %}active{% endif %}"
+                >
+                    Profile
+                </a>
+
                 <form method="POST" action="/logout">
                     <button type="submit" class="navbar-link">Log Out</button>
                 </form>
