@@ -6,6 +6,7 @@ class CandlestickChart {
         this.width = 0;
         this.height = 0;
         this.crosshair = null;
+        this.orderMarkers = [];
         this.timeFormatter = new Intl.DateTimeFormat(
             "en-US",
             {
@@ -30,6 +31,7 @@ class CandlestickChart {
         }
 
         this.crosshair = null;
+        this.orderMarkers = [];
         this.candlesticks = candlesticks;
         this.render();
     }
@@ -86,6 +88,7 @@ class CandlestickChart {
         }
 
         this.drawCandlesticks();
+        this.drawOrderMarkers();
         this.drawPriceAxis();
         this.drawTimeAxis();
         this.drawCrosshair();
@@ -462,17 +465,159 @@ class CandlestickChart {
 
         this.ctx.restore();
     }
+
+    getCrosshairSelection() {
+        if (!this.crosshair) return null;
+
+        const candlestick =
+            this.candlesticks[this.crosshair.candleIndex];
+
+        return {
+            time: candlestick.openTime,
+            price: this.crosshair.price
+        };
+    }
+
+    setOrderMarkers(orderMarkers) {
+        if (!Array.isArray(orderMarkers)) {
+            throw new TypeError(
+                "Order markers must be provided as an array."
+            );
+        }
+
+        this.orderMarkers = orderMarkers.map(
+            (orderMarker) => ({
+                ...orderMarker
+            })
+        );
+
+        this.render();
+    }
+
+    getCombinedOrderMarkers() {
+        const combinedMarkers = new Map();
+
+        this.orderMarkers.forEach((orderMarker) => {
+            const markerKey = JSON.stringify([
+                orderMarker.orderSide,
+                orderMarker.time,
+                orderMarker.price
+            ]);
+
+            const existingMarker =
+                combinedMarkers.get(markerKey);
+
+            if (existingMarker) {
+                existingMarker.contractCount +=
+                    orderMarker.contractCount;
+            } else {
+                combinedMarkers.set(
+                    markerKey,
+                    { ...orderMarker }
+                );
+            }
+        });
+
+        return [...combinedMarkers.values()];
+    }
+
+    getCandleIndexForTime(time) {
+        const markerTime = Date.parse(time);
+
+        return this.candlesticks.findIndex(
+            (candlestick) =>
+                Date.parse(candlestick.openTime) === markerTime
+        );
+    }
+
+    drawOrderMarkers() {
+        if (this.orderMarkers.length === 0) return;
+
+        const priceRange = this.getPriceRange();
+        const plotArea = this.getPlotArea();
+        const orderMarkers =
+            this.getCombinedOrderMarkers();
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.rect(
+            plotArea.left,
+            plotArea.top,
+            plotArea.width,
+            plotArea.height
+        );
+        this.ctx.clip();
+
+        this.ctx.font = "12px sans-serif";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.lineWidth = 1;
+
+        orderMarkers.forEach((orderMarker) => {
+            const candleIndex =
+                this.getCandleIndexForTime(orderMarker.time);
+
+            if (candleIndex === -1) return;
+
+            const { centerX } =
+                this.getCandleGeometry(candleIndex);
+            const priceY =
+                this.priceToY(orderMarker.price, priceRange);
+            const isBuy =
+                orderMarker.orderSide === "buy";
+            const label =
+                `${isBuy ? "B" : "S"} ` +
+                `${orderMarker.contractCount}`;
+            const labelCenterY =
+                priceY + (isBuy ? 14 : -14);
+            const labelWidth =
+                this.ctx.measureText(label).width + 8;
+            const labelHeight = 18;
+
+            this.ctx.strokeStyle = "#000000";
+            this.ctx.beginPath();
+            this.ctx.moveTo(centerX, priceY);
+            this.ctx.lineTo(centerX, labelCenterY);
+            this.ctx.stroke();
+
+            this.ctx.fillStyle = "#ffffff";
+            this.ctx.fillRect(
+                centerX - labelWidth / 2,
+                labelCenterY - labelHeight / 2,
+                labelWidth,
+                labelHeight
+            );
+
+            this.ctx.strokeRect(
+                centerX - labelWidth / 2,
+                labelCenterY - labelHeight / 2,
+                labelWidth,
+                labelHeight
+            );
+
+            this.ctx.fillStyle = "#000000";
+            this.ctx.fillText(
+                label,
+                centerX,
+                labelCenterY
+            );
+        });
+
+        this.ctx.restore();
+    }
 }
 
 class TradeDraft {
     constructor() {
         this.trades = [];
         this.activeTrade = null;
+        this.history = [];
     }
 
     clear() {
         this.trades = [];
         this.activeTrade = null;
+        this.history = [];
     }
 
     hasActiveTrade() {
@@ -565,6 +710,11 @@ class TradeDraft {
         if (!this.isValidOrderEvent(orderEvent)) {
             throw new TypeError("A valid order event is required.");
         }
+
+        this.history.push({
+            trades: structuredClone(this.trades),
+            activeTrade: structuredClone(this.activeTrade)
+        });
 
         if (!this.hasActiveTrade()) {
             this.startTrade(orderSide, orderEvent);
@@ -680,5 +830,67 @@ class TradeDraft {
 
         this.activeTrade.notes = notes;
         this.activeTrade.processDeviation = processDeviation;
+    }
+
+    getCompletedTradeCount() {
+        return this.trades.length;
+    }
+
+    getOrderEventsForDisplay() {
+        const trades = [...this.trades];
+
+        if (this.activeTrade) trades.push(this.activeTrade);
+
+        return trades.flatMap((trade) => {
+            const buyEvents =
+                trade.orderEvents.buySide.map(
+                    (orderEvent) => ({
+                        ...orderEvent,
+                        orderSide: "buy"
+                    })
+                );
+
+            const sellEvents =
+                trade.orderEvents.sellSide.map(
+                    (orderEvent) => ({
+                        ...orderEvent,
+                        orderSide: "sell"
+                    })
+                );
+
+            return [
+                ...buyEvents,
+                ...sellEvents
+            ];
+        });
+    }
+
+    canUndo() {
+        return this.history.length > 0;
+    }
+
+    undoLastOrderEvent() {
+        const previousState = this.history.pop();
+
+        if (!previousState) return false;
+
+        this.trades = previousState.trades;
+        this.activeTrade = previousState.activeTrade;
+
+        return true;
+    }
+
+    getActiveTradeDetails() {
+        if (!this.activeTrade) return null;
+
+        return {
+            notes: this.activeTrade.notes,
+            processDeviation:
+                this.activeTrade.processDeviation
+        };
+    }
+
+    getCompletedTradesForDisplay() {
+        return structuredClone(this.trades);
     }
 }

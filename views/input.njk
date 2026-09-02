@@ -81,6 +81,26 @@
                                 </button>
                             </div>
 
+                            <div class="input-trade-history-actions">
+                                <button
+                                    type="button"
+                                    class="button"
+                                    disabled
+                                    data-undo-order
+                                >
+                                    Undo
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="button"
+                                    disabled
+                                    data-reset-orders
+                                >
+                                    Reset
+                                </button>
+                            </div>
+
                             <label for="trade-notes">
                                 Trade notes
                             </label>
@@ -105,6 +125,11 @@
                             </button>
                         </fieldset>
                     </form>
+
+                    <section hidden data-completed-trades-section>
+                        <h2>Completed trades</h2>
+                        <div data-completed-trades></div>
+                    </section>
                 </aside>
             </div>
         </div>

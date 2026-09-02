@@ -330,6 +330,30 @@ function runCandlestickChart() {
     const closeTradeButton = document.querySelector(
         '[data-trade-action="close"]'
     );
+    const contractCountInput = document.querySelector(
+        "[data-contract-count]"
+    );
+    const tradeNotesInput = document.querySelector(
+        "[data-trade-notes]"
+    );
+    const processDeviationInput = document.querySelector(
+        "[data-process-deviation]"
+    );
+    const tradeForm = document.querySelector(
+        "[data-input-trade-form]"
+    );
+    const undoOrderButton = document.querySelector(
+        "[data-undo-order]"
+    );
+    const resetOrdersButton = document.querySelector(
+        "[data-reset-orders]"
+    );
+    const completedTradesSection = document.querySelector(
+        "[data-completed-trades-section]"
+    );
+    const completedTrades = document.querySelector(
+        "[data-completed-trades]"
+    );
 
     if (
         !canvas ||
@@ -337,7 +361,15 @@ function runCandlestickChart() {
         !dateInput ||
         !status ||
         !tradeFieldset ||
-        !closeTradeButton
+        !closeTradeButton ||
+        !contractCountInput ||
+        !tradeNotesInput ||
+        !processDeviationInput ||
+        !tradeForm ||
+        !undoOrderButton ||
+        !resetOrdersButton ||
+        !completedTradesSection ||
+        !completedTrades
     ) {
         return;
     }
@@ -358,6 +390,70 @@ function runCandlestickChart() {
     function updateTradeActionAvailability() {
         closeTradeButton.disabled =
             !tradeDraft.hasActiveTrade();
+
+        const canUndo = tradeDraft.canUndo();
+
+        undoOrderButton.disabled = !canUndo;
+        resetOrdersButton.disabled = !canUndo;
+    }
+
+    function resetTradeDetails() {
+        tradeNotesInput.value = "";
+        processDeviationInput.checked = false;
+    }
+
+    function restoreActiveTradeDetails() {
+        const details = tradeDraft.getActiveTradeDetails();
+
+        if (!details) {
+            resetTradeDetails();
+            return;
+        }
+
+        tradeNotesInput.value = details.notes;
+        processDeviationInput.checked =
+            details.processDeviation;
+    }
+
+    function renderCompletedTrades() {
+        const trades =
+            tradeDraft.getCompletedTradesForDisplay();
+
+        completedTrades.replaceChildren();
+        completedTradesSection.hidden = trades.length === 0;
+
+        trades.forEach((trade, index) => {
+            const entryEvents =
+                trade.side === "long"
+                    ? trade.orderEvents.buySide
+                    : trade.orderEvents.sellSide;
+            const contractCount = entryEvents.reduce(
+                (total, orderEvent) =>
+                    total + orderEvent.contractCount,
+                0
+            );
+            const details = document.createElement("details");
+            const summary = document.createElement("summary");
+            const notes = document.createElement("p");
+            const processDeviation = document.createElement("p");
+
+            summary.textContent =
+                `Trade ${index + 1}: ${trade.side}, ` +
+                `${contractCount} ` +
+                `contract${contractCount === 1 ? "" : "s"}`;
+            notes.textContent =
+                `Notes: ${trade.notes || "None"}`;
+            processDeviation.textContent =
+                "Process deviation: " +
+                (trade.processDeviation ? "Yes" : "No");
+
+            details.append(
+                summary,
+                notes,
+                processDeviation
+            );
+            completedTrades.append(details);
+        });
     }
 
     tradeActionButtons.forEach((button) => {
@@ -377,12 +473,126 @@ function runCandlestickChart() {
         });
     });
 
+    canvas.addEventListener("click", () => {
+        if (!selectedTradeAction) {
+            status.textContent =
+                "Select Buy, Sell, or Close first.";
+            return;
+        }
+
+        const chartSelection =
+            chart.getCrosshairSelection();
+
+        if (!chartSelection) {
+            status.textContent =
+                "Click inside the chart area.";
+            return;
+        }
+
+        let orderSide = selectedTradeAction;
+        let contractCount = contractCountInput.valueAsNumber;
+
+        if (selectedTradeAction === "close") {
+            const netContractCount =
+                tradeDraft.getNetContractCount();
+
+            if (netContractCount === 0) {
+                status.textContent =
+                    "There is no open position to close.";
+                return;
+            }
+
+            orderSide =
+                netContractCount > 0
+                ? "sell"
+                : "buy";
+            contractCount =
+                Math.abs(netContractCount);
+        } else if (
+            !contractCountInput.reportValidity() ||
+            !Number.isSafeInteger(contractCount) ||
+            contractCount <= 0
+        ) {
+            status.textContent =
+                "Enter a valid contract count.";
+            return;
+        }
+
+        const notes = tradeNotesInput.value;
+        const processDeviation =
+            processDeviationInput.checked;
+        const hadActiveTrade =
+            tradeDraft.hasActiveTrade();
+        const completedTradeCountBefore =
+            tradeDraft.getCompletedTradeCount();
+
+        try {
+            if (hadActiveTrade) {
+                tradeDraft.updateActiveTradeDetails(
+                    notes,
+                    processDeviation
+                );
+            }
+
+            tradeDraft.recordOrderEvent(
+                orderSide,
+                {
+                    time: chartSelection.time,
+                    price: chartSelection.price,
+                    contractCount
+                }
+            );
+
+            chart.setOrderMarkers(
+                tradeDraft.getOrderEventsForDisplay()
+            );
+            renderCompletedTrades();
+
+            if (
+                !hadActiveTrade &&
+                tradeDraft.hasActiveTrade()
+            ) {
+                tradeDraft.updateActiveTradeDetails(
+                    notes,
+                    processDeviation
+                );
+            }
+
+            const completedTrade =
+                tradeDraft.getCompletedTradeCount() >
+                completedTradeCountBefore;
+
+            if (completedTrade) resetTradeDetails();
+
+            const netContractCount =
+                tradeDraft.getNetContractCount();
+
+            clearSelectedTradeAction();
+            updateTradeActionAvailability();
+
+            if (netContractCount > 0) {
+                status.textContent =
+                    `Open position: long ${netContractCount}.`;
+            } else if (netContractCount < 0) {
+                status.textContent =
+                    `Open position: short ${Math.abs(netContractCount)}.`;
+            } else {
+                status.textContent =
+                    "Trade completed.";
+            }
+        } catch (error) {
+            status.textContent = error.message;
+        }
+    });
+
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(canvas);
     chart.resize();
 
     async function loadChart(tradingDate = "") {
         tradeDraft.clear();
+        renderCompletedTrades();
+        resetTradeDetails();
         clearSelectedTradeAction();
         updateTradeActionAvailability();
         tradeFieldset.disabled = true;
@@ -437,6 +647,117 @@ function runCandlestickChart() {
         if (!controls.reportValidity()) return;
 
         loadChart(dateInput.value);
+    });
+
+    undoOrderButton.addEventListener("click", () => {
+        if (!tradeDraft.undoLastOrderEvent()) return;
+
+        chart.setOrderMarkers(
+            tradeDraft.getOrderEventsForDisplay()
+        );
+        renderCompletedTrades();
+
+        restoreActiveTradeDetails();
+        clearSelectedTradeAction();
+        updateTradeActionAvailability();
+
+        const netContractCount =
+            tradeDraft.getNetContractCount();
+
+        if (netContractCount > 0) {
+            status.textContent =
+                `The undo is complete. Open position: ` +
+                `long ${netContractCount} contracts.`;
+        } else if (netContractCount < 0) {
+            status.textContent =
+                `The undo is complete. Open position: ` +
+                `short ${Math.abs(netContractCount)} contract.`;
+        } else {
+            status.textContent =
+                "The undo is complete. No position is open.";
+        }
+    });
+
+    resetOrdersButton.addEventListener("click", () => {
+        const shouldReset = window.confirm(
+            "Do you want to discard all unsaved trades for this chart?"
+        );
+
+        if (!shouldReset) return;
+
+        tradeDraft.clear();
+        chart.setOrderMarkers([]);
+        renderCompletedTrades();
+        resetTradeDetails();
+        clearSelectedTradeAction();
+        updateTradeActionAvailability();
+
+        status.textContent =
+            "All unsaved trades were discarded.";
+    });
+
+    tradeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        let trades;
+
+        try {
+            trades =
+                tradeDraft.getTradesForSubmission();
+        } catch (error) {
+            status.textContent = error.message;
+            return;
+        }
+
+        tradeFieldset.disabled = true;
+        status.textContent = "The chart is saving.";
+
+        try {
+            const response = await fetch(
+                "/api/input-chart",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        tradingDate: dateInput.value,
+                        trades
+                    })
+                }
+            );
+
+            const responseIsJSON =
+                response.headers
+                    .get("content-type")
+                    ?.includes("application/json");
+
+            const responseData =
+                responseIsJSON
+                ? await response.json()
+                : {};
+
+            if (!response.ok) {
+                throw new Error(
+                    responseData.error ||
+                    "The chart could not be saved."
+                );
+            }
+
+            tradeDraft.clear();
+            resetTradeDetails();
+            clearSelectedTradeAction();
+            updateTradeActionAvailability();
+
+            status.textContent =
+                `${responseData.savedTradeCount} ` +
+                `trade${responseData.savedTradeCount === 1 ? "" : "s"} ` +
+                `${responseData.savedTradeCount === 1 ? "was" : "were"} saved.`;
+        } catch (error) {
+            tradeFieldset.disabled = false;
+            updateTradeActionAvailability();
+            status.textContent = error.message;
+        }
     });
 
     loadChart();

@@ -2,7 +2,12 @@ const {
     query,
     getClient
 } = require("./db");
-const { isValidTradingDate } = require("./trading-sessions");
+const {
+    isValidTradingDate
+} = require("./trading-sessions");
+const {
+    recalculateUserStats
+} = require("./stats");
 
 const TRADE_NOTES_MAXIMUM_LENGTH = 1500;
 
@@ -367,6 +372,11 @@ async function saveUserTradingDay(userID, tradingDate,
                 ]
             );
         }
+
+        await recalculateUserStats(
+            userID,
+            client
+        );
 
         await client.query("COMMIT");
         return preparedTrades.length;
