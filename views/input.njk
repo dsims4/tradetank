@@ -3,28 +3,38 @@
 {% block title %}Trade Tank: Input{% endblock %}
 
 {% block content %}
-    <div class="main-container">
+    <div class="main-container main-container--input-chart">
         <div class="input-chart-page">
-            <form class="input-chart-controls" data-input-chart-controls>
-                <label for="trading-date">Trading date</label>
-                <input
-                    id="trading-date"
-                    name="tradingDate"
-                    type="text"
-                    inputmode="numeric"
-                    maxlength="10"
-                    pattern="\d{4}-\d{2}-\d{2}"
-                    placeholder="YYYY-MM-DD"
-                    autocomplete="off"
-                    required
-                    data-input-chart-date
-                >
-                <button type="submit" class="button">Load</button>
-            </form>
-
-            <p data-input-chart-status aria-live="polite"></p>
-
             <div class="input-chart-workspace">
+                <div class="input-chart-header">
+                    <form
+                        class="input-chart-controls"
+                        data-input-chart-controls
+                    >
+                        <label for="trading-date">Trading date</label>
+                        <input
+                            id="trading-date"
+                            class="form-input"
+                            name="tradingDate"
+                            type="text"
+                            inputmode="numeric"
+                            maxlength="10"
+                            pattern="\d{4}-\d{2}-\d{2}"
+                            placeholder="YYYY-MM-DD"
+                            autocomplete="off"
+                            required
+                            data-input-chart-date
+                        >
+                        <button type="submit" class="button">Load</button>
+                    </form>
+
+                    <p
+                        class="input-chart-status"
+                        data-input-chart-status
+                        aria-live="polite"
+                    ></p>
+                </div>
+
                 <div class="candlestick-chart-container">
                     <canvas
                         id="candlestick-chart"
@@ -34,7 +44,11 @@
                 </div>
 
                 <aside class="input-trade-sidebar">
-                    <form data-input-trade-form>
+                    <form
+                        method="post"
+                        action="/api/input-chart"
+                        data-input-trade-form
+                    >
                         <fieldset disabled data-input-trade-fieldset>
                             <legend>Trade input</legend>
 
@@ -43,6 +57,7 @@
                             </label>
                             <input
                                 id="contract-count"
+                                class="form-input"
                                 name="contractCount"
                                 type="number"
                                 min="1"
@@ -101,35 +116,43 @@
                                 </button>
                             </div>
 
+                            <details
+                                hidden
+                                data-completed-trade-notes-section
+                            >
+                                <summary>Previous trade notes</summary>
+                                <div data-completed-trade-notes></div>
+                            </details>
+
                             <label for="trade-notes">
                                 Trade notes
                             </label>
                             <textarea
                                 id="trade-notes"
+                                class="form-input"
                                 name="notes"
                                 maxlength="1500"
                                 data-trade-notes
                             ></textarea>
 
-                            <label>
+                            <div class="checkbox-field">
                                 <input
+                                    id="process-deviation"
+                                    class="checkbox"
                                     name="processDeviation"
                                     type="checkbox"
                                     data-process-deviation
                                 >
-                                Process deviation
-                            </label>
+                                <label for="process-deviation">
+                                    Process deviation
+                                </label>
+                            </div>
 
                             <button type="submit" class="button">
                                 Save chart
                             </button>
                         </fieldset>
                     </form>
-
-                    <section hidden data-completed-trades-section>
-                        <h2>Completed trades</h2>
-                        <div data-completed-trades></div>
-                    </section>
                 </aside>
             </div>
         </div>

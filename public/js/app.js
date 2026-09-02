@@ -318,6 +318,9 @@ function runProtectedPageGuard() {
 
 function runCandlestickChart() {
     const canvas = document.getElementById("candlestick-chart");
+    const chartContainer = canvas?.closest(
+        ".candlestick-chart-container"
+    );
     const controls = document.querySelector("[data-input-chart-controls]");
     const dateInput = document.querySelector("[data-input-chart-date]");
     const status = document.querySelector("[data-input-chart-status]");
@@ -348,15 +351,16 @@ function runCandlestickChart() {
     const resetOrdersButton = document.querySelector(
         "[data-reset-orders]"
     );
-    const completedTradesSection = document.querySelector(
-        "[data-completed-trades-section]"
+    const completedTradeNotesSection = document.querySelector(
+        "[data-completed-trade-notes-section]"
     );
-    const completedTrades = document.querySelector(
-        "[data-completed-trades]"
+    const completedTradeNotes = document.querySelector(
+        "[data-completed-trade-notes]"
     );
 
     if (
         !canvas ||
+        !chartContainer ||
         !controls ||
         !dateInput ||
         !status ||
@@ -368,10 +372,18 @@ function runCandlestickChart() {
         !tradeForm ||
         !undoOrderButton ||
         !resetOrdersButton ||
-        !completedTradesSection ||
-        !completedTrades
+        !completedTradeNotesSection ||
+        !completedTradeNotes
     ) {
         return;
+    }
+
+    if (window.location.search) {
+        window.history.replaceState(
+            {},
+            document.title,
+            `${window.location.pathname}${window.location.hash}`
+        );
     }
 
     const chart = new CandlestickChart(canvas);
@@ -415,44 +427,34 @@ function runCandlestickChart() {
             details.processDeviation;
     }
 
-    function renderCompletedTrades() {
+    function renderCompletedTradeNotes() {
         const trades =
             tradeDraft.getCompletedTradesForDisplay();
 
-        completedTrades.replaceChildren();
-        completedTradesSection.hidden = trades.length === 0;
+        completedTradeNotes.replaceChildren();
+        completedTradeNotesSection.hidden = trades.length === 0;
 
         trades.forEach((trade, index) => {
-            const entryEvents =
-                trade.side === "long"
-                    ? trade.orderEvents.buySide
-                    : trade.orderEvents.sellSide;
-            const contractCount = entryEvents.reduce(
-                (total, orderEvent) =>
-                    total + orderEvent.contractCount,
-                0
-            );
-            const details = document.createElement("details");
-            const summary = document.createElement("summary");
-            const notes = document.createElement("p");
-            const processDeviation = document.createElement("p");
+            const label = document.createElement("label");
+            const textarea = document.createElement("textarea");
 
-            summary.textContent =
-                `Trade ${index + 1}: ${trade.side}, ` +
-                `${contractCount} ` +
-                `contract${contractCount === 1 ? "" : "s"}`;
-            notes.textContent =
-                `Notes: ${trade.notes || "None"}`;
-            processDeviation.textContent =
-                "Process deviation: " +
-                (trade.processDeviation ? "Yes" : "No");
+            label.textContent = `Trade ${index + 1} notes`;
+            textarea.className = "form-input";
+            textarea.maxLength = 1500;
+            textarea.value = trade.notes;
+            textarea.addEventListener("input", () => {
+                try {
+                    tradeDraft.updateCompletedTradeNotes(
+                        index,
+                        textarea.value
+                    );
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            });
 
-            details.append(
-                summary,
-                notes,
-                processDeviation
-            );
-            completedTrades.append(details);
+            label.append(textarea);
+            completedTradeNotes.append(label);
         });
     }
 
@@ -486,6 +488,12 @@ function runCandlestickChart() {
         if (!chartSelection) {
             status.textContent =
                 "Click inside the chart area.";
+            return;
+        }
+
+        if (!chartSelection.isWithinCandleRange) {
+            status.textContent =
+                "Choose a price within that candle's range.";
             return;
         }
 
@@ -546,7 +554,7 @@ function runCandlestickChart() {
             chart.setOrderMarkers(
                 tradeDraft.getOrderEventsForDisplay()
             );
-            renderCompletedTrades();
+            renderCompletedTradeNotes();
 
             if (
                 !hadActiveTrade &&
@@ -586,12 +594,12 @@ function runCandlestickChart() {
     });
 
     const resizeObserver = new ResizeObserver(() => chart.resize());
-    resizeObserver.observe(canvas);
+    resizeObserver.observe(chartContainer);
     chart.resize();
 
     async function loadChart(tradingDate = "") {
         tradeDraft.clear();
-        renderCompletedTrades();
+        renderCompletedTradeNotes();
         resetTradeDetails();
         clearSelectedTradeAction();
         updateTradeActionAvailability();
@@ -622,6 +630,10 @@ function runCandlestickChart() {
 
             if (responseData.tradingDate) {
                 dateInput.value = responseData.tradingDate;
+                window.sessionStorage.setItem(
+                    "tradetankInputChartDate",
+                    responseData.tradingDate
+                );
             }
 
             chart.setCandlesticks(
@@ -655,7 +667,7 @@ function runCandlestickChart() {
         chart.setOrderMarkers(
             tradeDraft.getOrderEventsForDisplay()
         );
-        renderCompletedTrades();
+        renderCompletedTradeNotes();
 
         restoreActiveTradeDetails();
         clearSelectedTradeAction();
@@ -687,7 +699,7 @@ function runCandlestickChart() {
 
         tradeDraft.clear();
         chart.setOrderMarkers([]);
-        renderCompletedTrades();
+        renderCompletedTradeNotes();
         resetTradeDetails();
         clearSelectedTradeAction();
         updateTradeActionAvailability();
@@ -760,7 +772,12 @@ function runCandlestickChart() {
         }
     });
 
-    loadChart();
+    const rememberedTradingDate =
+        window.sessionStorage.getItem(
+            "tradetankInputChartDate"
+        ) || "";
+
+    loadChart(rememberedTradingDate);
 }
 
 function runColorSchemeForm() {
