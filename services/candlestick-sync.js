@@ -346,8 +346,6 @@ async function getLatestAvailableCandlesticks(now = new Date()) {
 }
 
 module.exports = {
-    syncCandlesticks,
-    getOrSyncCandlesticks,
     getCandlesticksForTradingDate,
     getLatestAvailableCandlesticks
 };

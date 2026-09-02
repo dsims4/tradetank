@@ -182,6 +182,8 @@
 
 .input-chart-controls label {
     white-space: nowrap;
+    cursor: text;
+    user-select: text;
 }
 
 .input-chart-controls .form-input {

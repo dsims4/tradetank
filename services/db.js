@@ -24,7 +24,6 @@ async function closePool() {
 }
 
 module.exports = {
-    pool,
     query,
     getClient,
     closePool

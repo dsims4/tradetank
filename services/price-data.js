@@ -215,24 +215,9 @@ async function saveCandlesticks(candlesticks, db = { query }) {
     return result.rowCount;
 }
 
-async function getCandlestickTimeRange(db = { query }) {
-    const result = await db.query(
-        `SELECT
-            MIN(open_time) AS oldest_time,
-            MAX(open_time) AS newest_time
-         FROM candlesticks`
-    );
-
-    return {
-        oldestTime: result.rows[0].oldest_time,
-        newestTime: result.rows[0].newest_time
-    };
-}
-
 module.exports = {
     getCandlesticks,
     saveCandlesticks,
-    getCandlestickTimeRange,
     areCandlesticksValidForRange,
     aggregateFiveMinuteCandlesticks
 };

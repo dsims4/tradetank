@@ -422,11 +422,6 @@ async function getOrResolveTradingSession(tradingDate) {
 
 module.exports = {
     getNewYorkDate,
-    getTradingSession,
-    getPlannedTradingSession,
-    resolveTradingSession,
-    getStoredTradingSession,
-    saveTradingSession,
     getOrResolveTradingSession,
     markTradingSessionCandlesticksSynced,
     updateTradingSessionDataCondition,

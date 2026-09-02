@@ -293,11 +293,7 @@ async function isDatabentoRangeAvailable(schema, startTime, endTime) {
 
 module.exports = {
     isValidDatabentoCondition,
-    formatDatabentoCandlestick,
-    parseDatabentoCandlesticks,
     fetchDatabentoCandlesticks,
-    formatDatabentoStatus,
-    parseDatabentoStatuses,
     fetchDatabentoStatuses,
     getScheduledDatabentoStatuses,
     isDatabentoRangeAvailable,

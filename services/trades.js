@@ -391,13 +391,5 @@ async function saveUserTradingDay(userID, tradingDate,
 module.exports = {
     getUserTradesForDate,
     hasUserTradingDay,
-    isValidOrderEvent,
-    isValidOrderEventCollection,
-    getOrderEventSideSummary,
-    calculateTradeSummary,
-    prepareTradeForSave,
-    areOrderEventsWithinCandlesticks,
-    canonicalizeOrderEvents,
-    prepareTradesForSave,
     saveUserTradingDay
 };
