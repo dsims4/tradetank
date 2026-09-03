@@ -19,9 +19,9 @@ const { verifySameOrigin } = require("./middleware/csrf");
 const app = express();
 
 nunjucks.configure("views", {
-  autoescape: true,
-  express: app,
-  noCache: true,
+    autoescape: true,
+    express: app,
+    noCache: true
 });
 
 app.use(helmet({

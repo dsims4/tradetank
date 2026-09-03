@@ -6,7 +6,12 @@
     <div class="main-container">
         <div
             class="profile-forms"
-            {% if colorSchemeErrorMessage or emailSuccessMessage or emailErrorMessage or passwordSuccessMessage or passwordErrorMessage or deleteErrorMessage %}data-clear-query{% endif %}>
+            {% if colorSchemeErrorMessage or emailSuccessMessage or
+                emailErrorMessage or passwordSuccessMessage or
+                passwordErrorMessage or deleteErrorMessage %}
+                data-clear-query
+            {% endif %}
+        >
             <section class="form profile-form profile-summary-form">
                 <div class="form-header">
                     <h1>Profile</h1>
@@ -14,40 +19,57 @@
 
                 <div class="form-fields">
                     {% if colorSchemeErrorMessage %}
-                        <p class="form-message form-message--error">{{ colorSchemeErrorMessage }}</p>
+                        <p class="form-message form-message--error">
+                            {{ colorSchemeErrorMessage }}
+                        </p>
                     {% endif %}
 
                     <div class="form-row">
                         <div class="form-field">
                             <span>Username:</span>
-                            <div class="profile-display-field">{{ profile.username }}</div>
+                            <div class="profile-display-field">
+                                {{ profile.username }}
+                            </div>
                         </div>
 
                         <div class="form-field">
                             <span>Email:</span>
-                            <div class="profile-display-field">{{ profile.email }}</div>
+                            <div class="profile-display-field">
+                                {{ profile.email }}
+                            </div>
                         </div>
                     </div>
 
-                    <form method="POST"
-                          action="/profile/color-scheme"
-                          class="profile-settings-group"
-                        data-color-scheme-form>
+                    <form
+                        method="POST"
+                        action="/profile/color-scheme"
+                        class="profile-settings-group"
+                        data-color-scheme-form
+                    >
                         <div class="form-row">
                             <div class="form-field">
                                 <span>Created:</span>
-                                <div class="profile-display-field">{{ profile.creationTimeLabel }}</div>
+                                <div class="profile-display-field">
+                                    {{ profile.creationTimeLabel }}
+                                </div>
                             </div>
 
                             <div class="form-field">
                                 <span>Color Scheme:</span>
-                                <div class="profile-radio-group" role="radiogroup" aria-label="Color Scheme">
+                                <div
+                                    class="profile-radio-group"
+                                    role="radiogroup"
+                                    aria-label="Color Scheme"
+                                >
                                     <label class="profile-radio-option">
                                         <input
                                             type="radio"
                                             name="changeColorScheme"
                                             value="light"
-                                            {% if profile.colorScheme == "light" %}checked{% endif %}>
+                                            {% if profile.colorScheme == "light" %}
+                                                checked
+                                            {% endif %}
+                                        >
                                         <span>Light</span>
                                     </label>
 
@@ -56,7 +78,10 @@
                                             type="radio"
                                             name="changeColorScheme"
                                             value="dark"
-                                            {% if profile.colorScheme == "dark" %}checked{% endif %}>
+                                            {% if profile.colorScheme == "dark" %}
+                                                checked
+                                            {% endif %}
+                                        >
                                         <span>Dark</span>
                                     </label>
                                 </div>
@@ -72,13 +97,21 @@
                 </div>
 
                 <div class="form-fields">
-                    <form method="POST" action="/profile/change-email" class="profile-settings-group">
+                    <form
+                        method="POST"
+                        action="/profile/change-email"
+                        class="profile-settings-group"
+                    >
                         {% if emailSuccessMessage %}
-                            <p class="form-message form-message--success">{{ emailSuccessMessage }}</p>
+                            <p class="form-message form-message--success">
+                                {{ emailSuccessMessage }}
+                            </p>
                         {% endif %}
 
                         {% if emailErrorMessage %}
-                            <p class="form-message form-message--error">{{ emailErrorMessage }}</p>
+                            <p class="form-message form-message--error">
+                                {{ emailErrorMessage }}
+                            </p>
                         {% endif %}
 
                         <div class="form-row">
@@ -112,13 +145,21 @@
                         </div>
                     </form>
 
-                    <form method="POST" action="/profile/change-password" class="profile-settings-group">
+                    <form
+                        method="POST"
+                        action="/profile/change-password"
+                        class="profile-settings-group"
+                    >
                         {% if passwordSuccessMessage %}
-                            <p class="form-message form-message--success">{{ passwordSuccessMessage }}</p>
+                            <p class="form-message form-message--success">
+                                {{ passwordSuccessMessage }}
+                            </p>
                         {% endif %}
 
                         {% if passwordErrorMessage %}
-                            <p class="form-message form-message--error">{{ passwordErrorMessage }}</p>
+                            <p class="form-message form-message--error">
+                                {{ passwordErrorMessage }}
+                            </p>
                         {% endif %}
 
                         <div class="form-row">
@@ -159,12 +200,16 @@
                         data-delete-account-form>
 
                         {% if deleteErrorMessage %}
-                            <p class="form-message form-message--error">{{ deleteErrorMessage }}</p>
+                            <p class="form-message form-message--error">
+                                {{ deleteErrorMessage }}
+                            </p>
                         {% endif %}
-                        
+
                         <div class="form-row">
                             <div class="form-field">
-                                <label for="profile-delete-confirmation">Type "DELETE" to confirm:</label>
+                                <label for="profile-delete-confirmation">
+                                    Type "DELETE" to confirm:
+                                </label>
                                 <input
                                     type="text"
                                     id="profile-delete-confirmation"

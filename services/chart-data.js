@@ -3,8 +3,6 @@ const {
     getLatestAvailableCandlesticks
 } = require("./candlestick-sync");
 const {
-    getUserTradesForDate,
-    getLatestUserTradingDate,
     hasUserTradingDay
 } = require("./trades");
 const {
@@ -39,14 +37,13 @@ async function getInputChartData(userID, tradingDate) {
 }
 
 async function getTradesChartData(userID, tradingDate) {
-    const trades = await getUserTradesForDate(userID, tradingDate);
+    const hasTrades = await hasUserTradingDay(userID, tradingDate);
 
-    if (trades.length === 0) {
+    if (!hasTrades) {
         return {
             tradingDate,
             hasTrades: false,
-            candlesticks: [],
-            trades: []
+            candlesticks: []
         };
     }
 
@@ -66,25 +63,8 @@ async function getTradesChartData(userID, tradingDate) {
             ? aggregateFiveMinuteCandlesticks(
                 candlestickResult.candlesticks
             )
-            : [],
-        trades
+            : []
     };
-}
-
-async function getLatestTradesChartData(userID) {
-    const tradingDate =
-        await getLatestUserTradingDate(userID);
-
-    if (!tradingDate) {
-        return {
-            tradingDate: null,
-            hasTrades: false,
-            candlesticks: [],
-            trades: []
-        };
-    }
-
-    return getTradesChartData(userID, tradingDate);
 }
 
 async function getLatestInputChartData(userID, now = new Date()) {
@@ -118,6 +98,5 @@ async function getLatestInputChartData(userID, now = new Date()) {
 module.exports = {
     getInputChartData,
     getTradesChartData,
-    getLatestInputChartData,
-    getLatestTradesChartData
+    getLatestInputChartData
 };

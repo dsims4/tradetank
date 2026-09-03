@@ -6,7 +6,11 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_DURATION = 1000 * 60 * 60 * 24;
 const SESSION_DURATION_REMEMBER_ME = 1000 * 60 * 60 * 24 * 30;
 
-if (!SESSION_SECRET) throw new Error("SESSION_SECRET environment variable is not initialized.");
+if (!SESSION_SECRET) {
+    throw new Error(
+        "SESSION_SECRET environment variable is not initialized."
+    );
+}
 
 function parseCookies(cookieHeader = "") {
     if (!cookieHeader) return {};
@@ -55,10 +59,6 @@ function writeSessionCookie(res, cookieValue, sessionDuration) {
     res.setHeader("Set-Cookie", cookieParameters.join("; "));
 }
 
-async function setSessionCookie(res, userID, rememberMe) {
-    await setDatabaseSessionCookie(res, userID, rememberMe);
-}
-
 function clearSessionCookie(res) {
     const isProduction = process.env.NODE_ENV === "production";
     const cookieParameters = [
@@ -78,10 +78,6 @@ function clearSessionCookie(res) {
         "Set-Cookie",
         cookieParameters.join("; ")
     );
-}
-
-async function getSessionUserID(req) {
-    return getDatabaseSessionUserID(req);
 }
 
 function createSessionToken() {
@@ -162,7 +158,7 @@ async function getSessionUserIDFromToken(sessionToken) {
         : null;
 }
 
-async function setDatabaseSessionCookie(res, userID, rememberMe) {
+async function setSessionCookie(res, userID, rememberMe) {
     const session = await createSession(userID, rememberMe);
 
     writeSessionCookie(
@@ -172,8 +168,10 @@ async function setDatabaseSessionCookie(res, userID, rememberMe) {
     );
 }
 
-async function getDatabaseSessionUserID(req) {
-    if (req.authenticatedUserID !== undefined) return req.authenticatedUserID;
+async function getSessionUserID(req) {
+    if (req.authenticatedUserID !== undefined) {
+        return req.authenticatedUserID;
+    }
 
     const sessionToken = getSessionTokenFromCookie(req);
 
@@ -259,9 +257,9 @@ async function invalidateOtherSessions(req, userID, db = { query }) {
 }
 
 module.exports = {
-    getSessionUserID,
-    setSessionCookie,
     clearSessionCookie,
+    setSessionCookie,
+    getSessionUserID,
     invalidateSession,
     invalidateSessions,
     invalidateOtherSessions

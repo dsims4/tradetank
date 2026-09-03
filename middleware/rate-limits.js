@@ -9,12 +9,8 @@ const {
 } = require("../utilities/validation");
 const { getErrorMessage } = require("../utilities/messages");
 
-const SIGNUP_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
-const FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
-const PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW = 1000 * 60 * 60;
-const LOGIN_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
-const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
-const RESET_PASSWORD_IP_RATE_LIMIT_WINDOW = 1000 * 60 * 15;
+const ONE_HOUR = 1000 * 60 * 60;
+const FIFTEEN_MINUTES = 1000 * 60 * 15;
 const LOGIN_IP_RATE_LIMIT_REQUESTS = 32;
 const SIGNUP_AVAILABILITY_IP_RATE_LIMIT_REQUESTS = 32;
 const ACCOUNT_IP_RATE_LIMIT_REQUESTS = 8;
@@ -23,72 +19,19 @@ const FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
 const RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS = 8;
 const PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS = 4;
 
-const loginIPRateLimit = rateLimit({
-    windowMs: LOGIN_IP_RATE_LIMIT_WINDOW,
-    limit: LOGIN_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: handleLoginIPRateLimit
-});
+function createRateLimiter(windowMs, limit, handler, keyGenerator) {
+    const options = {
+        windowMs,
+        limit,
+        standardHeaders: "draft-8",
+        legacyHeaders: false,
+        handler
+    };
 
-const accountIPRateLimit = rateLimit({
-    windowMs: LOGIN_IP_RATE_LIMIT_WINDOW,
-    limit: ACCOUNT_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    keyGenerator: getAccountIPRateLimitKey,
-    handler: handleLoginIPRateLimit
-});
+    if (keyGenerator) options.keyGenerator = keyGenerator;
 
-const signupIPRateLimit = rateLimit({
-    windowMs: SIGNUP_IP_RATE_LIMIT_WINDOW,
-    limit: SIGNUP_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: handleSignupIPRateLimit
-});
-
-const signupAvailabilityIPRateLimit = rateLimit({
-    windowMs: SIGNUP_AVAILABILITY_IP_RATE_LIMIT_WINDOW,
-    limit: SIGNUP_AVAILABILITY_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: handleSignupAvailabilityIPRateLimit
-});
-
-const forgotPasswordIPRateLimit = rateLimit({
-    windowMs: FORGOT_PASSWORD_IP_RATE_LIMIT_WINDOW,
-    limit: FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: handleForgotPasswordIPRateLimit
-});
-
-const resetPasswordIPRateLimit = rateLimit({
-    windowMs: RESET_PASSWORD_IP_RATE_LIMIT_WINDOW,
-    limit: RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: handleResetPasswordIPRateLimit
-});
-
-const changeEmailUserRateLimit = rateLimit({
-    windowMs: PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW,
-    limit: PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    keyGenerator: getAuthenticatedUserKey,
-    handler: handleChangeEmailUserRateLimit
-});
-
-const changePasswordUserRateLimit = rateLimit({
-    windowMs: PROFILE_CHANGE_USER_RATE_LIMIT_WINDOW,
-    limit: PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    keyGenerator: getAuthenticatedUserKey,
-    handler: handleChangePasswordUserRateLimit
-});
+    return rateLimit(options);
+}
 
 function handleLoginIPRateLimit(req, res) {
     const usernameInput = getStringInput(req.body?.username).trim();
@@ -98,7 +41,7 @@ function handleLoginIPRateLimit(req, res) {
 
     return res.status(429).render("login.njk", {
         currentPage: "login",
-        username: username,
+        username,
         errorMessage: getErrorMessage("login-rate-limit"),
         successMessage: ""
     });
@@ -119,7 +62,8 @@ function handleSignupIPRateLimit(req, res) {
 
 function handleSignupAvailabilityIPRateLimit(req, res) {
     return res.status(429).json({
-        error: "Too many signup availability requests have been made. Try again later."
+        error: "Too many signup availability requests have been made. " +
+            "Try again later."
     });
 }
 
@@ -135,7 +79,7 @@ function handleResetPasswordIPRateLimit(req, res) {
 
     return res.status(429).render("reset-password.njk", {
         currentPage: "reset-password",
-        token: token,
+        token,
         errorMessage: getErrorMessage("reset-password-rate-limit"),
         linkIsValid: isValidResetPasswordToken(token)
     });
@@ -159,6 +103,57 @@ function handleChangePasswordUserRateLimit(req, res) {
     return res.redirect(`/profile?${searchParams.toString()}`);
 }
 
+const loginIPRateLimit = createRateLimiter(
+    FIFTEEN_MINUTES,
+    LOGIN_IP_RATE_LIMIT_REQUESTS,
+    handleLoginIPRateLimit
+);
+
+const accountIPRateLimit = createRateLimiter(
+    FIFTEEN_MINUTES,
+    ACCOUNT_IP_RATE_LIMIT_REQUESTS,
+    handleLoginIPRateLimit,
+    getAccountIPRateLimitKey
+);
+
+const signupIPRateLimit = createRateLimiter(
+    ONE_HOUR,
+    SIGNUP_IP_RATE_LIMIT_REQUESTS,
+    handleSignupIPRateLimit
+);
+
+const signupAvailabilityIPRateLimit = createRateLimiter(
+    FIFTEEN_MINUTES,
+    SIGNUP_AVAILABILITY_IP_RATE_LIMIT_REQUESTS,
+    handleSignupAvailabilityIPRateLimit
+);
+
+const forgotPasswordIPRateLimit = createRateLimiter(
+    ONE_HOUR,
+    FORGOT_PASSWORD_IP_RATE_LIMIT_REQUESTS,
+    handleForgotPasswordIPRateLimit
+);
+
+const resetPasswordIPRateLimit = createRateLimiter(
+    FIFTEEN_MINUTES,
+    RESET_PASSWORD_IP_RATE_LIMIT_REQUESTS,
+    handleResetPasswordIPRateLimit
+);
+
+const changeEmailUserRateLimit = createRateLimiter(
+    ONE_HOUR,
+    PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
+    handleChangeEmailUserRateLimit,
+    getAuthenticatedUserKey
+);
+
+const changePasswordUserRateLimit = createRateLimiter(
+    ONE_HOUR,
+    PROFILE_CHANGE_USER_RATE_LIMIT_REQUESTS,
+    handleChangePasswordUserRateLimit,
+    getAuthenticatedUserKey
+);
+
 async function clearAccountIPRateLimit(req) {
     const key = getAccountIPRateLimitKey(req);
     await accountIPRateLimit.resetKey(key);
@@ -166,8 +161,8 @@ async function clearAccountIPRateLimit(req) {
 
 module.exports = {
     loginIPRateLimit,
-    signupIPRateLimit,
     accountIPRateLimit,
+    signupIPRateLimit,
     signupAvailabilityIPRateLimit,
     forgotPasswordIPRateLimit,
     resetPasswordIPRateLimit,

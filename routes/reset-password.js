@@ -22,6 +22,64 @@ const router = express.Router();
 
 const RESET_PASSWORD_TOKEN_DURATION = 1000 * 60 * 15;
 
+function hashResetPasswordToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function getResetPasswordEvent(token, db = { query }, options = {}) {
+    if (!isValidResetPasswordToken(token)) {
+        return null;
+    }
+
+    const hashedResetPasswordToken = hashResetPasswordToken(token);
+    const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
+    const result = await db.query(
+        `SELECT
+            id,
+            user_id,
+            expiration_time,
+            reset_time,
+            invalidated_time
+         FROM
+            reset_password_events
+         WHERE
+            hashed_token = $1
+         LIMIT 1
+            ${lockClause}`,
+        [hashedResetPasswordToken]
+    );
+
+    return result.rows[0] || null;
+}
+
+function getResetPasswordErrorMessage(resetPasswordEvent) {
+    if (!resetPasswordEvent) {
+        return "This password reset link is invalid.";
+    }
+
+    if (resetPasswordEvent.reset_time) {
+        return "This password reset link has been used or expired.";
+    }
+
+    if (resetPasswordEvent.invalidated_time) {
+        return "This password reset link has been invalidated.";
+    }
+
+    if (new Date(resetPasswordEvent.expiration_time).getTime() <= Date.now()) {
+        return "This password reset link has been used or expired.";
+    }
+
+    return "";
+}
+
+function redirectToResetPassword(res, token, error = "") {
+    const searchParams = new URLSearchParams({ token });
+
+    if (error) searchParams.set("error", error);
+
+    return res.redirect(`/reset-password?${searchParams.toString()}`);
+}
+
 router.get("/forgot-password", (req, res) => {
     res.render("forgot-password.njk", {
         currentPage: "forgot-password"
@@ -48,61 +106,65 @@ router.get("/reset-password", async (req, res, next) => {
 
         return res.render("reset-password.njk", {
             currentPage: "reset-password",
-            token: token,
-            errorMessage: errorMessage,
-            linkIsValid: linkIsValid
+            token,
+            errorMessage,
+            linkIsValid
         });
     } catch (error) {
         return next(error);
     }
 });
 
-router.post("/forgot-password", forgotPasswordIPRateLimit, (req, res) => {
+router.post("/forgot-password", forgotPasswordIPRateLimit, async (req, res) => {
     const email = getStringInput(req.body.email).trim().toLowerCase();
 
     if (!email || !isValidEmail(email)) {
         return res.redirect("/forgot-password");
     }
 
-    query(
-        `SELECT 
-            id
-         FROM 
-            users
-         WHERE 
-            email = $1
-         LIMIT 1`,
-        [email]
-    ).then(async (userResult) => {
+    try {
+        const userResult = await query(
+            `SELECT
+                id
+             FROM
+                users
+             WHERE
+                email = $1
+             LIMIT 1`,
+            [email]
+        );
         const user = userResult.rows[0];
 
         if (user) {
             const resetPasswordToken = crypto.randomBytes(32).toString("hex");
-            const hashedResetPasswordToken = hashResetPasswordToken(resetPasswordToken);
-            const expirationTime =
-                new Date(Date.now() + RESET_PASSWORD_TOKEN_DURATION).toISOString();
-            const resetPasswordURL =
-                `${req.protocol}://${req.get("host")}/reset-password?token=${resetPasswordToken}`;
+            const hashedResetPasswordToken =
+                hashResetPasswordToken(resetPasswordToken);
+            const expirationTime = new Date(
+                Date.now() + RESET_PASSWORD_TOKEN_DURATION
+            ).toISOString();
 
             await query(
-                `INSERT INTO 
+                `INSERT INTO
                     reset_password_events
                     (user_id, hashed_token, expiration_time)
-                 VALUES 
+                 VALUES
                     ($1, $2, $3)`,
                 [user.id, hashedResetPasswordToken, expirationTime]
             );
 
             if (process.env.NODE_ENV !== "production") {
+                const resetPasswordURL =
+                    `${req.protocol}://${req.get("host")}` +
+                    `/reset-password?token=${resetPasswordToken}`;
+
                 console.log(`Password reset URL: ${resetPasswordURL}`);
             }
         }
+    } catch {
+        // Return the same response so account existence is not exposed.
+    }
 
-        return res.redirect("/forgot-password-confirmation");
-    })
-        .catch((error) => {
-            res.redirect("/forgot-password-confirmation");
-        });
+    return res.redirect("/forgot-password-confirmation");
 });
 
 router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) => {
@@ -115,27 +177,27 @@ router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) 
     }
 
     if (!newPassword || !confirmPassword) {
-        const searchParams = new URLSearchParams({
-            token: token,
-            error: "missing-fields"
-        });
-        return res.redirect(`/reset-password?${searchParams.toString()}`);
+        return redirectToResetPassword(
+            res,
+            token,
+            "missing-fields"
+        );
     }
 
     if (!isValidPassword(newPassword)) {
-        const searchParams = new URLSearchParams({
-            token: token,
-            error: "invalid-password"
-        });
-        return res.redirect(`/reset-password?${searchParams.toString()}`);
+        return redirectToResetPassword(
+            res,
+            token,
+            "invalid-password"
+        );
     }
 
     if (newPassword !== confirmPassword) {
-        const searchParams = new URLSearchParams({
-            token: token,
-            error: "password-mismatch"
-        });
-        return res.redirect(`/reset-password?${searchParams.toString()}`);
+        return redirectToResetPassword(
+            res,
+            token,
+            "password-mismatch"
+        );
     }
 
     const client = await getClient();
@@ -150,31 +212,28 @@ router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) 
 
         if (errorMessage) {
             await client.query("ROLLBACK");
-            const searchParams = new URLSearchParams({
-                token: token
-            });
-            return res.redirect(`/reset-password?${searchParams.toString()}`);
+            return redirectToResetPassword(res, token);
         }
 
         const hashedPassword = await hashPassword(newPassword);
 
         await client.query(
-            `UPDATE 
+            `UPDATE
                 users
-             SET 
+             SET
                 hashed_password = $1,
                  update_time = NOW()
-             WHERE 
+             WHERE
                 id = $2`,
             [hashedPassword, resetPasswordEvent.user_id]
         );
 
         await client.query(
-            `UPDATE 
+            `UPDATE
                 reset_password_events
-             SET 
+             SET
                 reset_time = NOW()
-             WHERE 
+             WHERE
                 id = $1
              AND
                 reset_time IS NULL`,
@@ -210,55 +269,5 @@ router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) 
         client.release();
     }
 });
-
-async function getResetPasswordEvent(token, db = { query }, options = {}) {
-    if (!isValidResetPasswordToken(token)) {
-        return null;
-    }
-
-    const hashedResetPasswordToken = hashResetPasswordToken(token);
-    const lockClause = options.lockForUpdate ? "FOR UPDATE" : "";
-    const resetPasswordEventResult = await db.query(
-        `SELECT
-            id,
-            user_id,
-            expiration_time,
-            reset_time,
-            invalidated_time
-         FROM
-            reset_password_events
-         WHERE
-            hashed_token = $1
-         LIMIT 1
-            ${lockClause}`,
-        [hashedResetPasswordToken]
-    );
-
-    return resetPasswordEventResult.rows[0] || null;
-}
-
-function getResetPasswordErrorMessage(resetPasswordEvent) {
-    if (!resetPasswordEvent) {
-        return "This password reset link is invalid.";
-    }
-
-    if (resetPasswordEvent.reset_time) {
-        return "This password reset link has been used or expired.";
-    }
-
-    if (resetPasswordEvent.invalidated_time) {
-        return "This password reset link has been invalidated.";
-    }
-
-    if (new Date(resetPasswordEvent.expiration_time).getTime() <= Date.now()) {
-        return "This password reset link has been used or expired.";
-    }
-
-    return "";
-}
-
-function hashResetPasswordToken(token) {
-    return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 module.exports = router;

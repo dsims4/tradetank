@@ -217,7 +217,7 @@ async function saveCandlesticks(candlesticks, db = { query }) {
 
 module.exports = {
     getCandlesticks,
-    saveCandlesticks,
+    aggregateFiveMinuteCandlesticks,
     areCandlesticksValidForRange,
-    aggregateFiveMinuteCandlesticks
+    saveCandlesticks
 };

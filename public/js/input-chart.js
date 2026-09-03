@@ -140,6 +140,19 @@ function runCandlestickChart() {
         });
     }
 
+    function resetTradeDraft(resetContractCount = false) {
+        tradeDraft.clear();
+        chart.setOrderMarkers([]);
+        renderCompletedTradeNotes();
+        resetTradeDetails();
+        clearSelectedTradeAction();
+        updateTradeActionAvailability();
+
+        if (resetContractCount) {
+            contractCountInput.value = "1";
+        }
+    }
+
     tradeActionButtons.forEach((button) => {
         button.addEventListener("click", () => {
             selectedTradeAction = button.dataset.tradeAction;
@@ -280,11 +293,7 @@ function runCandlestickChart() {
     chart.resize();
 
     async function loadChart(tradingDate = "") {
-        tradeDraft.clear();
-        renderCompletedTradeNotes();
-        resetTradeDetails();
-        clearSelectedTradeAction();
-        updateTradeActionAvailability();
+        resetTradeDraft();
         tradeFieldset.disabled = true;
 
         const searchParameters =
@@ -301,14 +310,10 @@ function runCandlestickChart() {
 
         try {
             const response = await fetch(requestURL);
-            const responseData = await response.json();
-
-            if (!response.ok) {
-                throw new Error(
-                    responseData.error ||
-                    "The chart request failed."
-                );
-            }
+            const responseData = await readAPIResponse(
+                response,
+                "The chart request failed."
+            );
 
             if (responseData.tradingDate) {
                 dateInput.value = responseData.tradingDate;
@@ -384,12 +389,7 @@ function runCandlestickChart() {
 
         if (!shouldReset) return;
 
-        tradeDraft.clear();
-        chart.setOrderMarkers([]);
-        renderCompletedTradeNotes();
-        resetTradeDetails();
-        clearSelectedTradeAction();
-        updateTradeActionAvailability();
+        resetTradeDraft();
 
         status.textContent =
             "All unsaved trades were discarded.";
@@ -426,30 +426,12 @@ function runCandlestickChart() {
                 }
             );
 
-            const responseIsJSON =
-                response.headers
-                    .get("content-type")
-                    ?.includes("application/json");
+            const responseData = await readAPIResponse(
+                response,
+                "The chart could not be saved."
+            );
 
-            const responseData =
-                responseIsJSON
-                ? await response.json()
-                : {};
-
-            if (!response.ok) {
-                throw new Error(
-                    responseData.error ||
-                    "The chart could not be saved."
-                );
-            }
-
-            tradeDraft.clear();
-            chart.setOrderMarkers([]);
-            renderCompletedTradeNotes();
-            contractCountInput.value = "1";
-            resetTradeDetails();
-            clearSelectedTradeAction();
-            updateTradeActionAvailability();
+            resetTradeDraft(true);
 
             status.textContent =
                 `${responseData.savedTradeCount} ` +

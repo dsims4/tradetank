@@ -17,6 +17,7 @@ const {
     updateTradingSessionDataCondition,
     delayTradingSessionCandlestickRetry
 } = require("./trading-sessions");
+const { runWithPromiseLock } = require("./promise-lock");
 
 const STABLE_CONDITION_CACHE_DURATION = 1000 * 60 * 60 * 24;
 const PENDING_CONDITION_CACHE_DURATION = 1000 * 60 * 5;
@@ -25,9 +26,9 @@ const MAXIMUM_CANDLESTICK_LOOKBACK_DAYS = 14;
 
 const pendingCandlestickSyncs = new Map();
 const pendingDataConditionRefreshes = new Map();
+const pendingLatestCandlestickSearches = new Map();
 
 let latestCandlestickCache = null;
-let pendingLatestCandlestickSearch = null;
 
 function isDataConditionFresh(tradingSession) {
     const {
@@ -73,11 +74,10 @@ async function getOrRefreshDataCondition(tradingSession) {
     }
 
     const tradingDate = tradingSession.tradingDate;
-    let pendingRefresh =
-        pendingDataConditionRefreshes.get(tradingDate);
-
-    if (!pendingRefresh) {
-        pendingRefresh = (async () => {
+    return runWithPromiseLock(
+        pendingDataConditionRefreshes,
+        tradingDate,
+        async () => {
             const dataCondition =
                 await fetchDatabentoCondition(tradingDate);
 
@@ -88,21 +88,8 @@ async function getOrRefreshDataCondition(tradingSession) {
                 );
 
             return updatedCondition.dataCondition;
-        })();
-
-        pendingDataConditionRefreshes.set(
-            tradingDate,
-            pendingRefresh
-        );
-    }
-
-    try {
-        return await pendingRefresh;
-    } finally {
-        if (pendingDataConditionRefreshes.get(tradingDate) === pendingRefresh) {
-            pendingDataConditionRefreshes.delete(tradingDate);
         }
-    }
+    );
 }
 
 async function syncCandlesticks(tradingSession) {
@@ -201,23 +188,11 @@ async function getOrSyncCandlesticks(tradingSession) {
         };
     }
 
-    const syncKey = tradingDate;
-    let pendingSync = pendingCandlestickSyncs.get(syncKey);
-
-    if (!pendingSync) {
-        pendingSync = syncCandlesticks(tradingSession);
-        pendingCandlestickSyncs.set(syncKey, pendingSync);
-    }
-
-    let syncResult;
-
-    try {
-        syncResult = await pendingSync;
-    } finally {
-        if (pendingCandlestickSyncs.get(syncKey) === pendingSync) {
-            pendingCandlestickSyncs.delete(syncKey);
-        }
-    }
+    const syncResult = await runWithPromiseLock(
+        pendingCandlestickSyncs,
+        tradingDate,
+        () => syncCandlesticks(tradingSession)
+    );
 
     if (syncResult.candlestickState !== "available") {
         return {
@@ -309,40 +284,24 @@ async function getLatestAvailableCandlesticks(now = new Date()) {
         return latestCandlestickCache.result;
     }
 
-    if (
-        pendingLatestCandlestickSearch?.newYorkDate ===
-        currentNewYorkDate
-    ) {
-        return pendingLatestCandlestickSearch.promise;
-    }
+    return runWithPromiseLock(
+        pendingLatestCandlestickSearches,
+        currentNewYorkDate,
+        async () => {
+            const result =
+                await findLatestAvailableCandlesticks(
+                    currentNewYorkDate
+                );
 
-    const pendingSearch =
-        findLatestAvailableCandlesticks(
-            currentNewYorkDate
-        );
+            latestCandlestickCache = {
+                newYorkDate: currentNewYorkDate,
+                checkedTime: Date.now(),
+                result
+            };
 
-    pendingLatestCandlestickSearch = {
-        newYorkDate: currentNewYorkDate,
-        promise: pendingSearch
-    };
-
-    try {
-        const result = await pendingSearch;
-
-        latestCandlestickCache = {
-            newYorkDate: currentNewYorkDate,
-            checkedTime: Date.now(),
-            result
-        };
-
-        return result;
-    } finally {
-        if (
-            pendingLatestCandlestickSearch?.promise === pendingSearch
-        ) {
-            pendingLatestCandlestickSearch = null;
+            return result;
         }
-    }
+    );
 }
 
 module.exports = {

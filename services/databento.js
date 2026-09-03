@@ -296,6 +296,6 @@ module.exports = {
     fetchDatabentoCandlesticks,
     fetchDatabentoStatuses,
     getScheduledDatabentoStatuses,
-    isDatabentoRangeAvailable,
-    fetchDatabentoCondition
+    fetchDatabentoCondition,
+    isDatabentoRangeAvailable
 };

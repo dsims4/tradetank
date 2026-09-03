@@ -3,39 +3,17 @@ const { loadUser } = require("../middleware/authentication");
 
 const router = express.Router();
 
-router.get("/home", loadUser, (req, res) => {
-    return res.render("home.njk", {
-        currentPage: "home",
+function createAppPageHandler(pageName) {
+    return (req, res) => res.render(`${pageName}.njk`, {
+        currentPage: pageName,
         colorScheme: req.user.colorScheme
     });
-});
+}
 
-router.get("/analyze", loadUser, (req, res) => {
-    return res.render("analyze.njk", {
-        currentPage: "analyze",
-        colorScheme: req.user.colorScheme
-    });
-});
-
-router.get("/visualize", loadUser, (req, res) => {
-    return res.render("visualize.njk", {
-        currentPage: "visualize",
-        colorScheme: req.user.colorScheme
-    });
-});
-
-router.get("/trades", loadUser, (req, res) => {
-    return res.render("trades.njk", {
-        currentPage: "trades",
-        colorScheme: req.user.colorScheme
-    });
-});
-
-router.get("/input", loadUser, (req, res) => {
-    return res.render("input.njk", {
-        currentPage: "input",
-        colorScheme: req.user.colorScheme
-    });
-});
+router.get("/home", loadUser, createAppPageHandler("home"));
+router.get("/analyze", loadUser, createAppPageHandler("analyze"));
+router.get("/visualize", loadUser, createAppPageHandler("visualize"));
+router.get("/trades", loadUser, createAppPageHandler("trades"));
+router.get("/input", loadUser, createAppPageHandler("input"));
 
 module.exports = router;

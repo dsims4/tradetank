@@ -5,6 +5,7 @@ const {
     getScheduledDatabentoStatuses,
     isDatabentoRangeAvailable
 } = require("./databento");
+const { runWithPromiseLock } = require("./promise-lock");
 
 const STATUS_LOOKBACK_DURATION = 1000 * 60 * 60 * 24;
 const TRADING_SESSION_INCEPTION_DATE = "2026-08-28";
@@ -25,6 +26,39 @@ function isValidDate(value) {
         value instanceof Date &&
         !Number.isNaN(value.getTime())
     );
+}
+
+function isValidTradingDate(value) {
+    if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
+    ) {
+        return false;
+    }
+
+    const [year, month, day] =
+        value.split("-").map(Number);
+    const date = new Date(
+        Date.UTC(year, month - 1, day)
+    );
+    const dateExists =
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day;
+    const dayOfWeek = date.getUTCDay();
+    const isWeekday =
+        dayOfWeek !== 0 &&
+        dayOfWeek !== 6;
+
+    return dateExists && isWeekday;
+}
+
+function validateTradingDate(tradingDate) {
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError(
+            "The trading date must use YYYY-MM-DD format."
+        );
+    }
 }
 
 function getNewYorkDate(date = new Date()) {
@@ -52,7 +86,9 @@ function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
         !isValidDate(plannedCloseTime) ||
         plannedOpenTime >= plannedCloseTime
     ) {
-        throw new TypeError("Valid ordered session boundaries are required.");
+        throw new TypeError(
+            "Valid ordered session boundaries are required."
+        );
     }
 
     const scheduledStatuses = getScheduledDatabentoStatuses(statuses);
@@ -82,9 +118,7 @@ function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
 }
 
 async function getPlannedTradingSession(tradingDate, db = { query }) {
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("The trading date must use YYYY-MM-DD format.");
-    }
+    validateTradingDate(tradingDate);
 
     const result = await db.query(
         `SELECT
@@ -153,40 +187,8 @@ async function resolveTradingSession(tradingDate) {
     };
 }
 
-function isValidTradingDate(value) {
-    if (
-        typeof value !== "string" ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(value)
-    ) {
-        return false;
-    }
-
-    const [year, month, day] =
-        value.split("-").map(Number);
-
-    const date = new Date(
-        Date.UTC(year, month - 1, day)
-    );
-
-    const dateExists =
-        date.getUTCFullYear() === year &&
-        date.getUTCMonth() === month - 1 &&
-        date.getUTCDate() === day;
-
-    const dayOfWeek = date.getUTCDay();
-    const isWeekday =
-        dayOfWeek !== 0 &&
-        dayOfWeek !== 6;
-
-    return dateExists && isWeekday;
-}
-
 async function getStoredTradingSession(tradingDate, db = { query }) {
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError(
-            "The trading date must use YYYY-MM-DD format."
-        );
-    }
+    validateTradingDate(tradingDate);
 
     const result = await db.query(
         `SELECT
@@ -275,11 +277,7 @@ async function saveTradingSession(session, db = { query }) {
 }
 
 async function markTradingSessionCandlesticksSynced(tradingDate, db = { query }) {
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError(
-            "The trading date must use YYYY-MM-DD format."
-        );
-    }
+    validateTradingDate(tradingDate);
 
     const result = await db.query(
         `UPDATE
@@ -306,11 +304,7 @@ async function markTradingSessionCandlesticksSynced(tradingDate, db = { query })
 }
 
 async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) {
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError(
-            "The trading date must use YYYY-MM-DD format."
-        );
-    }
+    validateTradingDate(tradingDate);
 
     const result = await db.query(
         `UPDATE
@@ -385,11 +379,10 @@ async function getOrResolveTradingSession(tradingDate) {
 
     if (storedSession) return storedSession;
 
-    let pendingResolution =
-        pendingTradingSessionResolutions.get(tradingDate);
-
-    if (!pendingResolution) {
-        pendingResolution = (async () => {
+    return runWithPromiseLock(
+        pendingTradingSessionResolutions,
+        tradingDate,
+        async () => {
             const resolvedSession =
                 await resolveTradingSession(tradingDate);
 
@@ -401,23 +394,8 @@ async function getOrResolveTradingSession(tradingDate) {
             }
 
             return saveTradingSession(resolvedSession);
-        })();
-
-        pendingTradingSessionResolutions.set(
-            tradingDate,
-            pendingResolution
-        );
-    }
-
-    try {
-        return await pendingResolution;
-    } finally {
-        if (
-            pendingTradingSessionResolutions.get(tradingDate) === pendingResolution
-        ) {
-            pendingTradingSessionResolutions.delete(tradingDate);
         }
-    }
+    );
 }
 
 module.exports = {

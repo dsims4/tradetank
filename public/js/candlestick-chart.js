@@ -94,11 +94,6 @@ class CandlestickChart {
         this.ctx.textBaseline = "middle";
 
         if (this.candlesticks.length === 0) {
-            this.ctx.fillStyle = "#000000";
-            this.ctx.font = `16px ${this.fontFamily}`;
-            this.ctx.textAlign = "center";
-            this.ctx.textBaseline = "middle";
-
             this.ctx.fillText(
                 "The candlestick data is not available.",
                 this.width / 2,
@@ -139,31 +134,21 @@ class CandlestickChart {
             1
         );
         const baselinePaddingPixels = plotHeight / 12;
-        const getMarkerPaddingPixels = (orderSide) => {
-            const maximumRows = groupedOrderMarkers.reduce(
-                (maximum, orderMarker) =>
-                    orderMarker.orderSide === orderSide
-                        ? Math.max(
-                            maximum,
-                            orderMarker.orderEvents.length
-                        )
-                        : maximum,
-                0
-            );
+        this.ctx.save();
+        this.ctx.font = `12px ${this.fontFamily}`;
 
-            if (maximumRows === 0) {
-                return baselinePaddingPixels;
-            }
+        let upperPaddingPixels = this.getOrderMarkerPaddingPixels(
+            "sell",
+            groupedOrderMarkers,
+            baselinePaddingPixels
+        );
+        let lowerPaddingPixels = this.getOrderMarkerPaddingPixels(
+            "buy",
+            groupedOrderMarkers,
+            baselinePaddingPixels
+        );
 
-            return Math.max(
-                baselinePaddingPixels,
-                this.getOrderMarkerLabelHeight(maximumRows) + 10
-            );
-        };
-        let upperPaddingPixels =
-            getMarkerPaddingPixels("sell");
-        let lowerPaddingPixels =
-            getMarkerPaddingPixels("buy");
+        this.ctx.restore();
         const paddingPixelTotal =
             upperPaddingPixels + lowerPaddingPixels;
         const maximumPaddingPixelTotal = plotHeight * 0.8;
@@ -615,10 +600,24 @@ class CandlestickChart {
                 groupedMarkers.get(markerKey);
 
             if (existingMarker) {
-                existingMarker.orderEvents.push({
-                    price: orderMarker.price,
-                    contractCount: orderMarker.contractCount
-                });
+                const existingOrderEvent =
+                    existingMarker.orderEvents.find(
+                        (orderEvent) =>
+                            Number(orderEvent.price) ===
+                            Number(orderMarker.price)
+                    );
+
+                if (existingOrderEvent) {
+                    existingOrderEvent.contractCount +=
+                        Number(orderMarker.contractCount);
+                } else {
+                    existingMarker.orderEvents.push({
+                        price: orderMarker.price,
+                        contractCount: Number(
+                            orderMarker.contractCount
+                        )
+                    });
+                }
             } else {
                 groupedMarkers.set(
                     markerKey,
@@ -628,7 +627,9 @@ class CandlestickChart {
                         orderEvents: [
                             {
                                 price: orderMarker.price,
-                                contractCount: orderMarker.contractCount
+                                contractCount: Number(
+                                    orderMarker.contractCount
+                                )
                             }
                         ]
                     }
@@ -645,12 +646,112 @@ class CandlestickChart {
         return labelLineCount * 12 + 6;
     }
 
-    getCandleIndexForTime(time) {
-        const markerTime = Date.parse(time);
+    getOrderMarkerLabelLines(orderMarker) {
+        const prefix = orderMarker.orderSide === "buy" ? "B" : "S";
+        const sortedOrderEvents = [...orderMarker.orderEvents].sort(
+            (first, second) =>
+                Number(second.price) - Number(first.price)
+        );
 
+        return sortedOrderEvents.flatMap(
+            (orderEvent, index) => {
+                const orderLabel =
+                    `${prefix}${orderEvent.contractCount}`;
+
+                return index < sortedOrderEvents.length - 1
+                    ? [orderLabel, "+"]
+                    : [orderLabel];
+            }
+        );
+    }
+
+    getOrderMarkerLabelWidth(labelLines) {
+        return Math.max(
+            ...labelLines.map(
+                (labelLine) =>
+                    this.ctx.measureText(labelLine).width
+            )
+        ) + 8;
+    }
+
+    getCandleIndexForTime(time) {
         return this.candlesticks.findIndex(
-            (candlestick) =>
-                Date.parse(candlestick.openTime) === markerTime
+            (candlestick) => candlestick.openTime === time
+        );
+    }
+
+    getOrderMarkerPaddingPixels(
+        orderSide,
+        groupedOrderMarkers,
+        baselinePaddingPixels
+    ) {
+        const plotArea = this.getPlotArea();
+        const labelPadding = 5;
+        const labelIntervals = groupedOrderMarkers
+            .filter(
+                (orderMarker) =>
+                    orderMarker.orderSide === orderSide
+            )
+            .map((orderMarker) => {
+                const candleIndex = this.getCandleIndexForTime(
+                    orderMarker.time
+                );
+
+                if (candleIndex === -1) return null;
+
+                const { centerX } =
+                    this.getCandleGeometry(candleIndex);
+                const labelLines =
+                    this.getOrderMarkerLabelLines(orderMarker);
+                const width =
+                    this.getOrderMarkerLabelWidth(labelLines);
+                const labelCenterX = Math.min(
+                    plotArea.right - width / 2,
+                    Math.max(
+                        plotArea.left + width / 2,
+                        centerX
+                    )
+                );
+
+                return {
+                    left: labelCenterX - width / 2,
+                    right: labelCenterX + width / 2,
+                    height: this.getOrderMarkerLabelHeight(
+                        orderMarker.orderEvents.length
+                    )
+                };
+            })
+            .filter(Boolean)
+            .sort((first, second) => first.left - second.left);
+        const lanes = [];
+
+        for (const interval of labelIntervals) {
+            let lane = lanes.find(
+                (candidate) =>
+                    candidate.right + labelPadding <= interval.left
+            );
+
+            if (!lane) {
+                lane = { right: interval.right, height: 0 };
+                lanes.push(lane);
+            }
+
+            lane.right = interval.right;
+            lane.height = Math.max(lane.height, interval.height);
+        }
+
+        if (lanes.length === 0) {
+            return baselinePaddingPixels;
+        }
+
+        const labelsHeight = lanes.reduce(
+            (total, lane) => total + lane.height,
+            0
+        );
+
+        return Math.max(
+            baselinePaddingPixels,
+            labelsHeight + labelPadding * (lanes.length + 1)
         );
     }
 
@@ -659,8 +760,7 @@ class CandlestickChart {
         labelWidth,
         labelHeight,
         isBuy,
-        priceRange,
-        plotArea
+        priceRange
     }) {
         const labelLeft = labelCenterX - labelWidth / 2;
         const labelRight = labelCenterX + labelWidth / 2;
@@ -693,35 +793,43 @@ class CandlestickChart {
                     )
             )
         );
-        const labelGap = 4;
+        const labelGap = 5;
         const aboveCenterY =
             highestY - labelGap - labelHeight / 2;
         const belowCenterY =
             lowestY + labelGap + labelHeight / 2;
-        const preferredCenterY =
-            isBuy ? belowCenterY : aboveCenterY;
-        const alternateCenterY =
-            isBuy ? aboveCenterY : belowCenterY;
-        const labelFits = (centerY) => (
-            centerY - labelHeight / 2 >= plotArea.top &&
-            centerY + labelHeight / 2 <= plotArea.bottom
-        );
+        return isBuy ? belowCenterY : aboveCenterY;
+    }
 
-        if (labelFits(preferredCenterY)) {
-            return preferredCenterY;
-        }
+    getOverlappingCandlestickBounds(
+        bounds,
+        priceRange,
+        padding
+    ) {
+        return this.candlesticks
+            .map((candlestick, index) => {
+                const { centerX, bodyWidth } =
+                    this.getCandleGeometry(index);
 
-        if (labelFits(alternateCenterY)) {
-            return alternateCenterY;
-        }
-
-        return Math.min(
-            plotArea.bottom - labelHeight / 2,
-            Math.max(
-                plotArea.top + labelHeight / 2,
-                preferredCenterY
-            )
-        );
+                return {
+                    left: centerX - bodyWidth / 2,
+                    right: centerX + bodyWidth / 2,
+                    top: this.priceToY(
+                        candlestick.highPrice,
+                        priceRange
+                    ),
+                    bottom: this.priceToY(
+                        candlestick.lowPrice,
+                        priceRange
+                    )
+                };
+            })
+            .filter((candlestickBounds) => (
+                bounds.left < candlestickBounds.right + padding &&
+                bounds.right > candlestickBounds.left - padding &&
+                bounds.top < candlestickBounds.bottom + padding &&
+                bounds.bottom > candlestickBounds.top - padding
+            ));
     }
 
     getAvailableOrderMarkerLabel({
@@ -730,28 +838,20 @@ class CandlestickChart {
         labelWidth,
         labelHeight,
         isBuy,
+        priceRange,
         plotArea,
         occupiedLabels
     }) {
         const labelPadding = 5;
-        const verticalStep = labelHeight + labelPadding;
-        const direction = isBuy ? 1 : -1;
-        const offsets = [0];
+        let centerY = preferredCenterY;
+        const maximumAttempts =
+            this.candlesticks.length + occupiedLabels.length + 1;
 
         for (
-            let level = 1;
-            level <= occupiedLabels.length + 1;
-            level += 1
+            let attempt = 0;
+            attempt < maximumAttempts;
+            attempt += 1
         ) {
-            offsets.push(
-                direction * level,
-                direction * -level
-            );
-        }
-
-        for (const offset of offsets) {
-            const centerY =
-                preferredCenterY + offset * verticalStep;
             const bounds = {
                 left: labelCenterX - labelWidth / 2,
                 right: labelCenterX + labelWidth / 2,
@@ -761,7 +861,7 @@ class CandlestickChart {
             const labelFits =
                 bounds.top >= plotArea.top &&
                 bounds.bottom <= plotArea.bottom;
-            const labelOverlaps = occupiedLabels.some(
+            const overlappingLabels = occupiedLabels.filter(
                 (occupiedLabel) => (
                     bounds.left <
                         occupiedLabel.right + labelPadding &&
@@ -771,34 +871,94 @@ class CandlestickChart {
                         occupiedLabel.bottom + labelPadding &&
                     bounds.bottom >
                         occupiedLabel.top - labelPadding
-                )
+                    )
             );
+            const overlappingCandlesticks =
+                this.getOverlappingCandlestickBounds(
+                    bounds,
+                    priceRange,
+                    labelPadding
+                );
+            const obstacles = [
+                ...overlappingLabels,
+                ...overlappingCandlesticks
+            ];
 
-            if (labelFits && !labelOverlaps) {
+            if (labelFits && obstacles.length === 0) {
                 return {
                     centerY,
                     bounds
                 };
             }
+
+            if (!labelFits) return null;
+
+            if (isBuy) {
+                const nextTop = Math.max(
+                    ...obstacles.map((obstacle) => obstacle.bottom)
+                ) + labelPadding;
+
+                centerY = nextTop + labelHeight / 2;
+            } else {
+                const nextBottom = Math.min(
+                    ...obstacles.map((obstacle) => obstacle.top)
+                ) - labelPadding;
+
+                centerY = nextBottom - labelHeight / 2;
+            }
         }
 
-        const centerY = Math.min(
-            plotArea.bottom - labelHeight / 2,
-            Math.max(
-                plotArea.top + labelHeight / 2,
-                preferredCenterY
-            )
+        return null;
+    }
+
+    drawOrderPriceLine(centerX, halfWidth, priceY) {
+        this.ctx.strokeStyle = "#ffffff";
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - halfWidth, priceY);
+        this.ctx.lineTo(centerX + halfWidth, priceY);
+        this.ctx.stroke();
+
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - halfWidth, priceY);
+        this.ctx.lineTo(centerX + halfWidth, priceY);
+        this.ctx.stroke();
+    }
+
+    drawOrderMarkerLabel(
+        labelLines,
+        centerX,
+        centerY,
+        width,
+        height
+    ) {
+        const lineHeight = 12;
+
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillRect(
+            centerX - width / 2,
+            centerY - height / 2,
+            width,
+            height
+        );
+        this.ctx.strokeRect(
+            centerX - width / 2,
+            centerY - height / 2,
+            width,
+            height
         );
 
-        return {
-            centerY,
-            bounds: {
-                left: labelCenterX - labelWidth / 2,
-                right: labelCenterX + labelWidth / 2,
-                top: centerY - labelHeight / 2,
-                bottom: centerY + labelHeight / 2
-            }
-        };
+        this.ctx.fillStyle = "#000000";
+
+        labelLines.forEach((labelLine, index) => {
+            const labelY =
+                centerY - height / 2 + 3 +
+                lineHeight * (index + 0.5);
+
+            this.ctx.fillText(labelLine, centerX, labelY);
+        });
     }
 
     drawOrderMarkers() {
@@ -806,7 +966,7 @@ class CandlestickChart {
 
         const priceRange = this.getPriceRange();
         const plotArea = this.getPlotArea();
-        const orderMarkers =
+        const groupedOrderMarkers =
             this.getGroupedOrderMarkers();
         const occupiedLabels = [];
 
@@ -825,7 +985,7 @@ class CandlestickChart {
         this.ctx.textBaseline = "middle";
         this.ctx.lineWidth = 1;
 
-        orderMarkers.forEach((orderMarker) => {
+        groupedOrderMarkers.forEach((orderMarker) => {
             const candleIndex =
                 this.getCandleIndexForTime(orderMarker.time);
 
@@ -833,26 +993,11 @@ class CandlestickChart {
 
             const { centerX, bodyWidth } =
                 this.getCandleGeometry(candleIndex);
-            const isBuy =
-                orderMarker.orderSide === "buy";
-            const labelLines = orderMarker.orderEvents.flatMap(
-                (orderEvent, index) => {
-                    const orderLabel =
-                        `${isBuy ? "B" : "S"}` +
-                        `${orderEvent.contractCount}`;
-
-                    return index < orderMarker.orderEvents.length - 1
-                        ? [orderLabel, "+"]
-                        : [orderLabel];
-                }
-            );
-            const labelLineHeight = 12;
-            const labelWidth = Math.max(
-                ...labelLines.map(
-                    (labelLine) =>
-                        this.ctx.measureText(labelLine).width
-                )
-            ) + 8;
+            const isBuy = orderMarker.orderSide === "buy";
+            const labelLines =
+                this.getOrderMarkerLabelLines(orderMarker);
+            const labelWidth =
+                this.getOrderMarkerLabelWidth(labelLines);
             const labelHeight =
                 this.getOrderMarkerLabelHeight(
                     orderMarker.orderEvents.length
@@ -869,8 +1014,7 @@ class CandlestickChart {
                 labelWidth,
                 labelHeight,
                 isBuy,
-                priceRange,
-                plotArea
+                priceRange
             });
             const availableLabel =
                 this.getAvailableOrderMarkerLabel({
@@ -879,12 +1023,11 @@ class CandlestickChart {
                     labelWidth,
                     labelHeight,
                     isBuy,
+                    priceRange,
                     plotArea,
                     occupiedLabels
                 });
-            const labelCenterY = availableLabel.centerY;
 
-            occupiedLabels.push(availableLabel.bounds);
             const markerHalfWidth = bodyWidth / 2 + 3;
             const markerPrices = [
                 ...new Set(
@@ -898,48 +1041,23 @@ class CandlestickChart {
                 const priceY =
                     this.priceToY(markerPrice, priceRange);
 
-                this.ctx.strokeStyle = "#ffffff";
-                this.ctx.lineWidth = 3;
-                this.ctx.beginPath();
-                this.ctx.moveTo(centerX - markerHalfWidth, priceY);
-                this.ctx.lineTo(centerX + markerHalfWidth, priceY);
-                this.ctx.stroke();
-
-                this.ctx.strokeStyle = "#000000";
-                this.ctx.lineWidth = 1;
-                this.ctx.beginPath();
-                this.ctx.moveTo(centerX - markerHalfWidth, priceY);
-                this.ctx.lineTo(centerX + markerHalfWidth, priceY);
-                this.ctx.stroke();
-            });
-
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.fillRect(
-                labelCenterX - labelWidth / 2,
-                labelCenterY - labelHeight / 2,
-                labelWidth,
-                labelHeight
-            );
-
-            this.ctx.strokeRect(
-                labelCenterX - labelWidth / 2,
-                labelCenterY - labelHeight / 2,
-                labelWidth,
-                labelHeight
-            );
-
-            this.ctx.fillStyle = "#000000";
-            labelLines.forEach((labelLine, index) => {
-                const labelY =
-                    labelCenterY - labelHeight / 2 + 3 +
-                    labelLineHeight * (index + 0.5);
-
-                this.ctx.fillText(
-                    labelLine,
-                    labelCenterX,
-                    labelY
+                this.drawOrderPriceLine(
+                    centerX,
+                    markerHalfWidth,
+                    priceY
                 );
             });
+
+            if (availableLabel) {
+                occupiedLabels.push(availableLabel.bounds);
+                this.drawOrderMarkerLabel(
+                    labelLines,
+                    labelCenterX,
+                    availableLabel.centerY,
+                    labelWidth,
+                    labelHeight
+                );
+            }
         });
 
         this.ctx.restore();

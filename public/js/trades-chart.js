@@ -20,9 +20,6 @@ function runTradesChart() {
     const tradeSummaries = document.querySelector(
         "[data-trade-summaries]"
     );
-    const tradesSidebar = tradeSummaries?.closest(
-        ".trades-summary-sidebar"
-    );
     const deleteButton = document.querySelector(
         "[data-delete-trading-day]"
     );
@@ -47,7 +44,6 @@ function runTradesChart() {
         !status ||
         !warning ||
         !tradeSummaries ||
-        !tradesSidebar ||
         !deleteButton ||
         !pagination ||
         !previousTradesButton ||
@@ -60,19 +56,12 @@ function runTradesChart() {
     const chart = new CandlestickChart(canvas);
     let currentTradingDate = "";
     let currentTradePage = 1;
-    let currentTradeOffset = 0;
-    let currentVisibleTradeCount = 0;
     let currentResponseHasNext = false;
-    let tradePageOffsets = [0];
     let selectedTradeID = null;
     let loadedTradingDate = "";
     let tradeChoicesRequestID = 0;
-    let tradeFitFrame = null;
 
-    const resizeObserver = new ResizeObserver(() => {
-        chart.resize();
-        scheduleTradeChoiceFit();
-    });
+    const resizeObserver = new ResizeObserver(() => chart.resize());
 
     resizeObserver.observe(chartContainer);
     chart.resize();
@@ -148,6 +137,9 @@ function runTradesChart() {
         for (const choice of openChoices) {
             choice.setAttribute("aria-expanded", "false");
             choice.nextElementSibling.hidden = true;
+            choice.closest(".trade-summary").classList.remove(
+                "trade-summary--expanded"
+            );
         }
     }
 
@@ -165,70 +157,15 @@ function runTradesChart() {
             currentTradePage === 1;
     }
 
-    function scheduleTradeChoiceFit() {
-        if (tradeFitFrame !== null) {
-            cancelAnimationFrame(tradeFitFrame);
-        }
-
-        tradeFitFrame = requestAnimationFrame(() => {
-            tradeFitFrame = requestAnimationFrame(() => {
-                tradeFitFrame = null;
-                fitTradeChoices();
-            });
-        });
-    }
-
-    function fitTradeChoices() {
-        const summaries = Array.from(
-            tradeSummaries.children
-        );
-
-        for (const summary of summaries) {
-            summary.hidden = false;
-            summary.style.maxHeight = "";
-            summary.style.overflowY = "";
-
-            const notes = summary.querySelector(
-                ".trade-summary-notes"
+    function showOnlyTrade(selectedSummary = null) {
+        for (const summary of tradeSummaries.children) {
+            summary.hidden = Boolean(
+                selectedSummary && summary !== selectedSummary
             );
-
-            if (notes) {
-                notes.style.maxHeight = "";
-            }
         }
-
-        currentVisibleTradeCount = summaries.length;
-        const chartBounds =
-            chartContainer.getBoundingClientRect();
-
-        if (window.matchMedia("(min-width: 801px)").matches) {
-            tradesSidebar.style.height =
-                `${chartBounds.height}px`;
-        } else {
-            tradesSidebar.style.height = "";
-        }
-
-        const selectedChoice = tradeSummaries.querySelector(
-            '.trade-summary-choice[aria-expanded="true"]'
-        );
-
-        if (!selectedChoice) {
-            updateTradePagination();
-            return;
-        }
-
-        const selectedSummary = selectedChoice.closest(
-            ".trade-summary"
-        );
-
-        for (const summary of summaries) {
-            summary.hidden = summary !== selectedSummary;
-        }
-
-        updateTradePagination();
     }
 
-    function renderTradeChoices(trades, offset) {
+    function renderTradeChoices(trades, page) {
         tradeSummaries.replaceChildren();
 
         for (const [index, trade] of trades.entries()) {
@@ -247,7 +184,7 @@ function runTradesChart() {
 
             tradeLabel.className = "trade-summary-label";
             tradeLabel.textContent =
-                `Trade ${offset + index + 1}`;
+                `Trade ${(page - 1) * 5 + index + 1}`;
             pointsLabel.className = "trade-summary-points";
             pointsLabel.textContent =
                 `${formatDecimal(trade.pointsPerTrade)} points`;
@@ -291,7 +228,7 @@ function runTradesChart() {
                 if (!willOpen) {
                     selectedTradeID = null;
                     chart.setOrderMarkers([]);
-                    scheduleTradeChoiceFit();
+                    showOnlyTrade();
                     status.textContent =
                         "Choose a trade to view its chart.";
                     return;
@@ -299,8 +236,11 @@ function runTradesChart() {
 
                 button.setAttribute("aria-expanded", "true");
                 details.hidden = false;
+                summary.classList.add(
+                    "trade-summary--expanded"
+                );
                 selectedTradeID = String(trade.id);
-                scheduleTradeChoiceFit();
+                showOnlyTrade(summary);
                 loadChart(trade);
             });
 
@@ -312,8 +252,7 @@ function runTradesChart() {
 
     async function loadTradeChoices(
         tradingDate = "",
-        page = 1,
-        offset = 0
+        page = 1
     ) {
         const searchParameters = new URLSearchParams();
 
@@ -322,7 +261,6 @@ function runTradesChart() {
         }
 
         searchParameters.set("page", page);
-        searchParameters.set("offset", offset);
 
         const query = searchParameters.toString();
         const requestURL =
@@ -345,21 +283,18 @@ function runTradesChart() {
 
         try {
             const response = await fetch(requestURL);
-            const responseData = await response.json();
+            const responseData = await readAPIResponse(
+                response,
+                "The trades request failed."
+            );
 
             if (requestID !== tradeChoicesRequestID) {
                 return;
             }
 
-            if (!response.ok) {
-                throw new Error(
-                    responseData.error ||
-                    "The trades request failed."
-                );
-            }
             renderTradeChoices(
                 responseData.trades,
-                responseData.offset
+                responseData.page
             );
 
             if (responseData.tradingDate) {
@@ -369,11 +304,8 @@ function runTradesChart() {
             currentTradingDate =
                 responseData.tradingDate || "";
             currentTradePage = responseData.page;
-            currentTradeOffset = responseData.offset;
             currentResponseHasNext =
                 responseData.hasNext;
-            currentVisibleTradeCount =
-                responseData.trades.length;
             updateTradePagination();
 
             status.textContent = responseData.trades.length
@@ -424,20 +356,10 @@ function runTradesChart() {
 
         try {
             const response = await fetch(requestURL);
-            const responseIsJSON =
-                response.headers
-                    .get("content-type")
-                    ?.includes("application/json");
-            const responseData = responseIsJSON
-                ? await response.json()
-                : {};
-
-            if (!response.ok) {
-                throw new Error(
-                    responseData.error ||
-                    "The chart request failed."
-                );
-            }
+            const responseData = await readAPIResponse(
+                response,
+                "The chart request failed."
+            );
 
             if (selectedTradeID !== String(trade.id)) {
                 return;
@@ -495,8 +417,7 @@ function runTradesChart() {
 
         if (!controls.reportValidity()) return;
 
-        tradePageOffsets = [0];
-        loadTradeChoices(dateInput.value, 1, 0);
+        loadTradeChoices(dateInput.value, 1);
     });
 
     previousTradesButton.addEventListener("click", () => {
@@ -504,22 +425,14 @@ function runTradesChart() {
 
         loadTradeChoices(
             currentTradingDate,
-            currentTradePage - 1,
-            tradePageOffsets[currentTradePage - 2]
+            currentTradePage - 1
         );
     });
 
     nextTradesButton.addEventListener("click", () => {
-        const nextOffset =
-            currentTradeOffset +
-            currentVisibleTradeCount;
-
-        tradePageOffsets[currentTradePage] = nextOffset;
-        tradePageOffsets.length = currentTradePage + 1;
         loadTradeChoices(
             currentTradingDate,
-            currentTradePage + 1,
-            nextOffset
+            currentTradePage + 1
         );
     });
 
@@ -545,28 +458,15 @@ function runTradesChart() {
                 `/api/trades?${searchParameters.toString()}`,
                 { method: "DELETE" }
             );
-            const responseIsJSON =
-                response.headers
-                    .get("content-type")
-                    ?.includes("application/json");
-            const responseData = responseIsJSON
-                ? await response.json()
-                : {};
-
-            if (!response.ok) {
-                throw new Error(
-                    responseData.error ||
-                    "The trading day could not be deleted."
-                );
-            }
+            await readAPIResponse(
+                response,
+                "The trading day could not be deleted."
+            );
 
             tradeChoicesRequestID += 1;
             currentTradingDate = "";
             currentTradePage = 1;
-            currentTradeOffset = 0;
-            currentVisibleTradeCount = 0;
             currentResponseHasNext = false;
-            tradePageOffsets = [0];
             selectedTradeID = null;
             loadedTradingDate = "";
             tradeSummaries.replaceChildren();

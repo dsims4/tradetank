@@ -10,6 +10,19 @@ const {
 } = require("./stats");
 
 const TRADE_NOTES_MAXIMUM_LENGTH = 1500;
+const TRADE_PAGE_SIZE = 5;
+
+function validateUserID(userID) {
+    if (!Number.isSafeInteger(userID) || userID <= 0) {
+        throw new TypeError("A valid user ID is required.");
+    }
+}
+
+function validateTradingDate(tradingDate) {
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError("A valid trading date is required.");
+    }
+}
 
 function isValidOrderEvent(orderEvent) {
     if (
@@ -80,69 +93,24 @@ function formatUserTrade(trade) {
             Number(trade.points_per_trade) /
             Number(trade.contract_count),
         processDeviation: trade.process_deviation,
-        notes: trade.notes,
-        creationTime: trade.creation_time,
-        updateTime: trade.update_time
+        notes: trade.notes
     };
-}
-
-async function getUserTradesForDate(userID, tradingDate, db = { query }) {
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
-    }
-
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("A valid trading date is required.");
-    }
-
-    const result = await db.query(
-        `SELECT
-            id,
-            TO_CHAR(
-                trading_date,
-                'YYYY-MM-DD'
-            ) AS trading_date,
-            side,
-            contract_count,
-            order_events,
-            points_per_trade,
-            process_deviation,
-            notes,
-            creation_time,
-            update_time
-         FROM
-            user_trades
-         WHERE
-            user_id = $1 AND
-            trading_date = $2
-         ORDER BY
-            creation_time,
-            id`,
-        [userID, tradingDate]
-    );
-
-    return result.rows.map(formatUserTrade);
 }
 
 async function getUserTradePageForDate(
     userID,
     tradingDate,
-    offset,
+    page,
     db = { query }
 ) {
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
+    validateUserID(userID);
+    validateTradingDate(tradingDate);
+
+    if (!Number.isSafeInteger(page) || page <= 0) {
+        throw new TypeError("A valid trade page is required.");
     }
 
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("A valid trading date is required.");
-    }
-
-    if (!Number.isSafeInteger(offset) || offset < 0) {
-        throw new TypeError("A valid trade offset is required.");
-    }
-
-    const pageSize = 5;
+    const offset = (page - 1) * TRADE_PAGE_SIZE;
     const result = await db.query(
         `SELECT
             id,
@@ -155,9 +123,7 @@ async function getUserTradePageForDate(
             order_events,
             points_per_trade,
             process_deviation,
-            notes,
-            creation_time,
-            update_time
+            notes
          FROM
             user_trades
          WHERE
@@ -168,27 +134,21 @@ async function getUserTradePageForDate(
             id DESC
          LIMIT $3
          OFFSET $4`,
-        [userID, tradingDate, pageSize + 1, offset]
+        [userID, tradingDate, TRADE_PAGE_SIZE + 1, offset]
     );
 
     return {
         trades: result.rows
-            .slice(0, pageSize)
+            .slice(0, TRADE_PAGE_SIZE)
             .map(formatUserTrade),
-        offset,
-        hasPrevious: offset > 0,
-        hasNext: result.rows.length > pageSize
+        page,
+        hasNext: result.rows.length > TRADE_PAGE_SIZE
     };
 }
 
 async function hasUserTradingDay(userID, tradingDate, db = { query }) {
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
-    }
-
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("A valid trading date is required.");
-    }
+    validateUserID(userID);
+    validateTradingDate(tradingDate);
 
     const result = await db.query(
         `SELECT EXISTS (
@@ -207,9 +167,7 @@ async function hasUserTradingDay(userID, tradingDate, db = { query }) {
 }
 
 async function getLatestUserTradingDate(userID, db = { query }) {
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
-    }
+    validateUserID(userID);
 
     const result = await db.query(
         `SELECT
@@ -248,11 +206,7 @@ function getOrderEventSideSummary(orderEvents) {
         }
     );
 
-    return {
-        ...summary,
-        averagePrice:
-            summary.totalValue / summary.contractCount
-    };
+    return summary;
 }
 
 function calculateTradeSummary(side, orderEvents) {
@@ -273,18 +227,63 @@ function calculateTradeSummary(side, orderEvents) {
 
     return {
         contractCount: buySummary.contractCount,
-        averageEntryPrice:
-            side === "long"
-                ? buySummary.averagePrice
-                : sellSummary.averagePrice,
-        averageExitPrice:
-            side === "long"
-                ? sellSummary.averagePrice
-                : buySummary.averagePrice,
-        pointsPerTrade,
-        pointsPerContract:
-            pointsPerTrade / buySummary.contractCount
+        pointsPerTrade
     };
+}
+
+function canonicalizeOrderEvents(orderEvents) {
+    if (!isValidOrderEventCollection(orderEvents)) {
+        throw new TypeError("Valid order events are required.");
+    }
+
+    const canonicalizeEvent = (orderEvent) => ({
+        time: new Date(orderEvent.time).toISOString(),
+        price: orderEvent.price,
+        contractCount: orderEvent.contractCount
+    });
+
+    return {
+        buySide: orderEvents.buySide.map(canonicalizeEvent),
+        sellSide: orderEvents.sellSide.map(canonicalizeEvent)
+    };
+}
+
+function areOrderEventsWithinCandlesticks(
+    orderEvents,
+    candlesticks
+) {
+    if (
+        !isValidOrderEventCollection(orderEvents) ||
+        !Array.isArray(candlesticks) ||
+        candlesticks.length === 0
+    ) {
+        return false;
+    }
+
+    const candlesticksByTime = new Map(
+        candlesticks.map((candlestick) => [
+            candlestick.openTime,
+            candlestick
+        ])
+    );
+
+    const events = [
+        ...orderEvents.buySide,
+        ...orderEvents.sellSide
+    ];
+
+    return events.every((orderEvent) => {
+        const normalizedTime = new Date(orderEvent.time).toISOString();
+        const candlestick = candlesticksByTime.get(normalizedTime);
+
+        return (
+            candlestick &&
+            Number.isFinite(candlestick.lowPrice) &&
+            Number.isFinite(candlestick.highPrice) &&
+            orderEvent.price >= candlestick.lowPrice &&
+            orderEvent.price <= candlestick.highPrice
+        );
+    });
 }
 
 function prepareTradeForSave(trade, candlesticks) {
@@ -331,63 +330,8 @@ function prepareTradeForSave(trade, candlesticks) {
         contractCount: summary.contractCount,
         orderEvents: canonicalOrderEvents,
         pointsPerTrade: summary.pointsPerTrade,
-        pointsPerContract: summary.pointsPerContract,
-        averageEntryPrice: summary.averageEntryPrice,
-        averageExitPrice: summary.averageExitPrice,
         processDeviation: trade.processDeviation,
         notes: notes.trim()
-    };
-}
-
-function areOrderEventsWithinCandlesticks(orderEvents, candlesticks) {
-    if (
-        !isValidOrderEventCollection(orderEvents) ||
-        !Array.isArray(candlesticks) ||
-        candlesticks.length === 0
-    ) {
-        return false;
-    }
-
-    const candlesticksByTime = new Map(
-        candlesticks.map((candlestick) => [
-            candlestick.openTime,
-            candlestick
-        ])
-    );
-
-    const events = [
-        ...orderEvents.buySide,
-        ...orderEvents.sellSide
-    ];
-
-    return events.every((orderEvent) => {
-        const normalizedTime = new Date(orderEvent.time).toISOString();
-        const candlestick = candlesticksByTime.get(normalizedTime);
-
-        return (
-            candlestick &&
-            Number.isFinite(candlestick.lowPrice) &&
-            Number.isFinite(candlestick.highPrice) &&
-            orderEvent.price >= candlestick.lowPrice &&
-            orderEvent.price <= candlestick.highPrice
-        );
-    });
-}
-
-function canonicalizeOrderEvents(orderEvents) {
-    if (!isValidOrderEventCollection(orderEvents)) {
-        throw new TypeError("Valid order events are required.");
-    }
-
-    const canonicalizeEvent = (orderEvent) => ({
-        time: new Date(orderEvent.time).toISOString(),
-        price: orderEvent.price,
-        contractCount: orderEvent.contractCount
-    });
-
-    return {
-        buySide: orderEvents.buySide.map(canonicalizeEvent),
-        sellSide: orderEvents.sellSide.map(canonicalizeEvent)
     };
 }
 
@@ -404,16 +348,16 @@ function prepareTradesForSave(trades, candlesticks) {
     );
 }
 
-async function saveUserTradingDay(userID, tradingDate,
-    trades, candlesticks, db = { getClient }) {
+async function saveUserTradingDay(
+    userID,
+    tradingDate,
+    trades,
+    candlesticks,
+    db = { getClient }
+) {
 
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
-    }
-
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("A valid trading date is required.");
-    }
+    validateUserID(userID);
+    validateTradingDate(tradingDate);
 
     const preparedTrades =
         prepareTradesForSave(trades, candlesticks);
@@ -481,13 +425,8 @@ async function deleteUserTradingDay(
     tradingDate,
     db = { getClient }
 ) {
-    if (!Number.isSafeInteger(userID) || userID <= 0) {
-        throw new TypeError("A valid user ID is required.");
-    }
-
-    if (!isValidTradingDate(tradingDate)) {
-        throw new TypeError("A valid trading date is required.");
-    }
+    validateUserID(userID);
+    validateTradingDate(tradingDate);
 
     const client = await db.getClient();
 
@@ -518,10 +457,9 @@ async function deleteUserTradingDay(
 }
 
 module.exports = {
-    getUserTradesForDate,
     getUserTradePageForDate,
-    getLatestUserTradingDate,
     hasUserTradingDay,
+    getLatestUserTradingDate,
     saveUserTradingDay,
     deleteUserTradingDay
 };

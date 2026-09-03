@@ -1,3 +1,51 @@
+const TRADE_NOTES_MAXIMUM_LENGTH = 1500;
+
+function isValidOrderSide(orderSide) {
+    return orderSide === "buy" || orderSide === "sell";
+}
+
+function isValidOrderEvent(orderEvent) {
+    return (
+        orderEvent &&
+        typeof orderEvent === "object" &&
+        typeof orderEvent.time === "string" &&
+        !Number.isNaN(Date.parse(orderEvent.time)) &&
+        Number.isFinite(orderEvent.price) &&
+        orderEvent.price > 0 &&
+        Number.isInteger(orderEvent.price * 4) &&
+        Number.isSafeInteger(orderEvent.contractCount) &&
+        orderEvent.contractCount > 0
+    );
+}
+
+function getOrderEventCollectionName(orderSide) {
+    return orderSide === "buy" ? "buySide" : "sellSide";
+}
+
+function addOrderEvent(trade, orderSide, orderEvent, contractCount) {
+    const collectionName = getOrderEventCollectionName(orderSide);
+
+    trade.orderEvents[collectionName].push({
+        time: orderEvent.time,
+        price: orderEvent.price,
+        contractCount
+    });
+}
+
+function getContractCount(orderEvents) {
+    return orderEvents.reduce(
+        (total, orderEvent) => total + orderEvent.contractCount,
+        0
+    );
+}
+
+function getOrderMarkers(orderEvents, orderSide) {
+    return orderEvents.map((orderEvent) => ({
+        ...orderEvent,
+        orderSide
+    }));
+}
+
 class TradeDraft {
     constructor() {
         this.trades = [];
@@ -20,18 +68,13 @@ class TradeDraft {
             throw new Error("A trade is already active.");
         }
 
-        if (orderSide !== "buy" && orderSide !== "sell") {
+        if (!isValidOrderSide(orderSide)) {
             throw new TypeError("The order side must be buy or sell.");
         }
 
-        if (!this.isValidOrderEvent(orderEvent)) {
+        if (!isValidOrderEvent(orderEvent)) {
             throw new TypeError("A valid order event is required.");
         }
-
-        const eventSide =
-            orderSide === "buy"
-                ? "buySide"
-                : "sellSide";
 
         this.activeTrade = {
             side: orderSide === "buy" ? "long" : "short",
@@ -43,41 +86,25 @@ class TradeDraft {
             notes: ""
         };
 
-        this.activeTrade.orderEvents[eventSide].push({
-            time: orderEvent.time,
-            price: orderEvent.price,
-            contractCount: orderEvent.contractCount
-        });
+        addOrderEvent(
+            this.activeTrade,
+            orderSide,
+            orderEvent,
+            orderEvent.contractCount
+        );
     }
 
     getNetContractCount() {
         if (!this.hasActiveTrade()) return 0;
 
-        const buyCount = this.activeTrade.orderEvents.buySide.reduce(
-            (total, orderEvent) => total + orderEvent.contractCount,
-            0
+        const buyCount = getContractCount(
+            this.activeTrade.orderEvents.buySide
         );
-
-        const sellCount = this.activeTrade.orderEvents.sellSide.reduce(
-            (total, orderEvent) => total + orderEvent.contractCount,
-            0
+        const sellCount = getContractCount(
+            this.activeTrade.orderEvents.sellSide
         );
 
         return buyCount - sellCount;
-    }
-
-    isValidOrderEvent(orderEvent) {
-        return (
-            orderEvent &&
-            typeof orderEvent === "object" &&
-            typeof orderEvent.time === "string" &&
-            !Number.isNaN(Date.parse(orderEvent.time)) &&
-            Number.isFinite(orderEvent.price) &&
-            orderEvent.price > 0 &&
-            Number.isInteger(orderEvent.price * 4) &&
-            Number.isSafeInteger(orderEvent.contractCount) &&
-            orderEvent.contractCount > 0
-        );
     }
 
     completeActiveTrade() {
@@ -93,12 +120,34 @@ class TradeDraft {
         this.activeTrade = null;
     }
 
+    startReversal(
+        orderSide,
+        orderEvent,
+        closingContractCount,
+        openingContractCount
+    ) {
+        addOrderEvent(
+            this.activeTrade,
+            orderSide,
+            orderEvent,
+            closingContractCount
+        );
+
+        this.completeActiveTrade();
+
+        this.startTrade(orderSide, {
+            time: orderEvent.time,
+            price: orderEvent.price,
+            contractCount: openingContractCount
+        });
+    }
+
     recordOrderEvent(orderSide, orderEvent) {
-        if (orderSide !== "buy" && orderSide !== "sell") {
+        if (!isValidOrderSide(orderSide)) {
             throw new TypeError("The order side must be buy or sell.");
         }
 
-        if (!this.isValidOrderEvent(orderEvent)) {
+        if (!isValidOrderEvent(orderEvent)) {
             throw new TypeError("A valid order event is required.");
         }
 
@@ -144,43 +193,16 @@ class TradeDraft {
             return;
         }
 
-        const eventSide =
-            orderSide === "buy"
-                ? "buySide"
-                : "sellSide";
-
-        this.activeTrade.orderEvents[eventSide].push({
-            time: orderEvent.time,
-            price: orderEvent.price,
-            contractCount: orderEvent.contractCount
-        });
+        addOrderEvent(
+            this.activeTrade,
+            orderSide,
+            orderEvent,
+            orderEvent.contractCount
+        );
 
         if (netAfterOrder === 0) {
             this.completeActiveTrade();
         }
-    }
-
-    startReversal(orderSide, orderEvent,
-        closingContractCount, openingContractCount) {
-
-        const eventSide =
-            orderSide === "buy"
-                ? "buySide"
-                : "sellSide";
-
-        this.activeTrade.orderEvents[eventSide].push({
-            time: orderEvent.time,
-            price: orderEvent.price,
-            contractCount: closingContractCount
-        });
-
-        this.completeActiveTrade();
-
-        this.startTrade(orderSide, {
-            time: orderEvent.time,
-            price: orderEvent.price,
-            contractCount: openingContractCount
-        });
     }
 
     getTradesForSubmission() {
@@ -206,7 +228,7 @@ class TradeDraft {
 
         if (
             typeof notes !== "string" ||
-            notes.length > 1500
+            notes.length > TRADE_NOTES_MAXIMUM_LENGTH
         ) {
             throw new TypeError(
                 "Trade notes must contain at most 1500 characters."
@@ -233,25 +255,15 @@ class TradeDraft {
         if (this.activeTrade) trades.push(this.activeTrade);
 
         return trades.flatMap((trade) => {
-            const buyEvents =
-                trade.orderEvents.buySide.map(
-                    (orderEvent) => ({
-                        ...orderEvent,
-                        orderSide: "buy"
-                    })
-                );
-
-            const sellEvents =
-                trade.orderEvents.sellSide.map(
-                    (orderEvent) => ({
-                        ...orderEvent,
-                        orderSide: "sell"
-                    })
-                );
-
             return [
-                ...buyEvents,
-                ...sellEvents
+                ...getOrderMarkers(
+                    trade.orderEvents.buySide,
+                    "buy"
+                ),
+                ...getOrderMarkers(
+                    trade.orderEvents.sellSide,
+                    "sell"
+                )
             ];
         });
     }
@@ -298,7 +310,7 @@ class TradeDraft {
 
         if (
             typeof notes !== "string" ||
-            notes.length > 1500
+            notes.length > TRADE_NOTES_MAXIMUM_LENGTH
         ) {
             throw new TypeError(
                 "Trade notes must contain at most 1500 characters."

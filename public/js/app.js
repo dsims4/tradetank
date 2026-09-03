@@ -1,12 +1,59 @@
+function getNavigationType() {
+    const navigationEntries =
+        window.performance.getEntriesByType("navigation");
+
+    return navigationEntries[0]?.type;
+}
+
+function clearPasswordValidation(passwordInput, confirmationInput) {
+    passwordInput.setCustomValidity("");
+    confirmationInput.setCustomValidity("");
+}
+
+function validatePasswordConfirmation(passwordInput, confirmationInput) {
+    clearPasswordValidation(passwordInput, confirmationInput);
+
+    if (passwordInput.value === confirmationInput.value) {
+        return true;
+    }
+
+    confirmationInput.setCustomValidity("Passwords do not match.");
+    confirmationInput.reportValidity();
+    return false;
+}
+
+async function readAPIResponse(response, fallbackErrorMessage) {
+    const responseIsJSON = response.headers
+        .get("content-type")
+        ?.includes("application/json");
+    const responseData = responseIsJSON
+        ? await response.json()
+        : {};
+
+    if (!response.ok) {
+        throw new Error(
+            responseData.error || fallbackErrorMessage
+        );
+    }
+
+    return responseData;
+}
+
 function runSlideshow() {
-    const slides = Array.from(document.querySelectorAll(".slideshow-slide"));
-    const leftButton = document.querySelector(".slideshow-button--left");
-    const rightButton = document.querySelector(".slideshow-button--right");
+    const slides = Array.from(
+        document.querySelectorAll(".slideshow-slide")
+    );
+    const leftButton = document.querySelector(
+        ".slideshow-button--left"
+    );
+    const rightButton = document.querySelector(
+        ".slideshow-button--right"
+    );
 
     if (slides.length === 0 || !leftButton || !rightButton) {
         return;
     }
-    
+
     let currentIndex = 1;
 
     function getWrappedIndex(index) {
@@ -31,16 +78,22 @@ function runSlideshow() {
             image?.classList.remove("slideshow-image--side");
 
             if (index === leftIndex) {
-                slide.classList.add("slideshow-slide--left", "slideshow-slide--side");
+                slide.classList.add(
+                    "slideshow-slide--left",
+                    "slideshow-slide--side"
+                );
                 image?.classList.add("slideshow-image--side");
-            } 
+            }
 
             if (index === middleIndex) {
                 slide.classList.add("slideshow-slide--middle");
             }
 
             if (index === rightIndex) {
-                slide.classList.add("slideshow-slide--right", "slideshow-slide--side");
+                slide.classList.add(
+                    "slideshow-slide--right",
+                    "slideshow-slide--side"
+                );
                 image?.classList.add("slideshow-image--side");
             }
 
@@ -78,28 +131,27 @@ function runSignupForm() {
     const usernameInput = signupForm.querySelector("#username");
     const emailInput = signupForm.querySelector("#email");
     const passwordInput = signupForm.querySelector("#password");
-    const confirmPasswordInput = signupForm.querySelector("#confirm-password");
+    const confirmPasswordInput = signupForm.querySelector(
+        "#confirm-password"
+    );
 
     function clearAccountValidation() {
         usernameInput.setCustomValidity("");
         emailInput.setCustomValidity("");
     }
 
-    function clearPasswordValidation() {
-        passwordInput.setCustomValidity("");
-        confirmPasswordInput.setCustomValidity("");
+    function validatePasswords() {
+        return validatePasswordConfirmation(
+            passwordInput,
+            confirmPasswordInput
+        );
     }
 
-    function validatePasswords() {
-        clearPasswordValidation();
-
-        if (passwordInput.value !== confirmPasswordInput.value) {
-            confirmPasswordInput.setCustomValidity("Passwords do not match.");
-            confirmPasswordInput.reportValidity();
-            return false;
-        }
-
-        return true;
+    function clearPasswords() {
+        clearPasswordValidation(
+            passwordInput,
+            confirmPasswordInput
+        );
     }
 
     async function validateAvailability() {
@@ -120,14 +172,15 @@ function runSignupForm() {
             })
         });
 
-        if (!response.ok) {
-            throw new Error("Signup availability check failed.");
-        }
-
-        const result = await response.json();
+        const result = await readAPIResponse(
+            response,
+            "Signup availability check failed."
+        );
 
         if (!result.usernameAvailable) {
-            usernameInput.setCustomValidity("That username is already taken.");
+            usernameInput.setCustomValidity(
+                "That username is already taken."
+            );
             usernameInput.reportValidity();
             return false;
         }
@@ -171,8 +224,8 @@ function runSignupForm() {
 
     usernameInput.addEventListener("input", clearAccountValidation);
     emailInput.addEventListener("input", clearAccountValidation);
-    passwordInput.addEventListener("input", clearPasswordValidation);
-    confirmPasswordInput.addEventListener("input", clearPasswordValidation);
+    passwordInput.addEventListener("input", clearPasswords);
+    confirmPasswordInput.addEventListener("input", clearPasswords);
 }
 
 function runLoginForm() {
@@ -193,10 +246,10 @@ function runLoginForm() {
     clearPasswordField();
 
     window.addEventListener("pageshow", (event) => {
-        const navigationEntries = window.performance.getEntriesByType("navigation");
-        const navigationType = navigationEntries[0]?.type;
-
-        if (event.persisted || navigationType === "back_forward") {
+        if (
+            event.persisted ||
+            getNavigationType() === "back_forward"
+        ) {
             clearPasswordField();
         }
     });
@@ -210,45 +263,46 @@ function runResetPasswordForm() {
     }
 
     const passwordInput = resetPasswordForm.querySelector("#password");
-    const confirmPasswordInput = resetPasswordForm.querySelector("#confirm-password");
-
-    function clearPasswordValidation() {
-        passwordInput.setCustomValidity("");
-        confirmPasswordInput.setCustomValidity("");
-    }
+    const confirmPasswordInput = resetPasswordForm.querySelector(
+        "#confirm-password"
+    );
 
     function validatePasswords() {
-        clearPasswordValidation();
+        return validatePasswordConfirmation(
+            passwordInput,
+            confirmPasswordInput
+        );
+    }
 
-        if (passwordInput.value !== confirmPasswordInput.value) {
-            confirmPasswordInput.setCustomValidity("Passwords do not match.");
-            confirmPasswordInput.reportValidity();
-            return false;
-        }
-
-        return true;
+    function clearPasswords() {
+        clearPasswordValidation(
+            passwordInput,
+            confirmPasswordInput
+        );
     }
 
     resetPasswordForm.addEventListener("submit", (event) => {
-        clearPasswordValidation();
-
         if (!validatePasswords()) {
             event.preventDefault();
         }
     });
 
-    passwordInput.addEventListener("input", clearPasswordValidation);
-    confirmPasswordInput.addEventListener("input", clearPasswordValidation);
+    passwordInput.addEventListener("input", clearPasswords);
+    confirmPasswordInput.addEventListener("input", clearPasswords);
 }
 
 function runDeleteAccountForm() {
-    const deleteAccountForm = document.querySelector("[data-delete-account-form]");
+    const deleteAccountForm = document.querySelector(
+        "[data-delete-account-form]"
+    );
 
     if (!deleteAccountForm) {
         return;
     }
 
-    const confirmationInput = deleteAccountForm.querySelector("#profile-delete-confirmation");
+    const confirmationInput = deleteAccountForm.querySelector(
+        "#profile-delete-confirmation"
+    );
 
     if (!confirmationInput) {
         return;
@@ -318,22 +372,23 @@ function runProtectedPageGuard() {
     }
 
     window.addEventListener("pageshow", (event) => {
-        const navigationEntries = window.performance.getEntriesByType("navigation");
-        const navigationType = navigationEntries[0]?.type;
-
-        if (event.persisted || navigationType === "back_forward") {
+        if (
+            event.persisted ||
+            getNavigationType() === "back_forward"
+        ) {
             window.location.reload();
         }
     });
 }
-
 
 function runColorSchemeForm() {
     const colorSchemeForm = document.querySelector(
         "[data-color-scheme-form]"
     );
 
-    if (!colorSchemeForm) return;
+    if (!colorSchemeForm) {
+        return;
+    }
 
     const colorSchemeInputs = colorSchemeForm.querySelectorAll(
         "input[name='changeColorScheme']"

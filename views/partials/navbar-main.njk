@@ -1,13 +1,22 @@
 <header>
     <nav class="navbar">
         <div class="navbar-container">
-            <a href="/" class="navbar-brand {% if currentPage == 'index' %}active{% endif %}">
+            <a
+                href="/"
+                class="navbar-brand {% if currentPage == 'index' %}active{% endif %}"
+            >
                 {% include "partials/logo.njk" %}
             </a>
-    
+
             <div class="navbar-links">
-                <a href="/login" class="navbar-link {% if currentPage == 'login' %}active{% endif %}">Log In</a>
-                <a href="/signup" class="navbar-link {% if currentPage == 'signup' %}active{% endif %}">Sign Up</a>
+                <a
+                    href="/login"
+                    class="navbar-link {% if currentPage == 'login' %}active{% endif %}"
+                >Log In</a>
+                <a
+                    href="/signup"
+                    class="navbar-link {% if currentPage == 'signup' %}active{% endif %}"
+                >Sign Up</a>
             </div>
         </div>
     </nav>

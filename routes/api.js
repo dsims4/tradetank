@@ -1,5 +1,4 @@
 const express = require("express");
-const router = express.Router();
 const { query } = require("../services/db");
 const {
     getStringInput,
@@ -12,8 +11,7 @@ const {
 const {
     getInputChartData,
     getTradesChartData,
-    getLatestInputChartData,
-    getLatestTradesChartData
+    getLatestInputChartData
 } = require("../services/chart-data");
 const {
     requireAPIAuthentication
@@ -27,6 +25,47 @@ const {
     saveUserTradingDay,
     deleteUserTradingDay
 } = require("../services/trades");
+
+const router = express.Router();
+
+async function checkSignupAvailability(req, res, next) {
+    const username = getStringInput(req.body.username).trim();
+    const email = getStringInput(req.body.email).trim().toLowerCase();
+
+    if (!isValidUsername(username) || !isValidEmail(email)) {
+        return res.status(400).json({
+            error: "At least one input is misformatted."
+        });
+    }
+
+    try {
+        const existingUsers = await query(
+            `SELECT
+                username,
+                email
+             FROM
+                users
+             WHERE
+                username = $1 OR
+                email = $2`,
+            [username, email]
+        );
+
+        const usernameAvailable = !existingUsers.rows.some(
+            (user) => user.username === username
+        );
+        const emailAvailable = !existingUsers.rows.some(
+            (user) => user.email === email
+        );
+
+        return res.json({
+            usernameAvailable,
+            emailAvailable
+        });
+    } catch (error) {
+        return next(error);
+    }
+}
 
 router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =
@@ -57,9 +96,7 @@ router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
 router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate = getStringInput(req.query.date);
     const pageInput = getStringInput(req.query.page) || "1";
-    const offsetInput = getStringInput(req.query.offset) || "0";
     const page = Number(pageInput);
-    const offset = Number(offsetInput);
 
     if (tradingDate && !isValidTradingDate(tradingDate)) {
         return res.status(400).json({
@@ -69,19 +106,11 @@ router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
 
     if (
         !/^[1-9]\d*$/.test(pageInput) ||
-        !Number.isSafeInteger(page)
+        !Number.isSafeInteger(page) ||
+        page > Number.MAX_SAFE_INTEGER / 5
     ) {
         return res.status(400).json({
             error: "A valid trade page is required."
-        });
-    }
-
-    if (
-        !/^\d+$/.test(offsetInput) ||
-        !Number.isSafeInteger(offset)
-    ) {
-        return res.status(400).json({
-            error: "A valid trade offset is required."
         });
     }
 
@@ -96,8 +125,6 @@ router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
                 tradingDate: null,
                 trades: [],
                 page: 1,
-                offset: 0,
-                hasPrevious: false,
                 hasNext: false
             });
         }
@@ -106,12 +133,11 @@ router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
             await getUserTradePageForDate(
                 req.authenticatedUserID,
                 selectedTradingDate,
-                offset
+                page
             );
 
         return res.json({
             ...tradePage,
-            page,
             tradingDate: selectedTradingDate
         });
     } catch (error) {
@@ -151,21 +177,17 @@ router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => 
     const tradingDate =
         getStringInput(req.query.date);
 
-    if (tradingDate && !isValidTradingDate(tradingDate)) {
+    if (!isValidTradingDate(tradingDate)) {
         return res.status(400).json({
             error: "A valid trading date is required."
         });
     }
 
     try {
-        const chartData = tradingDate
-            ? await getTradesChartData(
-                req.authenticatedUserID,
-                tradingDate
-            )
-            : await getLatestTradesChartData(
-                req.authenticatedUserID
-            );
+        const chartData = await getTradesChartData(
+            req.authenticatedUserID,
+            tradingDate
+        );
 
         return res.json(chartData);
     } catch (error) {
@@ -173,39 +195,11 @@ router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => 
     }
 });
 
-router.post("/signup-availability", signupAvailabilityIPRateLimit,
-    async (req, res, next) => {
-
-    const username = getStringInput(req.body.username).trim();
-    const email = getStringInput(req.body.email).trim().toLowerCase();
-
-    if (!isValidUsername(username) || !isValidEmail(email)) {
-        return res.status(400).json({
-            error: "At least one input is misformatted."
-        });
-    }
-
-    try {
-        const existingUsers = await query(
-            `SELECT username, email
-             FROM users
-             WHERE username = $1 OR email = $2`,
-            [username, email]
-        );
-
-        const usernameAvailable =
-            !existingUsers.rows.some((user) => user.username === username);
-        const emailAvailable =
-            !existingUsers.rows.some((user) => user.email === email);
-
-        return res.json({
-            usernameAvailable,
-            emailAvailable
-        });
-    } catch (error) {
-        return next(error);
-    }
-});
+router.post(
+    "/signup-availability",
+    signupAvailabilityIPRateLimit,
+    checkSignupAvailability
+);
 
 router.post("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     if (!req.is("application/json")) {

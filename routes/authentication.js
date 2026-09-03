@@ -185,12 +185,12 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
             await client.query("BEGIN");
 
             const userResult = await client.query(
-                `INSERT INTO 
-                    users 
+                `INSERT INTO
+                    users
                     (username, email, hashed_password)
-                VALUES 
+                VALUES
                     ($1, $2, $3)
-                RETURNING 
+                RETURNING
                     id`,
                 [username, email, hashedPassword]
             );
@@ -198,8 +198,8 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
             userID = userResult?.rows[0]?.id;
 
             await client.query(
-                `INSERT INTO 
-                    user_preferences 
+                `INSERT INTO
+                    user_preferences
                     (user_id)
                 VALUES
                     ($1)

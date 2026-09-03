@@ -2,7 +2,7 @@ const express = require("express");
 const {
     loadUserOptional,
     redirectAuthenticated
- } = require("../middleware/authentication");
+} = require("../middleware/authentication");
 
 const router = express.Router();
 
@@ -24,12 +24,25 @@ router.get("/", redirectAuthenticated, (req, res) => {
     });
 });
 
-router.get("/about", loadUserOptional, createInformationalPageHandler("about"));
-
-router.get("/contact", loadUserOptional, createInformationalPageHandler("contact"));
-
-router.get("/privacy-policy", loadUserOptional, createInformationalPageHandler("privacy-policy"));
-
-router.get("/terms-of-use", loadUserOptional, createInformationalPageHandler("terms-of-use"));
+router.get(
+    "/about",
+    loadUserOptional,
+    createInformationalPageHandler("about")
+);
+router.get(
+    "/contact",
+    loadUserOptional,
+    createInformationalPageHandler("contact")
+);
+router.get(
+    "/privacy-policy",
+    loadUserOptional,
+    createInformationalPageHandler("privacy-policy")
+);
+router.get(
+    "/terms-of-use",
+    loadUserOptional,
+    createInformationalPageHandler("terms-of-use")
+);
 
 module.exports = router;

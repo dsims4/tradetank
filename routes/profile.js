@@ -53,13 +53,13 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
                 users.email,
                 users.creation_time,
                 user_preferences.color_scheme
-             FROM 
+             FROM
                 users
-             LEFT JOIN 
+             LEFT JOIN
                 user_preferences
-             ON 
+             ON
                 user_preferences.user_id = users.id
-             WHERE 
+             WHERE
                 users.id = $1
              LIMIT 1`,
             [userID]
@@ -112,12 +112,12 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
 
     try {
         await query(
-            `INSERT INTO 
-                user_preferences 
+            `INSERT INTO
+                user_preferences
                 (user_id, color_scheme, update_time)
-             VALUES 
+             VALUES
                 ($1, $2, NOW())
-             ON CONFLICT 
+             ON CONFLICT
                 (user_id)
              DO UPDATE SET
                  color_scheme = EXCLUDED.color_scheme,
@@ -163,11 +163,11 @@ router.post("/profile/change-email", redirectUnauthenticated,
 
     try {
         const userResult = await query(
-            `SELECT 
+            `SELECT
                 email
-             FROM 
+             FROM
                 users
-             WHERE 
+             WHERE
                 id = $1
              LIMIT 1`,
             [userID]
@@ -188,13 +188,13 @@ router.post("/profile/change-email", redirectUnauthenticated,
         }
 
         const existingUserResult = await query(
-            `SELECT 
+            `SELECT
                 id
-             FROM 
+             FROM
                 users
-             WHERE 
-                email = $1 
-             AND 
+             WHERE
+                email = $1
+             AND
                 id <> $2
              LIMIT 1`,
             [email, userID]
@@ -213,19 +213,19 @@ router.post("/profile/change-email", redirectUnauthenticated,
            await client.query("BEGIN");
 
             await client.query(
-                `UPDATE 
+                `UPDATE
                     users
-                 SET 
+                 SET
                     email = $1,
                     update_time = NOW()
-                 WHERE 
+                 WHERE
                     id = $2`,
                 [email, userID]
             );
 
             await client.query(
-                `INSERT INTO 
-                    email_change_events 
+                `INSERT INTO
+                    email_change_events
                  (
                     user_id,
                     old_email,
@@ -355,7 +355,7 @@ router.post("/profile/delete-account", redirectUnauthenticated, async (req, res,
         await client.query("BEGIN");
 
         await client.query(
-            `DELETE FROM 
+            `DELETE FROM
                 users
              WHERE
                 id = $1`,
