@@ -43,12 +43,29 @@ class CandlestickChart {
     resize() {
         const boundingClientRect = this.canvas.getBoundingClientRect();
         const devicePixelRatio = window.devicePixelRatio || 1;
+        const width = boundingClientRect.width;
+        const height = boundingClientRect.height;
+        const pixelWidth = Math.round(
+            width * devicePixelRatio
+        );
+        const pixelHeight = Math.round(
+            height * devicePixelRatio
+        );
 
-        this.width = boundingClientRect.width;
-        this.height = boundingClientRect.height;
+        if (
+            this.width === width &&
+            this.height === height &&
+            this.canvas.width === pixelWidth &&
+            this.canvas.height === pixelHeight
+        ) {
+            return;
+        }
 
-        this.canvas.width = this.width * devicePixelRatio;
-        this.canvas.height = this.height * devicePixelRatio;
+        this.width = width;
+        this.height = height;
+
+        this.canvas.width = pixelWidth;
+        this.canvas.height = pixelHeight;
 
         this.ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 
@@ -707,6 +724,83 @@ class CandlestickChart {
         );
     }
 
+    getAvailableOrderMarkerLabel({
+        preferredCenterY,
+        labelCenterX,
+        labelWidth,
+        labelHeight,
+        isBuy,
+        plotArea,
+        occupiedLabels
+    }) {
+        const labelPadding = 5;
+        const verticalStep = labelHeight + labelPadding;
+        const direction = isBuy ? 1 : -1;
+        const offsets = [0];
+
+        for (
+            let level = 1;
+            level <= occupiedLabels.length + 1;
+            level += 1
+        ) {
+            offsets.push(
+                direction * level,
+                direction * -level
+            );
+        }
+
+        for (const offset of offsets) {
+            const centerY =
+                preferredCenterY + offset * verticalStep;
+            const bounds = {
+                left: labelCenterX - labelWidth / 2,
+                right: labelCenterX + labelWidth / 2,
+                top: centerY - labelHeight / 2,
+                bottom: centerY + labelHeight / 2
+            };
+            const labelFits =
+                bounds.top >= plotArea.top &&
+                bounds.bottom <= plotArea.bottom;
+            const labelOverlaps = occupiedLabels.some(
+                (occupiedLabel) => (
+                    bounds.left <
+                        occupiedLabel.right + labelPadding &&
+                    bounds.right >
+                        occupiedLabel.left - labelPadding &&
+                    bounds.top <
+                        occupiedLabel.bottom + labelPadding &&
+                    bounds.bottom >
+                        occupiedLabel.top - labelPadding
+                )
+            );
+
+            if (labelFits && !labelOverlaps) {
+                return {
+                    centerY,
+                    bounds
+                };
+            }
+        }
+
+        const centerY = Math.min(
+            plotArea.bottom - labelHeight / 2,
+            Math.max(
+                plotArea.top + labelHeight / 2,
+                preferredCenterY
+            )
+        );
+
+        return {
+            centerY,
+            bounds: {
+                left: labelCenterX - labelWidth / 2,
+                right: labelCenterX + labelWidth / 2,
+                top: centerY - labelHeight / 2,
+                bottom: centerY + labelHeight / 2
+            }
+        };
+    }
+
     drawOrderMarkers() {
         if (this.orderMarkers.length === 0) return;
 
@@ -714,6 +808,7 @@ class CandlestickChart {
         const plotArea = this.getPlotArea();
         const orderMarkers =
             this.getGroupedOrderMarkers();
+        const occupiedLabels = [];
 
         this.ctx.save();
         this.ctx.beginPath();
@@ -769,7 +864,7 @@ class CandlestickChart {
                     centerX
                 )
             );
-            const labelCenterY = this.getOrderMarkerLabelY({
+            const preferredCenterY = this.getOrderMarkerLabelY({
                 labelCenterX,
                 labelWidth,
                 labelHeight,
@@ -777,6 +872,19 @@ class CandlestickChart {
                 priceRange,
                 plotArea
             });
+            const availableLabel =
+                this.getAvailableOrderMarkerLabel({
+                    preferredCenterY,
+                    labelCenterX,
+                    labelWidth,
+                    labelHeight,
+                    isBuy,
+                    plotArea,
+                    occupiedLabels
+                });
+            const labelCenterY = availableLabel.centerY;
+
+            occupiedLabels.push(availableLabel.bounds);
             const markerHalfWidth = bodyWidth / 2 + 3;
             const markerPrices = [
                 ...new Set(

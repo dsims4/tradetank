@@ -17,7 +17,7 @@
                         class="input-chart-controls"
                         data-input-chart-controls
                     >
-                        <label for="trading-date">Trading date</label>
+                        <label for="trading-date">Trading date:</label>
                         <input
                             id="trading-date"
                             class="form-input"
@@ -29,6 +29,7 @@
                             placeholder="YYYY-MM-DD"
                             autocomplete="off"
                             required
+                            data-trading-date-input
                             data-input-chart-date
                         >
                         <button type="submit" class="button">Load</button>
@@ -49,6 +50,10 @@
                     ></canvas>
                 </div>
 
+                <h2 class="sidebar-heading chart-sidebar-heading">
+                    Trade input
+                </h2>
+
                 <aside class="input-trade-sidebar">
                     <form
                         method="post"
@@ -56,102 +61,104 @@
                         data-input-trade-form
                     >
                         <fieldset disabled data-input-trade-fieldset>
-                            <legend>Trade input</legend>
-
-                            <label for="contract-count">
-                                Contracts
-                            </label>
-                            <input
-                                id="contract-count"
-                                class="form-input"
-                                name="contractCount"
-                                type="number"
-                                min="1"
-                                step="1"
-                                value="1"
-                                required
-                                data-contract-count
-                            >
-
-                            <div class="input-trade-actions">
-                                <button
-                                    type="button"
-                                    class="button"
-                                    data-trade-action="buy"
-                                    aria-pressed="false"
-                                >
-                                    Buy
-                                </button>
-
-                                <button
-                                    type="button"
-                                    class="button"
-                                    data-trade-action="sell"
-                                    aria-pressed="false"
-                                >
-                                    Sell
-                                </button>
-
-                                <button
-                                    type="button"
-                                    class="button"
-                                    data-trade-action="close"
-                                    aria-pressed="false"
-                                >
-                                    Close position
-                                </button>
-                            </div>
-
-                            <div class="input-trade-history-actions">
-                                <button
-                                    type="button"
-                                    class="button"
-                                    disabled
-                                    data-undo-order
-                                >
-                                    Undo
-                                </button>
-
-                                <button
-                                    type="button"
-                                    class="button"
-                                    disabled
-                                    data-reset-orders
-                                >
-                                    Reset
-                                </button>
-                            </div>
-
-                            <details
-                                hidden
-                                data-completed-trade-notes-section
-                            >
-                                <summary>Previous trade notes</summary>
-                                <div data-completed-trade-notes></div>
-                            </details>
-
-                            <label for="trade-notes">
-                                Trade notes
-                            </label>
-                            <textarea
-                                id="trade-notes"
-                                class="form-input"
-                                name="notes"
-                                maxlength="1500"
-                                data-trade-notes
-                            ></textarea>
-
-                            <div class="checkbox-field">
-                                <input
-                                    id="process-deviation"
-                                    class="checkbox"
-                                    name="processDeviation"
-                                    type="checkbox"
-                                    data-process-deviation
-                                >
-                                <label for="process-deviation">
-                                    Process deviation
+                            <div class="input-trade-order-section">
+                                <label for="contract-count">
+                                    Contracts
                                 </label>
+                                <input
+                                    id="contract-count"
+                                    class="form-input"
+                                    name="contractCount"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value="1"
+                                    required
+                                    data-contract-count
+                                >
+
+                                <div class="input-trade-actions">
+                                    <button
+                                        type="button"
+                                        class="button"
+                                        data-trade-action="buy"
+                                        aria-pressed="false"
+                                    >
+                                        Buy
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="button"
+                                        data-trade-action="sell"
+                                        aria-pressed="false"
+                                    >
+                                        Sell
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="button"
+                                        data-trade-action="close"
+                                        aria-pressed="false"
+                                    >
+                                        Close position
+                                    </button>
+                                </div>
+
+                                <div class="input-trade-history-actions">
+                                    <button
+                                        type="button"
+                                        class="button"
+                                        disabled
+                                        data-undo-order
+                                    >
+                                        Undo
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        class="button"
+                                        disabled
+                                        data-reset-orders
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="input-trade-notes-section">
+                                <details
+                                    hidden
+                                    data-completed-trade-notes-section
+                                >
+                                    <summary>Previous trade notes</summary>
+                                    <div data-completed-trade-notes></div>
+                                </details>
+
+                                <label for="trade-notes">
+                                    Trade notes
+                                </label>
+                                <textarea
+                                    id="trade-notes"
+                                    class="form-input"
+                                    name="notes"
+                                    maxlength="1500"
+                                    data-trade-notes
+                                ></textarea>
+
+                                <div class="checkbox-field">
+                                    <input
+                                        id="process-deviation"
+                                        class="checkbox"
+                                        name="processDeviation"
+                                        type="checkbox"
+                                        data-process-deviation
+                                    >
+                                    <label for="process-deviation">
+                                        Process deviation
+                                    </label>
+                                </div>
                             </div>
 
                             <button type="submit" class="button">

@@ -444,6 +444,9 @@ function runCandlestickChart() {
             }
 
             tradeDraft.clear();
+            chart.setOrderMarkers([]);
+            renderCompletedTradeNotes();
+            contractCountInput.value = "1";
             resetTradeDetails();
             clearSelectedTradeAction();
             updateTradeActionAvailability();

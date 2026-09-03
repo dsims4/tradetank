@@ -8,60 +8,106 @@
 {% endblock %}
 
 {% block content %}
-    <div class="main-container main-container--trades-chart">
-        <div class="trades-chart-page">
-            <header class="trades-chart-header">
-                <form data-trades-chart-controls>
-                    <label for="trades-chart-date">
-                        Trading date
-                    </label>
-
-                    <input
-                        id="trades-chart-date"
-                        class="form-input"
-                        name="tradingDate"
-                        type="text"
-                        inputmode="numeric"
-                        maxlength="10"
-                        pattern="\d{4}-\d{2}-\d{2}"
-                        placeholder="YYYY-MM-DD"
-                        autocomplete="off"
-                        required
-                        data-trades-chart-date
+    <div class="main-container main-container--input-chart main-container--trades-chart">
+        <div class="input-chart-page trades-chart-page">
+            <div class="input-chart-workspace trades-chart-workspace">
+                <header class="input-chart-header trades-chart-header">
+                    <form
+                        class="input-chart-controls"
+                        data-trades-chart-controls
                     >
-                    <button type="submit" class="button">
-                        Load
-                    </button>
-                </form>
+                        <label for="trades-chart-date">
+                            Trading date:
+                        </label>
 
-                <p
-                    data-trades-chart-status
-                    aria-live="polite"
-                ></p>
-            </header>
+                        <input
+                            id="trades-chart-date"
+                            class="form-input"
+                            name="tradingDate"
+                            type="text"
+                            inputmode="numeric"
+                            maxlength="10"
+                            pattern="\d{4}-\d{2}-\d{2}"
+                            placeholder="YYYY-MM-DD"
+                            autocomplete="off"
+                            required
+                            data-trading-date-input
+                            data-trades-chart-date
+                        >
+                        <button type="submit" class="button">
+                            Load
+                        </button>
+                    </form>
 
-            <div class="candlestick-chart-container">
-                <canvas
-                    id="trades-candlestick-chart"
-                    role="img"
-                    aria-label="Saved trades candlestick chart"
-                ></canvas>
-            </div>
+                    <div class="trades-chart-messages">
+                        <p
+                            class="input-chart-status"
+                            data-trades-chart-status
+                            aria-live="polite"
+                        ></p>
 
-            <aside class="trades-summary-sidebar">
-                <h2>Trades</h2>
+                        <p
+                            class="trades-chart-warning"
+                            role="alert"
+                            hidden
+                            data-trades-chart-warning
+                        ></p>
+                    </div>
+                </header>
 
-                <div data-trade-summaries></div>
+                <div class="candlestick-chart-container">
+                    <canvas
+                        id="trades-candlestick-chart"
+                        role="img"
+                        aria-label="Saved trades candlestick chart"
+                    ></canvas>
+                </div>
 
-                <button
-                    type="button"
-                    class="button"
-                    hidden
-                    data-delete-trading-day
+                <h2 class="sidebar-heading chart-sidebar-heading">
+                    Trades
+                </h2>
+
+                <aside
+                    class="input-trade-sidebar trades-summary-sidebar"
                 >
-                    Delete chart
-                </button>
-            </aside>
+                    <div class="trades-summary-panel">
+                        <div data-trade-summaries></div>
+
+                        <nav
+                            aria-label="Trade pages"
+                            hidden
+                            data-trade-pagination
+                        >
+                            <button
+                                type="button"
+                                class="button"
+                                data-previous-trades
+                            >
+                                Previous
+                            </button>
+
+                            <span data-trade-page></span>
+
+                            <button
+                                type="button"
+                                class="button"
+                                data-next-trades
+                            >
+                                Next
+                            </button>
+                        </nav>
+
+                        <button
+                            type="button"
+                            class="button"
+                            hidden
+                            data-delete-trading-day
+                        >
+                            Delete day
+                        </button>
+                    </div>
+                </aside>
+            </div>
         </div>
     </div>
 {% endblock %}

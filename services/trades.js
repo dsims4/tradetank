@@ -68,6 +68,24 @@ function isValidOrderEventCollection(orderEvents) {
     return buyContractCount === sellContractCount;
 }
 
+function formatUserTrade(trade) {
+    return {
+        id: trade.id,
+        tradingDate: trade.trading_date,
+        side: trade.side,
+        contractCount: Number(trade.contract_count),
+        orderEvents: trade.order_events,
+        pointsPerTrade: Number(trade.points_per_trade),
+        pointsPerContract:
+            Number(trade.points_per_trade) /
+            Number(trade.contract_count),
+        processDeviation: trade.process_deviation,
+        notes: trade.notes,
+        creationTime: trade.creation_time,
+        updateTime: trade.update_time
+    };
+}
+
 async function getUserTradesForDate(userID, tradingDate, db = { query }) {
     if (!Number.isSafeInteger(userID) || userID <= 0) {
         throw new TypeError("A valid user ID is required.");
@@ -80,6 +98,10 @@ async function getUserTradesForDate(userID, tradingDate, db = { query }) {
     const result = await db.query(
         `SELECT
             id,
+            TO_CHAR(
+                trading_date,
+                'YYYY-MM-DD'
+            ) AS trading_date,
             side,
             contract_count,
             order_events,
@@ -94,24 +116,69 @@ async function getUserTradesForDate(userID, tradingDate, db = { query }) {
             user_id = $1 AND
             trading_date = $2
          ORDER BY
-            creation_time`,
+            creation_time,
+            id`,
         [userID, tradingDate]
     );
 
-    return result.rows.map((trade) => ({
-        id: trade.id,
-        side: trade.side,
-        contractCount: Number(trade.contract_count),
-        orderEvents: trade.order_events,
-        pointsPerTrade: Number(trade.points_per_trade),
-        pointsPerContract:
-            Number(trade.points_per_trade) /
-            Number(trade.contract_count),
-        processDeviation: trade.process_deviation,
-        notes: trade.notes,
-        creationTime: trade.creation_time,
-        updateTime: trade.update_time
-    }));
+    return result.rows.map(formatUserTrade);
+}
+
+async function getUserTradePageForDate(
+    userID,
+    tradingDate,
+    offset,
+    db = { query }
+) {
+    if (!Number.isSafeInteger(userID) || userID <= 0) {
+        throw new TypeError("A valid user ID is required.");
+    }
+
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError("A valid trading date is required.");
+    }
+
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+        throw new TypeError("A valid trade offset is required.");
+    }
+
+    const pageSize = 5;
+    const result = await db.query(
+        `SELECT
+            id,
+            TO_CHAR(
+                trading_date,
+                'YYYY-MM-DD'
+            ) AS trading_date,
+            side,
+            contract_count,
+            order_events,
+            points_per_trade,
+            process_deviation,
+            notes,
+            creation_time,
+            update_time
+         FROM
+            user_trades
+         WHERE
+            user_id = $1 AND
+            trading_date = $2
+         ORDER BY
+            creation_time DESC,
+            id DESC
+         LIMIT $3
+         OFFSET $4`,
+        [userID, tradingDate, pageSize + 1, offset]
+    );
+
+    return {
+        trades: result.rows
+            .slice(0, pageSize)
+            .map(formatUserTrade),
+        offset,
+        hasPrevious: offset > 0,
+        hasNext: result.rows.length > pageSize
+    };
 }
 
 async function hasUserTradingDay(userID, tradingDate, db = { query }) {
@@ -409,9 +476,52 @@ async function saveUserTradingDay(userID, tradingDate,
     }
 }
 
+async function deleteUserTradingDay(
+    userID,
+    tradingDate,
+    db = { getClient }
+) {
+    if (!Number.isSafeInteger(userID) || userID <= 0) {
+        throw new TypeError("A valid user ID is required.");
+    }
+
+    if (!isValidTradingDate(tradingDate)) {
+        throw new TypeError("A valid trading date is required.");
+    }
+
+    const client = await db.getClient();
+
+    try {
+        await client.query("BEGIN");
+
+        const result = await client.query(
+            `DELETE FROM
+                user_trading_days
+             WHERE
+                user_id = $1 AND
+                trading_date = $2`,
+            [userID, tradingDate]
+        );
+
+        if (result.rowCount > 0) {
+            await recalculateUserStats(userID, client);
+        }
+
+        await client.query("COMMIT");
+        return result.rowCount > 0;
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
     getUserTradesForDate,
+    getUserTradePageForDate,
     getLatestUserTradingDate,
     hasUserTradingDay,
-    saveUserTradingDay
+    saveUserTradingDay,
+    deleteUserTradingDay
 };

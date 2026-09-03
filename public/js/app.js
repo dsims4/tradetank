@@ -346,6 +346,27 @@ function runColorSchemeForm() {
     });
 }
 
+function runTradingDateInputs() {
+    const dateInputs = document.querySelectorAll(
+        "[data-trading-date-input]"
+    );
+
+    dateInputs.forEach((dateInput) => {
+        dateInput.addEventListener("input", () => {
+            const digits = dateInput.value
+                .replace(/\D/g, "")
+                .slice(0, 8);
+            const dateParts = [
+                digits.slice(0, 4),
+                digits.slice(4, 6),
+                digits.slice(6, 8)
+            ].filter(Boolean);
+
+            dateInput.value = dateParts.join("-");
+        });
+    });
+}
+
 runSlideshow();
 runSignupForm();
 runLoginForm();
@@ -354,3 +375,4 @@ runResetPasswordForm();
 runDeleteAccountForm();
 runQueryCleaner();
 runProtectedPageGuard();
+runTradingDateInputs();
