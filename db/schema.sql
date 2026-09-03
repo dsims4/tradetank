@@ -129,6 +129,8 @@ CREATE TABLE IF NOT EXISTS user_stats (
     expectancy_per_trade NUMERIC(10, 3),
     expectancy_with_process_deviation NUMERIC(10, 3),
     expectancy_without_process_deviation NUMERIC(10, 3),
+    process_deviation_rate NUMERIC(5, 4),
+    average_trades_per_day NUMERIC(10, 3),
     average_scale_ins NUMERIC(5,2),
     average_scale_outs NUMERIC(5,2),
     biggest_win_contract NUMERIC(10, 3),

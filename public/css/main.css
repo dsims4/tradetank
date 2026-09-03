@@ -148,6 +148,7 @@
     min-width: 0;
 }
 
+.main-container--analyze,
 .main-container--input-chart {
     width: min(calc(100% - 2rem), var(--site-max-width));
     padding-inline: clamp(1.5rem, 3vw, 3rem);
@@ -517,4 +518,63 @@
 
 [data-delete-trading-day] {
     margin-top: auto;
+}
+
+.analyze-grid {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(14rem, 1fr)
+    );
+    gap: 1rem;
+    width: 100%;
+}
+
+.analyze-stat {
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    min-height: 9rem;
+    overflow: hidden;
+    border: var(--border-strong);
+    border-radius: 2rem;
+    background-color: var(--color-contrast);
+}
+
+.analyze-stat--dragging {
+    border-style: dotted;
+    background-color: transparent;
+}
+
+.analyze-stat--dragging > * {
+    visibility: hidden;
+}
+
+.analyze-stat-drag-image {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.analyze-stat-label,
+.analyze-stat-value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 1rem;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+.analyze-stat-label {
+    color: var(--color-contrast);
+    background-color: var(--color-ink);
+    font-size: 1rem;
+}
+
+.analyze-stat-value {
+    color: var(--color-ink);
+    background-color: var(--color-contrast);
+    font-size: 1.5rem;
+    font-weight: bold;
 }

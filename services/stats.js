@@ -1,7 +1,13 @@
-async function recalculateUserStats(userID, client) {
+const { query } = require("./db");
+
+function validateUserID(userID) {
     if (!Number.isSafeInteger(userID) || userID <= 0) {
         throw new TypeError("A valid user ID is required.");
     }
+}
+
+async function recalculateUserStats(userID, client) {
+    validateUserID(userID);
 
     if (!client || typeof client.query !== "function") {
         throw new TypeError("A database client is required.");
@@ -70,6 +76,8 @@ async function recalculateUserStats(userID, client) {
                 AVG(points_per_trade) FILTER (
                     WHERE NOT process_deviation
                 ) AS expectancy_without_process_deviation,
+                AVG(process_deviation::INTEGER)
+                    AS process_deviation_rate,
                 AVG(scale_ins)
                     AS average_scale_ins,
                 AVG(scale_outs)
@@ -115,6 +123,11 @@ async function recalculateUserStats(userID, client) {
                 trade_totals.expectancy_with_process_deviation,
             expectancy_without_process_deviation =
                 trade_totals.expectancy_without_process_deviation,
+            process_deviation_rate =
+                trade_totals.process_deviation_rate,
+            average_trades_per_day =
+                trade_totals.trades_count::NUMERIC /
+                NULLIF(day_totals.days_traded_count, 0),
             average_scale_ins =
                 trade_totals.average_scale_ins,
             average_scale_outs =
@@ -137,6 +150,92 @@ async function recalculateUserStats(userID, client) {
     );
 }
 
+async function getUserStats(userID, db = { query }) {
+    validateUserID(userID);
+
+    const result = await db.query(
+        `SELECT
+            trades_count,
+            points_count,
+            days_traded_count,
+            COALESCE(
+                (
+                    CURRENT_TIMESTAMP AT TIME ZONE
+                        'America/New_York'
+                )::DATE - (
+                    SELECT
+                        MIN(trading_date)
+                    FROM
+                        user_trading_days
+                    WHERE
+                        user_id = $1
+                ) + 1,
+                0
+            )::INTEGER AS days_total_count,
+            expectancy_per_contract,
+            expectancy_per_trade,
+            expectancy_with_process_deviation,
+            expectancy_without_process_deviation,
+            process_deviation_rate,
+            average_trades_per_day,
+            average_scale_ins,
+            average_scale_outs,
+            biggest_win_contract,
+            biggest_loss_contract,
+            biggest_win_trade,
+            biggest_loss_trade
+         FROM
+            user_stats
+         WHERE
+            user_id = $1`,
+        [userID]
+    );
+
+    if (result.rows.length === 0) {
+        throw new Error("User statistics were not found.");
+    }
+
+    const stats = result.rows[0];
+    const numberOrNull = (value) =>
+        value === null ? null : Number(value);
+
+    return {
+        tradesCount: Number(stats.trades_count),
+        pointsCount: Number(stats.points_count),
+        daysTradedCount: Number(stats.days_traded_count),
+        daysTotalCount: Number(stats.days_total_count),
+        expectancyPerContract:
+            numberOrNull(stats.expectancy_per_contract),
+        expectancyPerTrade:
+            numberOrNull(stats.expectancy_per_trade),
+        expectancyWithProcessDeviation:
+            numberOrNull(
+                stats.expectancy_with_process_deviation
+            ),
+        expectancyWithoutProcessDeviation:
+            numberOrNull(
+                stats.expectancy_without_process_deviation
+            ),
+        processDeviationRate:
+            numberOrNull(stats.process_deviation_rate),
+        averageTradesPerDay:
+            numberOrNull(stats.average_trades_per_day),
+        averageScaleIns:
+            numberOrNull(stats.average_scale_ins),
+        averageScaleOuts:
+            numberOrNull(stats.average_scale_outs),
+        biggestWinContract:
+            numberOrNull(stats.biggest_win_contract),
+        biggestLossContract:
+            numberOrNull(stats.biggest_loss_contract),
+        biggestWinTrade:
+            numberOrNull(stats.biggest_win_trade),
+        biggestLossTrade:
+            numberOrNull(stats.biggest_loss_trade)
+    };
+}
+
 module.exports = {
-    recalculateUserStats
+    recalculateUserStats,
+    getUserStats
 };

@@ -2,7 +2,189 @@
 
 {% block title %}Trade Tank: Analyze{% endblock %}
 
+{% block scripts %}
+    <script src="/js/analyze.js" defer></script>
+{% endblock %}
+
 {% block content %}
-    <h1>Analyze Trades</h1>
-    <p>Normal</p>
+    <div class="main-container main-container--analyze">
+        <div class="analyze-grid" data-analyze-stats>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Total Trades
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="tradesCount"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Total Points
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="pointsCount"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Days Traded
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="daysTradedCount"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Days Since First Trade
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="daysTotalCount"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Expectancy per Contract
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="expectancyPerContract"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Expectancy per Trade
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="expectancyPerTrade"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Expectancy With Process Deviation
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="expectancyWithProcessDeviation"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Expectancy Without Process Deviation
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="expectancyWithoutProcessDeviation"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Average Scale-Ins
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="averageScaleIns"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Average Scale-Outs
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="averageScaleOuts"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Biggest Winning Contract
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="biggestWinContract"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Biggest Losing Contract
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="biggestLossContract"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Biggest Winning Trade
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="biggestWinTrade"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Biggest Losing Trade
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="biggestLossTrade"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Process Deviation Rate
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="processDeviationRate"
+                >
+                    -
+                </p>
+            </section>
+            <section class="analyze-stat">
+                <h2 class="analyze-stat-label">
+                    Average Trades per Day
+                </h2>
+                <p
+                    class="analyze-stat-value"
+                    data-stat="averageTradesPerDay"
+                >
+                    -
+                </p>
+            </section>
+        </div>
+    </div>
 {% endblock %}

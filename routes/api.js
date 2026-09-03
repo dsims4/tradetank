@@ -25,6 +25,7 @@ const {
     saveUserTradingDay,
     deleteUserTradingDay
 } = require("../services/trades");
+const { getUserStats } = require("../services/stats");
 
 const router = express.Router();
 
@@ -66,6 +67,18 @@ async function checkSignupAvailability(req, res, next) {
         return next(error);
     }
 }
+
+router.get("/analyze-stats", requireAPIAuthentication, async (req, res, next) => {
+    try {
+        const stats = await getUserStats(
+            req.authenticatedUserID
+        );
+
+        return res.json(stats);
+    } catch (error) {
+        return next(error);
+    }
+});
 
 router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =
