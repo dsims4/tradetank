@@ -13,6 +13,23 @@ function runAnalyzePage() {
         "daysTradedCount",
         "daysTotalCount"
     ]);
+    const statUnits = new Map([
+        ["tradesCount", "trade"],
+        ["pointsCount", "point"],
+        ["daysTradedCount", "day"],
+        ["daysTotalCount", "day"],
+        ["expectancyPerContract", "point"],
+        ["expectancyPerTrade", "point"],
+        ["expectancyWithProcessDeviation", "point"],
+        ["expectancyWithoutProcessDeviation", "point"],
+        ["averageTradesPerDay", "trade"],
+        ["averageScaleIns", "scale-in"],
+        ["averageScaleOuts", "scale-out"],
+        ["biggestWinContract", "point"],
+        ["biggestLossContract", "point"],
+        ["biggestWinTrade", "point"],
+        ["biggestLossTrade", "point"]
+    ]);
 
     function formatStatValue(statName, value) {
         if (value === null || value === undefined) return "-";
@@ -21,11 +38,16 @@ function runAnalyzePage() {
             return `${(value * 100).toFixed(2)}%`;
         }
 
-        if (integerStats.has(statName)) {
-            return String(value);
-        }
+        const number = Number(value);
+        const formattedValue = integerStats.has(statName)
+            ? String(number)
+            : number.toFixed(2);
+        const singularUnit = statUnits.get(statName);
+        const unit = Math.abs(number) === 1
+            ? singularUnit
+            : `${singularUnit}s`;
 
-        return Number(value).toFixed(2);
+        return `${formattedValue} ${unit}`;
     }
 
     async function loadStats() {

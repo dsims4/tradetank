@@ -154,6 +154,14 @@
     padding-inline: clamp(1.5rem, 3vw, 3rem);
 }
 
+.app-page-heading {
+    width: 100%;
+    margin: 0;
+    font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+    font-weight: 600;
+    line-height: 1;
+}
+
 .input-chart-workspace {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 14rem;
