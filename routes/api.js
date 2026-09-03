@@ -28,6 +28,35 @@ const {
 const { getUserStats } = require("../services/stats");
 
 const router = express.Router();
+const ANALYZE_STAT_NAMES = new Set([
+    "tradesCount",
+    "pointsCount",
+    "daysTradedCount",
+    "daysTotalCount",
+    "expectancyPerContract",
+    "expectancyPerTrade",
+    "expectancyWithProcessDeviation",
+    "expectancyWithoutProcessDeviation",
+    "averageScaleIns",
+    "averageScaleOuts",
+    "biggestWinContract",
+    "biggestLossContract",
+    "biggestWinTrade",
+    "biggestLossTrade",
+    "processDeviationRate",
+    "averageTradesPerDay"
+]);
+
+function isValidAnalyzeStatOrder(statOrder) {
+    return (
+        Array.isArray(statOrder) &&
+        statOrder.length === ANALYZE_STAT_NAMES.size &&
+        new Set(statOrder).size === ANALYZE_STAT_NAMES.size &&
+        statOrder.every((statName) =>
+            ANALYZE_STAT_NAMES.has(statName)
+        )
+    );
+}
 
 async function checkSignupAvailability(req, res, next) {
     const username = getStringInput(req.body.username).trim();
@@ -70,15 +99,62 @@ async function checkSignupAvailability(req, res, next) {
 
 router.get("/analyze-stats", requireAPIAuthentication, async (req, res, next) => {
     try {
-        const stats = await getUserStats(
-            req.authenticatedUserID
-        );
+        const [stats, preferencesResult] = await Promise.all([
+            getUserStats(req.authenticatedUserID),
+            query(
+                `SELECT
+                    analyze_stat_order
+                 FROM
+                    user_preferences
+                 WHERE
+                    user_id = $1`,
+                [req.authenticatedUserID]
+            )
+        ]);
 
-        return res.json(stats);
+        return res.json({
+            ...stats,
+            statOrder:
+                preferencesResult.rows[0]?.analyze_stat_order || []
+        });
     } catch (error) {
         return next(error);
     }
 });
+
+router.put(
+    "/analyze-stat-order",
+    requireAPIAuthentication,
+    async (req, res, next) => {
+        const statOrder = req.body.statOrder;
+
+        if (!isValidAnalyzeStatOrder(statOrder)) {
+            return res.status(400).json({
+                error: "A valid statistics order is required."
+            });
+        }
+
+        try {
+            await query(
+                `INSERT INTO
+                    user_preferences
+                    (user_id, analyze_stat_order, update_time)
+                 VALUES
+                    ($1, $2, NOW())
+                 ON CONFLICT
+                    (user_id)
+                 DO UPDATE SET
+                    analyze_stat_order = EXCLUDED.analyze_stat_order,
+                    update_time = NOW()`,
+                [req.authenticatedUserID, JSON.stringify(statOrder)]
+            );
+
+            return res.status(204).end();
+        } catch (error) {
+            return next(error);
+        }
+    }
+);
 
 router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =

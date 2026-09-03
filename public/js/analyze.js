@@ -31,6 +31,43 @@ function runAnalyzePage() {
         ["biggestLossTrade", "point"]
     ]);
 
+    function getStatName(statCard) {
+        return statCard.querySelector("[data-stat]")?.dataset.stat;
+    }
+
+    function getStatOrder() {
+        return [
+            ...analyzeGrid.querySelectorAll(".analyze-stat")
+        ].map(getStatName);
+    }
+
+    function applyStatOrder(statOrder) {
+        if (
+            !Array.isArray(statOrder) ||
+            statOrder.length !== statsCards.length
+        ) {
+            return;
+        }
+
+        const cardsByStat = new Map(
+            statsCards.map((statCard) => [
+                getStatName(statCard),
+                statCard
+            ])
+        );
+
+        if (
+            new Set(statOrder).size !== statsCards.length ||
+            statOrder.some((statName) => !cardsByStat.has(statName))
+        ) {
+            return;
+        }
+
+        for (const statName of statOrder) {
+            analyzeGrid.append(cardsByStat.get(statName));
+        }
+    }
+
     function formatStatValue(statName, value) {
         if (value === null || value === undefined) return "-";
 
@@ -57,6 +94,8 @@ function runAnalyzePage() {
             "The statistics request failed."
         );
 
+        applyStatOrder(stats.statOrder);
+
         for (const statValue of analyzeGrid.querySelectorAll(
             "[data-stat]"
         )) {
@@ -69,12 +108,29 @@ function runAnalyzePage() {
         }
     }
 
+    async function saveStatOrder(statOrder) {
+        const response = await fetch("/api/analyze-stat-order", {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ statOrder })
+        });
+
+        await readAPIResponse(
+            response,
+            "The statistics order could not be saved."
+        );
+    }
+
     let draggedCard = null;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
     let draggedWidth = 0;
     let draggedHeight = 0;
     let dragImage = null;
+    let orderBeforeDrag = "";
+    let statOrderSave = Promise.resolve();
 
     for (const statCard of statsCards) {
         statCard.draggable = true;
@@ -86,6 +142,7 @@ function runAnalyzePage() {
         if (!statCard) return;
 
         draggedCard = statCard;
+        orderBeforeDrag = JSON.stringify(getStatOrder());
 
         const draggedBounds =
             draggedCard.getBoundingClientRect();
@@ -168,12 +225,22 @@ function runAnalyzePage() {
     });
 
     analyzeGrid.addEventListener("dragend", () => {
+        const statOrder = getStatOrder();
+
         dragImage?.remove();
         dragImage = null;
         draggedCard?.classList.remove(
             "analyze-stat--dragging"
         );
         draggedCard = null;
+
+        if (JSON.stringify(statOrder) === orderBeforeDrag) return;
+
+        statOrderSave = statOrderSave
+            .then(() => saveStatOrder(statOrder))
+            .catch((error) => {
+                console.error(error);
+            });
     });
 
     loadStats().catch(() => {

@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS email_change_events (
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     color_scheme VARCHAR(20) NOT NULL DEFAULT 'light',
+    analyze_stat_order JSONB NOT NULL DEFAULT '[]'::JSONB
+        CHECK (jsonb_typeof(analyze_stat_order) = 'array'),
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
