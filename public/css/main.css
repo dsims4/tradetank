@@ -199,7 +199,19 @@
     margin-top: 0.25rem;
 }
 
+.visualize-chart-layout {
+    display: grid;
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
 .candlestick-chart-container.visualize-chart-container {
+    grid-column: 1;
+    grid-row: 1;
     width: 100%;
     height: auto;
     min-height: 0;
@@ -215,16 +227,11 @@
     width: 100%;
     height: 100%;
     font-family: "general-sans", system-ui, sans-serif;
+    cursor: crosshair;
 }
 
 .visualize-chart-plot {
     fill: #ffffff;
-}
-
-.visualize-chart-grid-line {
-    fill: none;
-    stroke: #d5d5d5;
-    stroke-width: 1.5;
 }
 
 .visualize-chart-axis {
@@ -255,18 +262,50 @@
     font-weight: 500;
 }
 
-.visualize-chart-axis-label {
-    fill: #000000;
-    font-size: 22px;
-    font-weight: 600;
-    text-anchor: middle;
+.visualize-chart-crosshair {
+    pointer-events: none;
 }
 
-.visualize-chart-empty-message {
-    fill: #555555;
-    font-size: 24px;
+.visualize-chart-crosshair[hidden] {
+    display: none;
+}
+
+.visualize-chart-crosshair-line {
+    stroke: rgba(0, 0, 0, 0.55);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+}
+
+.visualize-chart-crosshair rect {
+    fill: #000000;
+}
+
+.visualize-chart-crosshair text {
+    fill: #ffffff;
+    font-size: 14px;
     font-weight: 500;
     text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.visualize-axis-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.visualize-x-axis-title {
+    grid-column: 1;
+    grid-row: 2;
+    text-align: center;
+}
+
+.visualize-y-axis-title {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
 }
 
 .visualize-axis-sidebar fieldset {

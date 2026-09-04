@@ -3,9 +3,9 @@ const { isValidTradingDate } = require("./trading-sessions");
 
 const TRADE_Y_AXES = new Set([
     "cumulativePoints",
-    "cumulativePointsPerContract",
-    "cumulativePointsPerTrade",
-    "cumulativePointsPerDay",
+    "expectedValuePerContract",
+    "expectedValuePerTrade",
+    "expectedValuePerTradingDay",
     "cumulativeTrades",
     "cumulativeProcessDeviationTrades",
     "cumulativeProcessFollowingTrades",
@@ -16,8 +16,6 @@ const TRADE_Y_AXES = new Set([
     "cumulativeShortTrades",
     "cumulativeScalingTrades",
     "cumulativeNonScalingTrades",
-    "positiveEVTradeRate",
-    "negativeEVTradeRate",
     "profitableTradeRate",
     "losingTradeRate",
     "breakevenTradeRate",
@@ -48,8 +46,6 @@ const MATCHING_Y_AXIS = new Map([
     ["nonScalingTrades", "cumulativeNonScalingTrades"]
 ]);
 const RATE_Y_AXES = new Set([
-    "positiveEVTradeRate",
-    "negativeEVTradeRate",
     "profitableTradeRate",
     "losingTradeRate",
     "breakevenTradeRate",
@@ -246,11 +242,11 @@ function createVisualizationPoints(trades, xAxis, yAxis) {
 
         const values = {
             cumulativePoints: totals.points,
-            cumulativePointsPerContract:
+            expectedValuePerContract:
                 divide(totals.points, totals.contracts),
-            cumulativePointsPerTrade:
+            expectedValuePerTrade:
                 divide(totals.points, totals.trades),
-            cumulativePointsPerDay:
+            expectedValuePerTradingDay:
                 divide(totals.points, totals.tradingDays),
             cumulativeTrades: totals.trades,
             cumulativeTradingDays: totals.tradingDays,
@@ -265,10 +261,6 @@ function createVisualizationPoints(trades, xAxis, yAxis) {
             cumulativeShortTrades: totals.shortTrades,
             cumulativeScalingTrades: totals.scalingTrades,
             cumulativeNonScalingTrades: totals.nonScalingTrades,
-            positiveEVTradeRate:
-                divide(totals.profitableTrades, totals.trades),
-            negativeEVTradeRate:
-                divide(totals.losingTrades, totals.trades),
             profitableTradeRate:
                 divide(totals.profitableTrades, totals.trades),
             losingTradeRate:
@@ -345,6 +337,7 @@ async function getUserVisualization(
 
     const result = await db.query(
         `SELECT
+            id,
             TO_CHAR(trading_date, 'YYYY-MM-DD') AS trading_date,
             side,
             contract_count,
@@ -363,6 +356,15 @@ async function getUserVisualization(
             id`,
         [userID, fromDate || null, toDate || null]
     );
+
+    result.rows.sort((firstTrade, secondTrade) =>
+        firstTrade.trading_date.localeCompare(
+            secondTrade.trading_date
+        ) ||
+        getTradeTime(firstTrade) - getTradeTime(secondTrade) ||
+        Number(firstTrade.id) - Number(secondTrade.id)
+    );
+
     const points = createVisualizationPoints(
         result.rows,
         xAxis,

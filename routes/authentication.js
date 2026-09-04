@@ -1,8 +1,9 @@
 const express = require("express");
 const {
-    getClient,
-    query
+    query,
+    runTransaction
 } = require("../services/db");
+const { redirectWithQuery } = require("../utilities/redirects");
 const {
     hashPassword,
     verifyPassword
@@ -33,6 +34,7 @@ const {
 } = require("../middleware/rate-limits");
 
 const router = express.Router();
+const loginMiddleware = [loginIPRateLimit, accountIPRateLimit];
 
 router.get("/login", redirectAuthenticated, (req, res) => {
     const usernameInput = getStringInput(req.query.username).trim();
@@ -47,9 +49,9 @@ router.get("/login", redirectAuthenticated, (req, res) => {
 
     res.render("login.njk", {
         currentPage: "login",
-        username: username,
-        errorMessage: errorMessage,
-        successMessage: successMessage
+        username,
+        errorMessage,
+        successMessage
     });
 });
 
@@ -61,29 +63,27 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
 
     res.render("signup.njk", {
         currentPage: "signup",
-        errorMessage: errorMessage,
-        successMessage: successMessage
+        errorMessage,
+        successMessage
     });
 });
 
-router.post("/login", loginIPRateLimit, accountIPRateLimit, async (req, res, next) => {
+router.post("/login", ...loginMiddleware, async (req, res, next) => {
     const username = getStringInput(req.body.username).trim();
     const password = getStringInput(req.body.password);
     const rememberMe = getStringInput(req.body.remember) === "on";
 
     if (!username || !password) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/login", {
             error: "missing-fields",
             username: isValidUsername(username) ? username : ""
         });
-        return res.redirect(`/login?${searchParams.toString()}`);
     }
 
     if (!isValidUsername(username) || !isValidPassword(password)) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/login", {
             error: "invalid-credentials"
         });
-        return res.redirect(`/login?${searchParams.toString()}`);
     }
 
     try {
@@ -98,21 +98,22 @@ router.post("/login", loginIPRateLimit, accountIPRateLimit, async (req, res, nex
         const user = userResult.rows[0];
 
         if (!user) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/login", {
                 error: "invalid-credentials",
-                username: username
+                username
             });
-            return res.redirect(`/login?${searchParams.toString()}`);
         }
 
-        const passwordIsValid = await verifyPassword(password, user.hashed_password);
+        const passwordIsValid = await verifyPassword(
+            password,
+            user.hashed_password
+        );
 
         if (!passwordIsValid) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/login", {
                 error: "invalid-credentials",
-                username: username
+                username
             });
-            return res.redirect(`/login?${searchParams.toString()}`);
         }
 
         await clearAccountIPRateLimit(req);
@@ -129,23 +130,22 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
     const password = getStringInput(req.body.password);
     const confirmPassword = getStringInput(req.body.confirmPassword);
 
-    const error = (!username || !email || !password || !confirmPassword)
-        ? "missing-fields"
-        : (!isValidUsername(username))
-        ? "invalid-username"
-        : (!isValidEmail(email))
-        ? "invalid-email"
-        : (!isValidPassword(password))
-        ? "invalid-password"
-        : (password !== confirmPassword)
-        ? "password-mismatch"
-        : "";
+    let error = "";
+
+    if (!username || !email || !password || !confirmPassword) {
+        error = "missing-fields";
+    } else if (!isValidUsername(username)) {
+        error = "invalid-username";
+    } else if (!isValidEmail(email)) {
+        error = "invalid-email";
+    } else if (!isValidPassword(password)) {
+        error = "invalid-password";
+    } else if (password !== confirmPassword) {
+        error = "password-mismatch";
+    }
 
     if (error) {
-        const searchParams = new URLSearchParams({
-            error: error,
-        });
-        return res.redirect(`/signup?${searchParams.toString()}`);
+        return redirectWithQuery(res, "/signup", { error });
     }
 
     try {
@@ -163,67 +163,62 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
         );
 
         if (existingUsers.rows.some((user) => user.username === username)) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/signup", {
                 error: "username-taken"
             });
-            return res.redirect(`/signup?${searchParams.toString()}`);
         }
 
         if (existingUsers.rows.some((user) => user.email === email)) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/signup", {
                 error: "email-taken"
             });
-            return res.redirect(`/signup?${searchParams.toString()}`);
         }
 
         const hashedPassword = await hashPassword(password);
 
-        const client = await getClient();
-        let userID;
-
         try {
-            await client.query("BEGIN");
+            const userID = await runTransaction(async (client) => {
+                const userResult = await client.query(
+                    `INSERT INTO
+                        users
+                        (username, email, hashed_password)
+                     VALUES
+                        ($1, $2, $3)
+                     RETURNING
+                        id`,
+                    [username, email, hashedPassword]
+                );
+                const createdUserID = userResult.rows[0].id;
 
-            const userResult = await client.query(
-                `INSERT INTO
-                    users
-                    (username, email, hashed_password)
-                VALUES
-                    ($1, $2, $3)
-                RETURNING
-                    id`,
-                [username, email, hashedPassword]
-            );
+                await client.query(
+                    `INSERT INTO
+                        user_preferences
+                        (user_id, color_scheme)
+                     VALUES
+                        ($1, $2)`,
+                    [createdUserID, "tank"]
+                );
 
-            userID = userResult?.rows[0]?.id;
+                await client.query(
+                    `INSERT INTO
+                        user_stats
+                        (user_id)
+                     VALUES
+                        ($1)`,
+                    [createdUserID]
+                );
 
-            await client.query(
-                `INSERT INTO
-                    user_preferences
-                    (user_id)
-                VALUES
-                    ($1)
-                `,
-                [userID]
-            );
+                return createdUserID;
+            });
 
-            await client.query(
-                `INSERT INTO
-                    user_stats
-                    (user_id)
-                VALUES
-                    ($1)`,
-                [userID]
-            );
-
-            await client.query("COMMIT");
+            await setSessionCookie(res, userID, false);
+            return res.redirect("/home");
         } catch (error) {
-            await client.query("ROLLBACK");
-
             const signupError = (
                 error.code === "23505" &&
                 error.constraint === "users_username_key"
-            )   ? "username-taken"
+            )
+                ? "username-taken"
                 : (
                     error.code === "23505" &&
                     error.constraint === "users_email_key"
@@ -232,19 +227,13 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
                 : "";
 
             if (signupError) {
-                const searchParams = new URLSearchParams({
+                return redirectWithQuery(res, "/signup", {
                     error: signupError
                 });
-                return res.redirect(`/signup?${searchParams.toString()}`);
             }
 
             return next(error);
-        } finally {
-            client.release();
         }
-
-        await setSessionCookie(res, userID, false);
-        return res.redirect("/home");
     } catch (error) {
         return next(error);
     }

@@ -33,95 +33,90 @@
                 </p>
             </header>
 
-            <div class="candlestick-chart-container visualize-chart-container">
-                <svg
-                    class="visualize-chart"
-                    viewBox="0 0 1000 560"
-                    role="img"
-                    aria-labelledby="visualize-chart-title visualize-chart-description"
+            <div class="visualize-chart-layout">
+                <p
+                    class="visualize-axis-title visualize-y-axis-title"
+                    data-visualize-y-axis-label
                 >
-                    <title id="visualize-chart-title">
-                        Trade statistics chart
-                    </title>
-                    <desc id="visualize-chart-description">
-                        An empty chart awaiting axis selections.
-                    </desc>
+                    Y-axis: Cumulative points
+                </p>
 
-                    <defs>
-                        <pattern
-                            id="visualize-grid"
-                            width="80"
-                            height="80"
-                            patternUnits="userSpaceOnUse"
+                <div class="candlestick-chart-container visualize-chart-container">
+                    <svg
+                        class="visualize-chart"
+                        viewBox="0 0 1000 560"
+                        role="img"
+                        aria-label="Trade statistics chart"
+                    >
+                        <rect
+                            x="30"
+                            y="25"
+                            width="805"
+                            height="475"
+                            class="visualize-chart-plot"
+                        />
+                        <path
+                            class="visualize-chart-series"
+                            hidden
+                            data-visualize-series
+                        />
+                        <circle
+                            r="6"
+                            class="visualize-chart-last-point"
+                            hidden
+                            data-visualize-last-point
+                        />
+                        <path
+                            d="M 835 25 V 500 H 30"
+                            class="visualize-chart-axis"
+                        />
+                        <g
+                            class="visualize-chart-ticks"
+                            data-visualize-x-ticks
+                        ></g>
+                        <g
+                            class="visualize-chart-ticks"
+                            data-visualize-y-ticks
+                        ></g>
+                        <g
+                            class="visualize-chart-crosshair"
+                            hidden
+                            data-visualize-crosshair
                         >
-                            <path
-                                d="M 80 0 L 0 0 0 80"
-                                class="visualize-chart-grid-line"
+                            <line
+                                class="visualize-chart-crosshair-line"
+                                data-visualize-crosshair-vertical
                             />
-                        </pattern>
-                    </defs>
+                            <line
+                                class="visualize-chart-crosshair-line"
+                                data-visualize-crosshair-horizontal
+                            />
+                            <g data-visualize-crosshair-x-label>
+                                <rect
+                                    width="160"
+                                    height="28"
+                                    rx="4"
+                                />
+                                <text x="80" y="14"></text>
+                            </g>
+                            <g data-visualize-crosshair-y-label>
+                                <rect
+                                    width="150"
+                                    height="26"
+                                    rx="4"
+                                />
+                                <text x="75" y="13"></text>
+                            </g>
+                        </g>
+                    </svg>
+                </div>
 
-                    <rect
-                        x="50"
-                        y="40"
-                        width="850"
-                        height="425"
-                        class="visualize-chart-plot"
-                    />
-                    <rect
-                        x="50"
-                        y="40"
-                        width="850"
-                        height="425"
-                        fill="url(#visualize-grid)"
-                    />
-                    <path
-                        class="visualize-chart-series"
-                        hidden
-                        data-visualize-series
-                    />
-                    <circle
-                        r="6"
-                        class="visualize-chart-last-point"
-                        hidden
-                        data-visualize-last-point
-                    />
-                    <path
-                        d="M 900 40 V 465 H 50"
-                        class="visualize-chart-axis"
-                    />
-                    <g
-                        class="visualize-chart-ticks"
-                        data-visualize-x-ticks
-                    ></g>
-                    <g
-                        class="visualize-chart-ticks"
-                        data-visualize-y-ticks
-                    ></g>
-
-                    <text
-                        x="475"
-                        y="525"
-                        class="visualize-chart-axis-label"
-                    >
-                        X-axis: Time
-                    </text>
-                    <text
-                        x="960"
-                        y="252.5"
-                        class="visualize-chart-axis-label"
-                        transform="rotate(-90 960 252.5)"
-                    >
-                        Y-axis: Cumulative points
-                    </text>
-                    <text
-                        x="475"
-                        y="252.5"
-                        class="visualize-chart-empty-message"
-                    >
-                        Axis controls will plot your trades here
-                    </text>
-                </svg>
+                <p
+                    class="visualize-axis-title visualize-x-axis-title"
+                    data-visualize-x-axis-label
+                >
+                    X-axis: Time
+                </p>
             </div>
 
             <h2 class="sidebar-heading chart-sidebar-heading">

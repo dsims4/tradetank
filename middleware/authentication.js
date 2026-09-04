@@ -33,13 +33,13 @@ async function findUser(userID) {
 }
 
 async function loadUser(req, res, next) {
-    const userID = await getSessionUserID(req);
-
-    if (!userID) return res.redirect("/login");
-
-    setNoStoreHeaders(res);
-
     try {
+        const userID = await getSessionUserID(req);
+
+        if (!userID) return res.redirect("/login");
+
+        setNoStoreHeaders(res);
+
         const user = await findUser(userID);
 
         if (!user) {
@@ -59,14 +59,14 @@ async function loadUser(req, res, next) {
 }
 
 async function loadUserOptional(req, res, next) {
-    const userID = await getSessionUserID(req);
-
-    if (!userID) {
-        req.user = null;
-        return next();
-    }
-
     try {
+        const userID = await getSessionUserID(req);
+
+        if (!userID) {
+            req.user = null;
+            return next();
+        }
+
         const user = await findUser(userID);
 
         if (!user) {
@@ -87,33 +87,45 @@ async function loadUserOptional(req, res, next) {
 }
 
 async function redirectAuthenticated(req, res, next) {
-    const userID = await getSessionUserID(req);
+    try {
+        const userID = await getSessionUserID(req);
 
-    if (userID) return res.redirect("/home");
+        if (userID) return res.redirect("/home");
 
-    return next();
+        return next();
+    } catch (error) {
+        return next(error);
+    }
 }
 
 async function redirectUnauthenticated(req, res, next) {
-    const userID = await getSessionUserID(req);
+    try {
+        const userID = await getSessionUserID(req);
 
-    if (!userID) return res.redirect("/login");
+        if (!userID) return res.redirect("/login");
 
-    setNoStoreHeaders(res);
-    return next();
+        setNoStoreHeaders(res);
+        return next();
+    } catch (error) {
+        return next(error);
+    }
 }
 
 async function requireAPIAuthentication(req, res, next) {
-    const userID = await getSessionUserID(req);
+    try {
+        const userID = await getSessionUserID(req);
 
-    if (!userID) {
-        return res.status(401).json({
-            error: "Authentication is required."
-        });
+        if (!userID) {
+            return res.status(401).json({
+                error: "Authentication is required."
+            });
+        }
+
+        setNoStoreHeaders(res);
+        return next();
+    } catch (error) {
+        return next(error);
     }
-
-    setNoStoreHeaders(res);
-    return next();
 }
 
 module.exports = {

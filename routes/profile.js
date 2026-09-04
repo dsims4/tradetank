@@ -1,20 +1,23 @@
 const express = require("express");
-const router = express.Router();
 const {
-    getClient,
-    query
+    query,
+    runTransaction
 } = require("../services/db");
 const {
-    getSessionUserID,
     clearSessionCookie,
     invalidateOtherSessions
 } = require("../services/session");
+const { redirectWithQuery } = require("../utilities/redirects");
 const {
     redirectUnauthenticated
 } = require("../middleware/authentication");
 const {
     hashPassword
 } = require("../services/password");
+const {
+    sendEmailChangeNotifications,
+    sendPasswordChangedEmail
+} = require("../services/email");
 const {
     getErrorMessage,
     getSuccessMessage
@@ -29,9 +32,17 @@ const {
     changePasswordUserRateLimit
 } = require("../middleware/rate-limits");
 
-router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
-    const userID = await getSessionUserID(req);
+const router = express.Router();
+const changeEmailMiddleware = [
+    redirectUnauthenticated,
+    changeEmailUserRateLimit
+];
+const changePasswordMiddleware = [
+    redirectUnauthenticated,
+    changePasswordUserRateLimit
+];
 
+router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     try {
         const emailError = getStringInput(req.query.emailError);
         const passwordError = getStringInput(req.query.passwordError);
@@ -62,7 +73,7 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
              WHERE
                 users.id = $1
              LIMIT 1`,
-            [userID]
+            [req.authenticatedUserID]
         );
 
         const user = userResult.rows[0];
@@ -85,80 +96,78 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
                 }).format(new Date(user.creation_time)),
                 colorScheme: user.color_scheme || "tank"
             },
-            emailErrorMessage: emailErrorMessage,
-            passwordErrorMessage: passwordErrorMessage,
-            colorSchemeErrorMessage: colorSchemeErrorMessage,
-            deleteErrorMessage: deleteErrorMessage,
-            emailSuccessMessage: emailSuccessMessage,
-            passwordSuccessMessage: passwordSuccessMessage
+            emailErrorMessage,
+            passwordErrorMessage,
+            colorSchemeErrorMessage,
+            deleteErrorMessage,
+            emailSuccessMessage,
+            passwordSuccessMessage
         });
     } catch (error) {
         return next(error);
     }
 });
 
-router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, next) => {
-    const userID = await getSessionUserID(req);
+router.post(
+    "/profile/color-scheme",
+    redirectUnauthenticated,
+    async (req, res, next) => {
+        const colorScheme = getStringInput(
+            req.body.changeColorScheme
+        ).trim().toLowerCase();
 
-    const colorScheme =
-        getStringInput(req.body.changeColorScheme).trim().toLowerCase();
+        if (!["light", "dark", "tank"].includes(colorScheme)) {
+            return redirectWithQuery(res, "/profile", {
+                colorSchemeError: "invalid-color-scheme"
+            });
+        }
 
-    if (!["light", "dark", "tank"].includes(colorScheme)) {
-        const searchParams = new URLSearchParams({
-            colorSchemeError: "invalid-color-scheme"
-        });
-        return res.redirect(`/profile?${searchParams.toString()}`);
+        try {
+            await query(
+                `INSERT INTO
+                    user_preferences
+                    (user_id, color_scheme, update_time)
+                 VALUES
+                    ($1, $2, NOW())
+                 ON CONFLICT
+                    (user_id)
+                 DO UPDATE SET
+                    color_scheme = EXCLUDED.color_scheme,
+                    update_time = NOW()`,
+                [req.authenticatedUserID, colorScheme]
+            );
+
+            return res.redirect("/profile");
+        } catch (error) {
+            return next(error);
+        }
     }
+);
 
-    try {
-        await query(
-            `INSERT INTO
-                user_preferences
-                (user_id, color_scheme, update_time)
-             VALUES
-                ($1, $2, NOW())
-             ON CONFLICT
-                (user_id)
-             DO UPDATE SET
-                 color_scheme = EXCLUDED.color_scheme,
-                 update_time = NOW()`,
-            [userID, colorScheme]
-        );
-
-        return res.redirect("/profile");
-    } catch (error) {
-        return next(error);
-    }
-});
-
-router.post("/profile/change-email", redirectUnauthenticated,
-    changeEmailUserRateLimit, async (req, res, next) => {
-
-    const userID = await getSessionUserID(req);
+router.post("/profile/change-email", ...changeEmailMiddleware,
+    async (req, res, next) => {
+    const userID = req.authenticatedUserID;
 
     const email = getStringInput(req.body.email).trim().toLowerCase();
     const confirmEmail =
         getStringInput(req.body.confirmEmail).trim().toLowerCase();
 
     if (!email || !confirmEmail) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             emailError: "email-missing-fields"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     if (!isValidEmail(email)) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             emailError: "invalid-email"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     if (email !== confirmEmail) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             emailError: "email-mismatch"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     try {
@@ -181,10 +190,9 @@ router.post("/profile/change-email", redirectUnauthenticated,
         }
 
         if (user.email === email) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/profile", {
                 emailError: "email-same"
             });
-            return res.redirect(`/profile?${searchParams.toString()}`);
         }
 
         const existingUserResult = await query(
@@ -201,17 +209,12 @@ router.post("/profile/change-email", redirectUnauthenticated,
         );
 
         if (existingUserResult.rows[0]) {
-            const searchParams = new URLSearchParams({
+            return redirectWithQuery(res, "/profile", {
                 emailError: "email-taken"
             });
-            return res.redirect(`/profile?${searchParams.toString()}`);
         }
 
-        const client = await getClient();
-
-        try {
-           await client.query("BEGIN");
-
+        await runTransaction(async (client) => {
             await client.query(
                 `UPDATE
                     users
@@ -235,145 +238,140 @@ router.post("/profile/change-email", redirectUnauthenticated,
                  VALUES ($1, $2, $3, NOW())`,
                 [userID, user.email, email]
             );
+        });
 
-            await client.query("COMMIT");
-
-            const searchParams = new URLSearchParams({
-                emailSuccess: "email-updated"
-            });
-            return res.redirect(`/profile?${searchParams.toString()}`);
+        try {
+            await sendEmailChangeNotifications(user.email, email);
         } catch (error) {
-            await client.query("ROLLBACK");
-            return next(error);
-        } finally {
-            client.release();
+            console.error(
+                "Email change notification failed:",
+                error.message
+            );
         }
+
+        return redirectWithQuery(res, "/profile", {
+            emailSuccess: "email-updated"
+        });
     } catch (error) {
         return next(error);
     }
 });
 
-router.post("/profile/change-password", redirectUnauthenticated,
-    changePasswordUserRateLimit, async (req, res, next) => {
-
-    const userID = await getSessionUserID(req);
+router.post("/profile/change-password", ...changePasswordMiddleware,
+    async (req, res, next) => {
+    const userID = req.authenticatedUserID;
     const newPassword = getStringInput(req.body.newPassword);
     const confirmPassword = getStringInput(req.body.confirmPassword);
 
     if (!newPassword || !confirmPassword) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             passwordError: "password-missing-fields"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     if (!isValidPassword(newPassword)) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             passwordError: "invalid-password"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
 
     if (newPassword !== confirmPassword) {
-        const searchParams = new URLSearchParams({
+        return redirectWithQuery(res, "/profile", {
             passwordError: "password-mismatch"
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
     }
-
-    const hashedPassword = await hashPassword(newPassword);
-
-    const client = await getClient();
 
     try {
-        await client.query("BEGIN");
+        const hashedPassword = await hashPassword(newPassword);
+        const email = await runTransaction(async (client) => {
+            const userResult = await client.query(
+                `UPDATE
+                    users
+                 SET
+                    hashed_password = $1,
+                    update_time = NOW()
+                 WHERE
+                    id = $2
+                 RETURNING
+                    email`,
+                [hashedPassword, userID]
+            );
 
-        await client.query(
-            `UPDATE
-                users
-             SET
-                hashed_password = $1,
-                update_time = NOW()
-             WHERE
-                id = $2`,
-            [hashedPassword, userID]
-        );
+            await client.query(
+                `INSERT INTO
+                    password_change_events
+                    (user_id, change_time)
+                 VALUES
+                    ($1, NOW())`,
+                [userID]
+            );
 
-        await client.query(
-            `INSERT INTO
-                password_change_events
-                (user_id, change_time)
-             VALUES
-                ($1, NOW())`,
-            [userID]
-        );
+            await client.query(
+                `UPDATE
+                    reset_password_events
+                 SET
+                    invalidated_time = NOW()
+                 WHERE
+                    user_id = $1
+                 AND
+                    reset_time IS NULL
+                 AND
+                    invalidated_time IS NULL`,
+                [userID]
+            );
 
-        await client.query(
-            `UPDATE
-                reset_password_events
-             SET
-                invalidated_time = NOW()
-             WHERE
-                user_id = $1
-             AND
-                reset_time IS NULL
-             AND
-                invalidated_time IS NULL`,
-            [userID]
-        );
-
-        await invalidateOtherSessions(req, userID, client);
-
-        await client.query("COMMIT");
-
-        const searchParams = new URLSearchParams({
-            passwordSuccess: "password-updated"
+            await invalidateOtherSessions(req, userID, client);
+            return userResult.rows[0].email;
         });
-        return res.redirect(`/profile?${searchParams.toString()}`);
+
+        try {
+            await sendPasswordChangedEmail(email);
+        } catch (error) {
+            console.error(
+                "Password change notification failed:",
+                error.message
+            );
+        }
     } catch (error) {
-        await client.query("ROLLBACK");
         return next(error);
-    } finally {
-        client.release();
     }
+
+    return redirectWithQuery(res, "/profile", {
+        passwordSuccess: "password-updated"
+    });
 });
 
-router.post("/profile/delete-account", redirectUnauthenticated, async (req, res, next) => {
-    const confirmation = getStringInput(req.body.deleteConfirmation);
+router.post(
+    "/profile/delete-account",
+    redirectUnauthenticated,
+    async (req, res, next) => {
+        const confirmation = getStringInput(req.body.deleteConfirmation);
 
-    if (confirmation !== "DELETE") {
-        const searchParams = new URLSearchParams({
-            deleteError: "invalid-confirmation"
-        });
-        return res.redirect(`/profile?${searchParams.toString()}`);
+        if (confirmation !== "DELETE") {
+            return redirectWithQuery(res, "/profile", {
+                deleteError: "invalid-confirmation"
+            });
+        }
+
+        try {
+            await runTransaction((client) =>
+                client.query(
+                    `DELETE FROM
+                        users
+                     WHERE
+                        id = $1`,
+                    [req.authenticatedUserID]
+                )
+            );
+
+            clearSessionCookie(res);
+            return redirectWithQuery(res, "/signup", {
+                success: "account-deleted"
+            });
+        } catch (error) {
+            return next(error);
+        }
     }
-
-    const userID = await getSessionUserID(req);
-    const client = await getClient();
-
-    try {
-        await client.query("BEGIN");
-
-        await client.query(
-            `DELETE FROM
-                users
-             WHERE
-                id = $1`,
-            [userID]
-        );
-
-        await client.query("COMMIT");
-        clearSessionCookie(res);
-        const searchParams = new URLSearchParams({
-            success: "account-deleted"
-        });
-        return res.redirect(`/signup?${searchParams.toString()}`);
-    } catch (error) {
-        await client.query("ROLLBACK");
-        return next(error);
-    } finally {
-        client.release();
-    }
-});
+);
 
 module.exports = router;

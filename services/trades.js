@@ -1,6 +1,6 @@
 const {
     query,
-    getClient
+    runTransaction
 } = require("./db");
 const {
     isValidTradingDate
@@ -353,20 +353,15 @@ async function saveUserTradingDay(
     tradingDate,
     trades,
     candlesticks,
-    db = { getClient }
+    db
 ) {
-
     validateUserID(userID);
     validateTradingDate(tradingDate);
 
     const preparedTrades =
         prepareTradesForSave(trades, candlesticks);
 
-    const client = await db.getClient();
-
-    try {
-        await client.query("BEGIN");
-
+    return runTransaction(async (client) => {
         await client.query(
             `INSERT INTO
                 user_trading_days
@@ -410,29 +405,19 @@ async function saveUserTradingDay(
             client
         );
 
-        await client.query("COMMIT");
         return preparedTrades.length;
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    }, db);
 }
 
 async function deleteUserTradingDay(
     userID,
     tradingDate,
-    db = { getClient }
+    db
 ) {
     validateUserID(userID);
     validateTradingDate(tradingDate);
 
-    const client = await db.getClient();
-
-    try {
-        await client.query("BEGIN");
-
+    return runTransaction(async (client) => {
         const result = await client.query(
             `DELETE FROM
                 user_trading_days
@@ -446,14 +431,8 @@ async function deleteUserTradingDay(
             await recalculateUserStats(userID, client);
         }
 
-        await client.query("COMMIT");
         return result.rowCount > 0;
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    }, db);
 }
 
 module.exports = {

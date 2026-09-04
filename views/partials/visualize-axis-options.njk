@@ -1,78 +1,234 @@
+{% macro visualizeAxisOption(value, label, selectedValue) %}
+    <option
+        value="{{ value }}"
+        {% if selectedValue == value %}selected{% endif %}
+    >
+        {{ label }}
+    </option>
+{% endmacro %}
+
 {% macro visualizeXAxisOptions(selectedValue) %}
-    <option value="time" {% if selectedValue == "time" %}selected{% endif %}>
-        Time
-    </option>
-    <option value="trades" {% if selectedValue == "trades" %}selected{% endif %}>
-        Trades (cumulative)
-    </option>
-    <option value="tradingDays" {% if selectedValue == "tradingDays" %}selected{% endif %}>
-        Trading days (cumulative)
-    </option>
-    <option value="processDeviationTrades" {% if selectedValue == "processDeviationTrades" %}selected{% endif %}>
-        Trades with process deviation
-    </option>
-    <option value="processFollowingTrades" {% if selectedValue == "processFollowingTrades" %}selected{% endif %}>
-        Trades without process deviation
-    </option>
-    <option value="longTrades" {% if selectedValue == "longTrades" %}selected{% endif %}>
-        Long trades
-    </option>
-    <option value="shortTrades" {% if selectedValue == "shortTrades" %}selected{% endif %}>
-        Short trades
-    </option>
-    <option value="scalingTrades" {% if selectedValue == "scalingTrades" %}selected{% endif %}>
-        Scaling trades
-    </option>
-    <option value="nonScalingTrades" {% if selectedValue == "nonScalingTrades" %}selected{% endif %}>
-        Trades without scaling
-    </option>
+    <optgroup label="Timeline">
+        {{ visualizeAxisOption(
+            "time",
+            "Time",
+            selectedValue
+        ) }}
+    </optgroup>
+
+    <optgroup label="Cumulative trade counts">
+        {{ visualizeAxisOption(
+            "trades",
+            "Trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "processDeviationTrades",
+            "Trades with process deviation",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "processFollowingTrades",
+            "Trades without process deviation",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "longTrades",
+            "Long trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "shortTrades",
+            "Short trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "scalingTrades",
+            "Scaling trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "nonScalingTrades",
+            "Trades without scaling",
+            selectedValue
+        ) }}
+    </optgroup>
+
+    <optgroup label="Cumulative day counts">
+        {{ visualizeAxisOption(
+            "tradingDays",
+            "Trading days",
+            selectedValue
+        ) }}
+    </optgroup>
 {% endmacro %}
 
 {% macro visualizeYAxisOptions(selectedValue) %}
     <optgroup label="Point curves">
-        <option value="cumulativePoints" {% if selectedValue == "cumulativePoints" %}selected{% endif %}>Cumulative points</option>
-        <option value="cumulativePointsPerContract" {% if selectedValue == "cumulativePointsPerContract" %}selected{% endif %}>Cumulative points per contract</option>
-        <option value="cumulativePointsPerTrade" {% if selectedValue == "cumulativePointsPerTrade" %}selected{% endif %}>Cumulative points per trade</option>
-        <option value="cumulativePointsPerDay" {% if selectedValue == "cumulativePointsPerDay" %}selected{% endif %}>Cumulative points per trading day</option>
+        {{ visualizeAxisOption(
+            "cumulativePoints",
+            "Cumulative points",
+            selectedValue
+        ) }}
+    </optgroup>
+
+    <optgroup label="Expected value">
+        {{ visualizeAxisOption(
+            "expectedValuePerContract",
+            "EV per contract",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "expectedValuePerTrade",
+            "EV per trade",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "expectedValuePerTradingDay",
+            "EV per trading day",
+            selectedValue
+        ) }}
     </optgroup>
 
     <optgroup label="Cumulative trade counts">
-        <option value="cumulativeTrades" {% if selectedValue == "cumulativeTrades" %}selected{% endif %}>Trades</option>
-        <option value="cumulativeProcessDeviationTrades" {% if selectedValue == "cumulativeProcessDeviationTrades" %}selected{% endif %}>Trades with process deviation</option>
-        <option value="cumulativeProcessFollowingTrades" {% if selectedValue == "cumulativeProcessFollowingTrades" %}selected{% endif %}>Trades without process deviation</option>
-        <option value="cumulativeProfitableTrades" {% if selectedValue == "cumulativeProfitableTrades" %}selected{% endif %}>Profitable trades</option>
-        <option value="cumulativeLosingTrades" {% if selectedValue == "cumulativeLosingTrades" %}selected{% endif %}>Losing trades</option>
-        <option value="cumulativeBreakevenTrades" {% if selectedValue == "cumulativeBreakevenTrades" %}selected{% endif %}>Breakeven trades</option>
-        <option value="cumulativeLongTrades" {% if selectedValue == "cumulativeLongTrades" %}selected{% endif %}>Long trades</option>
-        <option value="cumulativeShortTrades" {% if selectedValue == "cumulativeShortTrades" %}selected{% endif %}>Short trades</option>
-        <option value="cumulativeScalingTrades" {% if selectedValue == "cumulativeScalingTrades" %}selected{% endif %}>Scaling trades</option>
-        <option value="cumulativeNonScalingTrades" {% if selectedValue == "cumulativeNonScalingTrades" %}selected{% endif %}>Trades without scaling</option>
+        {{ visualizeAxisOption(
+            "cumulativeTrades",
+            "Trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeProcessDeviationTrades",
+            "Trades with process deviation",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeProcessFollowingTrades",
+            "Trades without process deviation",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeProfitableTrades",
+            "Profitable trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeLosingTrades",
+            "Losing trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeBreakevenTrades",
+            "Breakeven trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeLongTrades",
+            "Long trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeShortTrades",
+            "Short trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeScalingTrades",
+            "Scaling trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeNonScalingTrades",
+            "Trades without scaling",
+            selectedValue
+        ) }}
     </optgroup>
 
     <optgroup label="Cumulative day counts">
-        <option value="cumulativeTradingDays" {% if selectedValue == "cumulativeTradingDays" %}selected{% endif %}>Trading days</option>
-        <option value="cumulativeProfitableDays" {% if selectedValue == "cumulativeProfitableDays" %}selected{% endif %}>Profitable days</option>
-        <option value="cumulativeLosingDays" {% if selectedValue == "cumulativeLosingDays" %}selected{% endif %}>Losing days</option>
-        <option value="cumulativeBreakevenDays" {% if selectedValue == "cumulativeBreakevenDays" %}selected{% endif %}>Breakeven days</option>
+        {{ visualizeAxisOption(
+            "cumulativeTradingDays",
+            "Trading days",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeProfitableDays",
+            "Profitable days",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeLosingDays",
+            "Losing days",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "cumulativeBreakevenDays",
+            "Breakeven days",
+            selectedValue
+        ) }}
     </optgroup>
 
     <optgroup label="Trade rates">
-        <option value="positiveEVTradeRate" {% if selectedValue == "positiveEVTradeRate" %}selected{% endif %}>Positive-EV trades / total trades</option>
-        <option value="negativeEVTradeRate" {% if selectedValue == "negativeEVTradeRate" %}selected{% endif %}>Negative-EV trades / total trades</option>
-        <option value="profitableTradeRate" {% if selectedValue == "profitableTradeRate" %}selected{% endif %}>Profitable trades / total trades</option>
-        <option value="losingTradeRate" {% if selectedValue == "losingTradeRate" %}selected{% endif %}>Losing trades / total trades</option>
-        <option value="breakevenTradeRate" {% if selectedValue == "breakevenTradeRate" %}selected{% endif %}>Breakeven trades / total trades</option>
-        <option value="processDeviationTradeRate" {% if selectedValue == "processDeviationTradeRate" %}selected{% endif %}>Process-deviation trades / total trades</option>
-        <option value="processFollowingTradeRate" {% if selectedValue == "processFollowingTradeRate" %}selected{% endif %}>Process-following trades / total trades</option>
-        <option value="longTradeRate" {% if selectedValue == "longTradeRate" %}selected{% endif %}>Long trades / total trades</option>
-        <option value="shortTradeRate" {% if selectedValue == "shortTradeRate" %}selected{% endif %}>Short trades / total trades</option>
-        <option value="scalingTradeRate" {% if selectedValue == "scalingTradeRate" %}selected{% endif %}>Scaling trades / total trades</option>
-        <option value="nonScalingTradeRate" {% if selectedValue == "nonScalingTradeRate" %}selected{% endif %}>Non-scaling trades / total trades</option>
+        {{ visualizeAxisOption(
+            "profitableTradeRate",
+            "Profitable trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "losingTradeRate",
+            "Losing trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "breakevenTradeRate",
+            "Breakeven trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "processDeviationTradeRate",
+            "Process-deviation trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "processFollowingTradeRate",
+            "Process-following trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "longTradeRate",
+            "Long trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "shortTradeRate",
+            "Short trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "scalingTradeRate",
+            "Scaling trades / total trades",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "nonScalingTradeRate",
+            "Non-scaling trades / total trades",
+            selectedValue
+        ) }}
     </optgroup>
 
     <optgroup label="Trading-day rates">
-        <option value="profitableDayRate" {% if selectedValue == "profitableDayRate" %}selected{% endif %}>Profitable days / total trading days</option>
-        <option value="losingDayRate" {% if selectedValue == "losingDayRate" %}selected{% endif %}>Losing days / total trading days</option>
-        <option value="breakevenDayRate" {% if selectedValue == "breakevenDayRate" %}selected{% endif %}>Breakeven days / total trading days</option>
+        {{ visualizeAxisOption(
+            "profitableDayRate",
+            "Profitable days / total trading days",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "losingDayRate",
+            "Losing days / total trading days",
+            selectedValue
+        ) }}
+        {{ visualizeAxisOption(
+            "breakevenDayRate",
+            "Breakeven days / total trading days",
+            selectedValue
+        ) }}
     </optgroup>
 {% endmacro %}

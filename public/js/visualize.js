@@ -1,14 +1,12 @@
 const TRADE_Y_AXES = [
     "cumulativePoints",
-    "cumulativePointsPerContract",
-    "cumulativePointsPerTrade",
-    "cumulativePointsPerDay",
+    "expectedValuePerContract",
+    "expectedValuePerTrade",
+    "expectedValuePerTradingDay",
     "cumulativeTrades",
     "cumulativeProcessDeviationTrades",
     "cumulativeProcessFollowingTrades",
     "cumulativeProfitableTrades",
-    "positiveEVTradeRate",
-    "negativeEVTradeRate",
     "profitableTradeRate",
     "losingTradeRate",
     "breakevenTradeRate",
@@ -44,6 +42,7 @@ const MATCHING_Y_AXIS = new Map([
     ["scalingTrades", "cumulativeScalingTrades"],
     ["nonScalingTrades", "cumulativeNonScalingTrades"]
 ]);
+const VISUALIZATION_CHART_STATES = new WeakMap();
 
 function getValidYAxisValues(xAxis) {
     if (xAxis === "time") {
@@ -77,13 +76,134 @@ function formatVisualizationNumber(value) {
     return Number(value.toFixed(3)).toString();
 }
 
+function clearVisualizationCrosshair(chart) {
+    VISUALIZATION_CHART_STATES.delete(chart);
+    chart.querySelector("[data-visualize-crosshair]").hidden = true;
+}
+
+function formatVisualizationCrosshairX(value, xIsTime) {
+    if (!xIsTime) return formatVisualizationNumber(value);
+
+    return new Date(value).toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+    });
+}
+
+function formatVisualizationCrosshairY(value, yIsRate) {
+    return yIsRate
+        ? `${formatVisualizationNumber(value * 100)}%`
+        : formatVisualizationNumber(value);
+}
+
+function getVisualizationPointer(chart, event) {
+    const point = chart.createSVGPoint();
+    const screenMatrix = chart.getScreenCTM();
+
+    if (!screenMatrix) return null;
+
+    point.x = event.clientX;
+    point.y = event.clientY;
+
+    return point.matrixTransform(screenMatrix.inverse());
+}
+
+function updateVisualizationCrosshair(chart, event) {
+    const state = VISUALIZATION_CHART_STATES.get(chart);
+    const pointer = getVisualizationPointer(chart, event);
+
+    if (!state || !pointer) return;
+
+    const { plot } = state;
+    const crosshair = chart.querySelector(
+        "[data-visualize-crosshair]"
+    );
+
+    if (
+        pointer.x < plot.left ||
+        pointer.x > plot.right ||
+        pointer.y < plot.top ||
+        pointer.y > plot.bottom
+    ) {
+        crosshair.hidden = true;
+        return;
+    }
+
+    const xPortion = Math.round(
+        (pointer.x - plot.left) /
+        (plot.right - plot.left) * 100
+    ) / 100;
+    const yPortion = Math.round(
+        (pointer.y - plot.top) /
+        (plot.bottom - plot.top) * 100
+    ) / 100;
+    const x = plot.left +
+        xPortion * (plot.right - plot.left);
+    const y = plot.top +
+        yPortion * (plot.bottom - plot.top);
+    const xValue = state.xMinimum +
+        xPortion * (state.xMaximum - state.xMinimum);
+    const yValue = state.yMaximum -
+        yPortion * (state.yMaximum - state.yMinimum);
+    const verticalLine = crosshair.querySelector(
+        "[data-visualize-crosshair-vertical]"
+    );
+    const horizontalLine = crosshair.querySelector(
+        "[data-visualize-crosshair-horizontal]"
+    );
+    const xLabel = crosshair.querySelector(
+        "[data-visualize-crosshair-x-label]"
+    );
+    const yLabel = crosshair.querySelector(
+        "[data-visualize-crosshair-y-label]"
+    );
+    const xLabelWidth = 160;
+    const xLabelLeft = Math.min(
+        plot.right - xLabelWidth,
+        Math.max(plot.left, x - xLabelWidth / 2)
+    );
+
+    verticalLine.setAttribute("x1", x);
+    verticalLine.setAttribute("x2", x);
+    verticalLine.setAttribute("y1", plot.top);
+    verticalLine.setAttribute("y2", plot.bottom);
+    horizontalLine.setAttribute("x1", plot.left);
+    horizontalLine.setAttribute("x2", plot.right);
+    horizontalLine.setAttribute("y1", y);
+    horizontalLine.setAttribute("y2", y);
+    xLabel.setAttribute(
+        "transform",
+        `translate(${xLabelLeft} ${plot.bottom})`
+    );
+    yLabel.setAttribute(
+        "transform",
+        `translate(${plot.right} ${y - 13})`
+    );
+    xLabel.querySelector("text").textContent =
+        formatVisualizationCrosshairX(xValue, state.xIsTime);
+    yLabel.querySelector("text").textContent =
+        formatVisualizationCrosshairY(yValue, state.yIsRate);
+    crosshair.hidden = false;
+}
+
+function runVisualizationCrosshair(chart) {
+    chart.addEventListener("pointermove", (event) => {
+        updateVisualizationCrosshair(chart, event);
+    });
+    chart.addEventListener("pointerleave", () => {
+        chart.querySelector(
+            "[data-visualize-crosshair]"
+        ).hidden = true;
+    });
+}
+
 function renderVisualizationChart(chart, responseData) {
     const series = chart.querySelector("[data-visualize-series]");
     const lastPoint = chart.querySelector(
         "[data-visualize-last-point]"
-    );
-    const emptyMessage = chart.querySelector(
-        ".visualize-chart-empty-message"
     );
     const xTicks = chart.querySelector("[data-visualize-x-ticks]");
     const yTicks = chart.querySelector("[data-visualize-y-ticks]");
@@ -95,16 +215,15 @@ function renderVisualizationChart(chart, responseData) {
     if (points.length === 0) {
         series.hidden = true;
         lastPoint.hidden = true;
-        emptyMessage.hidden = false;
-        emptyMessage.textContent = "No trades in this range";
-        return;
+        clearVisualizationCrosshair(chart);
+        return false;
     }
 
     const plot = {
-        left: 50,
-        right: 900,
-        top: 40,
-        bottom: 465
+        left: 30,
+        right: 835,
+        top: 25,
+        bottom: 500
     };
     const xValues = points.map((point) => point.x);
     const yValues = points.map((point) => point.y);
@@ -162,12 +281,21 @@ function renderVisualizationChart(chart, responseData) {
     ).join(" ");
     const finalPoint = points[points.length - 1];
 
+    VISUALIZATION_CHART_STATES.set(chart, {
+        plot,
+        xMinimum,
+        xMaximum,
+        yMinimum,
+        yMaximum,
+        xIsTime: responseData.xIsTime,
+        yIsRate: responseData.yIsRate
+    });
+
     series.setAttribute("d", path);
     series.hidden = false;
     lastPoint.setAttribute("cx", scaleX(finalPoint.x));
     lastPoint.setAttribute("cy", scaleY(finalPoint.y));
     lastPoint.hidden = false;
-    emptyMessage.hidden = true;
 
     for (let index = 0; index <= 4; index += 1) {
         const portion = index / 4;
@@ -177,8 +305,15 @@ function renderVisualizationChart(chart, responseData) {
         const yLabel = createVisualizationSVGElement("text");
 
         xLabel.setAttribute("x", scaleX(xValue));
-        xLabel.setAttribute("y", "490");
-        xLabel.setAttribute("text-anchor", "middle");
+        xLabel.setAttribute("y", "530");
+        xLabel.setAttribute(
+            "text-anchor",
+            index === 0
+                ? "start"
+                : index === 4
+                    ? "end"
+                    : "middle"
+        );
         xLabel.textContent = responseData.xIsTime
             ? new Date(xValue).toLocaleDateString(undefined, {
                 month: "short",
@@ -187,9 +322,9 @@ function renderVisualizationChart(chart, responseData) {
             })
             : formatVisualizationNumber(xValue);
 
-        yLabel.setAttribute("x", "890");
+        yLabel.setAttribute("x", "850");
         yLabel.setAttribute("y", scaleY(yValue) + 5);
-        yLabel.setAttribute("text-anchor", "end");
+        yLabel.setAttribute("text-anchor", "start");
         yLabel.textContent = responseData.yIsRate
             ? `${formatVisualizationNumber(yValue * 100)}%`
             : formatVisualizationNumber(yValue);
@@ -197,6 +332,8 @@ function renderVisualizationChart(chart, responseData) {
         xTicks.append(xLabel);
         yTicks.append(yLabel);
     }
+
+    return true;
 }
 
 function runVisualizeSelects() {
@@ -361,21 +498,20 @@ function runVisualizePage() {
         ".visualize-axis-sidebar [data-date-picker]"
     );
     const xAxisLabel = document.querySelector(
-        ".visualize-chart-axis-label:not([transform])"
+        "[data-visualize-x-axis-label]"
     );
     const yAxisLabel = document.querySelector(
-        ".visualize-chart-axis-label[transform]"
+        "[data-visualize-y-axis-label]"
     );
     const chart = document.querySelector(".visualize-chart");
-    const emptyMessage = chart.querySelector(
-        ".visualize-chart-empty-message"
-    );
     const slope = document.querySelector("[data-visualize-slope]");
     const maximumDrawdown = document.querySelector(
         "[data-visualize-drawdown]"
     );
     let visualizationRequestID = 0;
     let dateRangeIsInitialized = false;
+
+    runVisualizationCrosshair(chart);
 
     function getSelectedLabel(select) {
         return select.options[select.selectedIndex].text.trim();
@@ -490,8 +626,12 @@ function runVisualizePage() {
             }
         }
 
-        emptyMessage.hidden = false;
-        emptyMessage.textContent = "Loading visualization...";
+        const relationshipText =
+            `${getSelectedLabel(xAxisSelect)} compared with ` +
+            `${getSelectedLabel(yAxisSelect)}.`;
+
+        relationship.textContent = "Loading visualization...";
+        clearVisualizationCrosshair(chart);
 
         try {
             const response = await fetch(
@@ -516,7 +656,14 @@ function runVisualizePage() {
                 dateRangeIsInitialized = true;
             }
 
-            renderVisualizationChart(chart, responseData);
+            const chartHasPoints = renderVisualizationChart(
+                chart,
+                responseData
+            );
+
+            relationship.textContent = chartHasPoints
+                ? relationshipText
+                : "No trades were found in this range.";
             slope.textContent = responseData.slope === null
                 ? "—"
                 : formatVisualizationNumber(responseData.slope);
@@ -538,8 +685,8 @@ function runVisualizePage() {
             chart.querySelector(
                 "[data-visualize-last-point]"
             ).hidden = true;
-            emptyMessage.hidden = false;
-            emptyMessage.textContent = error.message;
+            clearVisualizationCrosshair(chart);
+            relationship.textContent = error.message;
             slope.textContent = "—";
             maximumDrawdown.textContent = "—";
         }

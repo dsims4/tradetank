@@ -35,6 +35,15 @@
     max-width: 42rem;
 }
 
+.main-container--signup {
+    max-width: 55rem;
+    padding-inline: clamp(1.5rem, 5vw, 4rem);
+}
+
+.main-container--signup .form {
+    width: min(100%, 36rem);
+}
+
 .main-container--profile {
     max-width: 55rem;
 }

@@ -331,8 +331,10 @@ async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) 
 }
 
 async function updateTradingSessionDataCondition(
-    tradingDate, dataCondition, db = { query }) {
-
+    tradingDate,
+    dataCondition,
+    db = { query }
+) {
     const conditionIsValid = isValidDatabentoCondition(dataCondition);
 
     if (

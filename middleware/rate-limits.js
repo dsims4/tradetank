@@ -8,6 +8,7 @@ const {
     isValidResetPasswordToken
 } = require("../utilities/validation");
 const { getErrorMessage } = require("../utilities/messages");
+const { redirectWithQuery } = require("../utilities/redirects");
 
 const ONE_HOUR = 1000 * 60 * 60;
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
@@ -90,17 +91,15 @@ function getAuthenticatedUserKey(req) {
 }
 
 function handleChangeEmailUserRateLimit(req, res) {
-    const searchParams = new URLSearchParams({
+    return redirectWithQuery(res, "/profile", {
         emailError: "change-email-rate-limit"
     });
-    return res.redirect(`/profile?${searchParams.toString()}`);
 }
 
 function handleChangePasswordUserRateLimit(req, res) {
-    const searchParams = new URLSearchParams({
+    return redirectWithQuery(res, "/profile", {
         passwordError: "change-password-rate-limit"
     });
-    return res.redirect(`/profile?${searchParams.toString()}`);
 }
 
 const loginIPRateLimit = createRateLimiter(

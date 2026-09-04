@@ -1,9 +1,10 @@
 const express = require("express");
 const crypto = require("crypto");
 const {
-    getClient,
-    query
+    query,
+    runTransaction
 } = require("../services/db");
+const { redirectWithQuery } = require("../utilities/redirects");
 const {
     getStringInput,
     isValidEmail,
@@ -11,6 +12,10 @@ const {
     isValidResetPasswordToken
 } = require("../utilities/validation");
 const { hashPassword } = require("../services/password");
+const {
+    sendPasswordChangedEmail,
+    sendResetPasswordEmail
+} = require("../services/email");
 const { getErrorMessage } = require("../utilities/messages");
 const { invalidateSessions } = require("../services/session");
 const {
@@ -73,11 +78,22 @@ function getResetPasswordErrorMessage(resetPasswordEvent) {
 }
 
 function redirectToResetPassword(res, token, error = "") {
-    const searchParams = new URLSearchParams({ token });
+    const parameters = { token };
 
-    if (error) searchParams.set("error", error);
+    if (error) parameters.error = error;
 
-    return res.redirect(`/reset-password?${searchParams.toString()}`);
+    return redirectWithQuery(res, "/reset-password", parameters);
+}
+
+function getResetPasswordURL(token) {
+    const resetPasswordURL = new URL(
+        "/reset-password",
+        process.env.APP_ORIGIN
+    );
+
+    resetPasswordURL.searchParams.set("token", token);
+
+    return resetPasswordURL.toString();
 }
 
 router.get("/forgot-password", (req, res) => {
@@ -98,7 +114,8 @@ router.get("/reset-password", async (req, res, next) => {
 
     try {
         const resetPasswordEvent = await getResetPasswordEvent(token);
-        const resetPasswordErrorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
+        const resetPasswordErrorMessage =
+            getResetPasswordErrorMessage(resetPasswordEvent);
         const linkIsValid = !resetPasswordErrorMessage;
         const errorMessage = linkIsValid
             ? getErrorMessage(error)
@@ -152,15 +169,14 @@ router.post("/forgot-password", forgotPasswordIPRateLimit, async (req, res) => {
                 [user.id, hashedResetPasswordToken, expirationTime]
             );
 
-            if (process.env.NODE_ENV !== "production") {
-                const resetPasswordURL =
-                    `${req.protocol}://${req.get("host")}` +
-                    `/reset-password?token=${resetPasswordToken}`;
+            const resetPasswordURL = getResetPasswordURL(
+                resetPasswordToken
+            );
 
-                console.log(`Password reset URL: ${resetPasswordURL}`);
-            }
+            await sendResetPasswordEmail(email, resetPasswordURL);
         }
-    } catch {
+    } catch (error) {
+        console.error("Password reset request failed:", error.message);
         // Return the same response so account existence is not exposed.
     }
 
@@ -200,74 +216,80 @@ router.post("/reset-password", resetPasswordIPRateLimit, async (req, res, next) 
         );
     }
 
-    const client = await getClient();
-
     try {
-        await client.query("BEGIN");
+        const email = await runTransaction(async (client) => {
+            const resetPasswordEvent = await getResetPasswordEvent(
+                token,
+                client,
+                { lockForUpdate: true }
+            );
+            const errorMessage =
+                getResetPasswordErrorMessage(resetPasswordEvent);
 
-        const resetPasswordEvent = await getResetPasswordEvent(token, client, {
-            lockForUpdate: true
+            if (errorMessage) return null;
+
+            const hashedPassword = await hashPassword(newPassword);
+
+            const userResult = await client.query(
+                `UPDATE
+                    users
+                 SET
+                    hashed_password = $1,
+                    update_time = NOW()
+                 WHERE
+                    id = $2
+                 RETURNING
+                    email`,
+                [hashedPassword, resetPasswordEvent.user_id]
+            );
+
+            await client.query(
+                `UPDATE
+                    reset_password_events
+                 SET
+                    reset_time = NOW()
+                 WHERE
+                    id = $1
+                 AND
+                    reset_time IS NULL`,
+                [resetPasswordEvent.id]
+            );
+
+            await client.query(
+                `UPDATE
+                    reset_password_events
+                 SET
+                    invalidated_time = NOW()
+                 WHERE
+                    user_id = $1
+                 AND
+                    reset_time IS NULL
+                 AND
+                    invalidated_time IS NULL`,
+                [resetPasswordEvent.user_id]
+            );
+
+            await invalidateSessions(resetPasswordEvent.user_id, client);
+            return userResult.rows[0].email;
         });
-        const errorMessage = getResetPasswordErrorMessage(resetPasswordEvent);
 
-        if (errorMessage) {
-            await client.query("ROLLBACK");
-            return redirectToResetPassword(res, token);
+        if (!email) return redirectToResetPassword(res, token);
+
+        try {
+            await sendPasswordChangedEmail(email);
+        } catch (error) {
+            console.error(
+                "Password reset notification failed:",
+                error.message
+            );
         }
-
-        const hashedPassword = await hashPassword(newPassword);
-
-        await client.query(
-            `UPDATE
-                users
-             SET
-                hashed_password = $1,
-                 update_time = NOW()
-             WHERE
-                id = $2`,
-            [hashedPassword, resetPasswordEvent.user_id]
-        );
-
-        await client.query(
-            `UPDATE
-                reset_password_events
-             SET
-                reset_time = NOW()
-             WHERE
-                id = $1
-             AND
-                reset_time IS NULL`,
-            [resetPasswordEvent.id]
-        );
-
-        await client.query(
-            `UPDATE
-                reset_password_events
-             SET
-                invalidated_time = NOW()
-             WHERE
-                user_id = $1
-             AND
-                reset_time IS NULL
-             AND
-                invalidated_time IS NULL`,
-            [resetPasswordEvent.user_id]
-        );
-
-        await invalidateSessions(resetPasswordEvent.user_id, client);
-
-        await client.query("COMMIT");
-
-        const searchParams = new URLSearchParams({
-            success: "reset-success"
-        });
-        return res.redirect(`/login?${searchParams.toString()}`);
     } catch (error) {
-        await client.query("ROLLBACK");
         return next(error);
-    } finally {
-        client.release();
     }
+
+    return redirectWithQuery(res, "/login", {
+        success: "reset-success"
+    });
 });
 
 module.exports = router;
