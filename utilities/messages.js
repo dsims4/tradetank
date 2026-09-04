@@ -1,3 +1,4 @@
+/** Keeps reusable error and success messages in one place. */
 const MISSING_FIELDS_MESSAGE = "Some fields are missing.";
 
 const ERROR_MESSAGES = new Map([
@@ -60,10 +61,21 @@ const SUCCESS_MESSAGES = new Map([
     ["account-deleted", "Your account has been deleted."]
 ]);
 
+/*
+ * This function looks up the user-facing sentence for an internal error name.
+ * An unknown name produces no message instead of displaying internal information.
+ *
+ * Returns the matching error sentence, or an empty string when none exists.
+ */
 function getErrorMessage(error) {
     return ERROR_MESSAGES.get(error) || "";
 }
 
+/*
+ * This function looks up the user-facing sentence for an internal success name.
+ *
+ * Returns the matching success sentence, or an empty string when none exists.
+ */
 function getSuccessMessage(success) {
     return SUCCESS_MESSAGES.get(success) || "";
 }

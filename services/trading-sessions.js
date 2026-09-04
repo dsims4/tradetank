@@ -1,3 +1,4 @@
+/** Finds market hours for each date and remembers Databento's data status. */
 const { query } = require("./db");
 const {
     isValidDatabentoCondition,
@@ -21,6 +22,11 @@ const NEW_YORK_DATE_FORMATTER = new Intl.DateTimeFormat(
 
 const pendingTradingSessionResolutions = new Map();
 
+/*
+ * This function checks whether a value is a real, usable JavaScript Date.
+ *
+ * Returns true for a valid Date and false for every other value.
+ */
 function isValidDate(value) {
     return (
         value instanceof Date &&
@@ -28,6 +34,15 @@ function isValidDate(value) {
     );
 }
 
+/*
+ * This function checks a calendar date written exactly as YYYY-MM-DD and rejects
+ * Saturdays and Sundays.
+ *
+ * It does not guess holidays. Databento's actual market-status records decide
+ * whether the exchange was closed.
+ *
+ * Returns true for a real weekday in the required format. Returns false otherwise.
+ */
 function isValidTradingDate(value) {
     if (
         typeof value !== "string" ||
@@ -53,6 +68,12 @@ function isValidTradingDate(value) {
     return dateExists && isWeekday;
 }
 
+/*
+ * This function requires a valid trading-date string before a service continues.
+ *
+ * It returns no value.
+ * It throws a TypeError when the date is invalid.
+ */
 function validateTradingDate(tradingDate) {
     if (!isValidTradingDate(tradingDate)) {
         throw new TypeError(
@@ -61,6 +82,15 @@ function validateTradingDate(tradingDate) {
     }
 }
 
+/*
+ * This function finds the New York calendar date for one exact moment.
+ *
+ * Reading the year, month, and day separately prevents a computer's local date
+ * format from changing their order or removing leading zeroes.
+ *
+ * Returns the New York date as YYYY-MM-DD.
+ * Throws an error when the supplied Date is invalid.
+ */
 function getNewYorkDate(date = new Date()) {
     if (!isValidDate(date)) {
         throw new TypeError("A valid date is required.");
@@ -80,6 +110,16 @@ function getNewYorkDate(date = new Date()) {
     );
 }
 
+/*
+ * This function compares planned market hours with Databento's actual status
+ * changes.
+ *
+ * The final status before the planned opening decides whether trading begins.
+ * A later status of N means the market closed early.
+ *
+ * Returns an object that describes the session as normal, shortened, closed,
+ * or unavailable and includes the usable opening and closing times.
+ */
 function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
     if (
         !isValidDate(plannedOpenTime) ||
@@ -117,6 +157,15 @@ function getTradingSession(statuses, plannedOpenTime, plannedCloseTime) {
     };
 }
 
+/*
+ * This function asks PostgreSQL to convert planned New York regular-trading-hour
+ * times into exact moments.
+ *
+ * PostgreSQL knows when daylight saving time starts and ends, so the result uses
+ * the correct UTC offset for that particular date.
+ *
+ * Returns the trading date and its planned opening and closing JavaScript Dates.
+ */
 async function getPlannedTradingSession(tradingDate, db = { query }) {
     validateTradingDate(tradingDate);
 
@@ -137,6 +186,16 @@ async function getPlannedTradingSession(tradingDate, db = { query }) {
     };
 }
 
+/*
+ * This function determines what actually happened during one planned trading
+ * session by using Databento availability and market-status information.
+ *
+ * Dates before Trade Tank's starting date and dates outside Databento's published
+ * status period stop early, before requesting detailed status records.
+ *
+ * Returns an object containing the resolved session.
+ * If it cannot be resolved, returns an object marked unsupported or unavailable.
+ */
 async function resolveTradingSession(tradingDate) {
     const plannedSession =
         await getPlannedTradingSession(tradingDate);
@@ -187,6 +246,12 @@ async function resolveTradingSession(tradingDate) {
     };
 }
 
+/*
+ * This function reads one previously resolved market session from PostgreSQL.
+ *
+ * Returns a session object using JavaScript-style property names.
+ * Returns null when that date has never been saved.
+ */
 async function getStoredTradingSession(tradingDate, db = { query }) {
     validateTradingDate(tradingDate);
 
@@ -223,6 +288,16 @@ async function getStoredTradingSession(tradingDate, db = { query }) {
     };
 }
 
+/*
+ * This function checks and saves one resolved market session without overwriting
+ * an existing row.
+ *
+ * Temporary "unavailable" and "unsupported" results are not saved because a
+ * later request may be able to resolve them.
+ *
+ * Returns the final row stored in PostgreSQL.
+ * Throws an error when the session object is invalid.
+ */
 async function saveTradingSession(session, db = { query }) {
     const tradingDate = session?.tradingDate;
     const state = session?.state;
@@ -276,6 +351,13 @@ async function saveTradingSession(session, db = { query }) {
     return getStoredTradingSession(tradingDate, db);
 }
 
+/*
+ * This function records the time when checked candles were successfully saved.
+ * It also removes any waiting period caused by an earlier bad response.
+ *
+ * Returns the synchronization time saved by PostgreSQL.
+ * Throws an error if no matching open session was updated.
+ */
 async function markTradingSessionCandlesticksSynced(tradingDate, db = { query }) {
     validateTradingDate(tradingDate);
 
@@ -303,6 +385,13 @@ async function markTradingSessionCandlesticksSynced(tradingDate, db = { query })
     return result.rows[0].candlesticks_synced_time;
 }
 
+/*
+ * This function records that a bad candle response should not be retried for
+ * another 24 hours.
+ *
+ * Returns the next allowed retry time.
+ * Throws an error if no matching open session was updated.
+ */
 async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) {
     validateTradingDate(tradingDate);
 
@@ -330,6 +419,12 @@ async function delayTradingSessionCandlestickRetry(tradingDate, db = { query }) 
     return result.rows[0].candlesticks_retry_time;
 }
 
+/*
+ * This function saves Databento's latest checked data status and the time it was checked.
+ *
+ * Returns the saved status and check time.
+ * Throws an error when validation or the database update fails.
+ */
 async function updateTradingSessionDataCondition(
     tradingDate,
     dataCondition,
@@ -375,6 +470,16 @@ async function updateTradingSessionDataCondition(
     };
 }
 
+/*
+ * This function reads a saved market session or determines it when it has not
+ * been saved yet.
+ *
+ * If several users ask for the same date at once, they share one resolution
+ * operation. Temporary unavailable and unsupported results are not saved in
+ * PostgreSQL, allowing later requests to try again.
+ *
+ * Returns the saved or newly determined trading-session object.
+ */
 async function getOrResolveTradingSession(tradingDate) {
     const storedSession =
         await getStoredTradingSession(tradingDate);

@@ -1,8 +1,19 @@
+/** Connects to the email provider and sends automatic account emails. */
 const nodemailer = require("nodemailer");
 
 let transporter;
 let senderAddress;
 
+/*
+ * This function reads the private email settings from environment variables.
+ *
+ * SMTP is the standard system used to send email. TLS encrypts the connection.
+ * Port 465 starts encrypted immediately. Port 587 connects first and then uses
+ * STARTTLS to turn encryption on before login information is sent.
+ *
+ * Returns the settings object Nodemailer needs to connect and log in.
+ * Throws an error when a required setting or valid port number is missing.
+ */
 function getSMTPConfiguration() {
     const host = process.env.SMTP_HOST;
     const user = process.env.SMTP_USER;
@@ -32,6 +43,15 @@ function getSMTPConfiguration() {
     };
 }
 
+/*
+ * This function creates the reusable Nodemailer sender the first time it is
+ * needed.
+ *
+ * Waiting until an email must be sent lets unrelated scripts, such as database
+ * checks, run without requiring email settings.
+ *
+ * Returns the same configured email sender every time after the first call.
+ */
 function getTransporter() {
     if (!transporter) {
         const configuration = getSMTPConfiguration();
@@ -42,6 +62,15 @@ function getTransporter() {
     return transporter;
 }
 
+/*
+ * This function adds Trade Tank's sender name and sends one email.
+ *
+ * The supplied message provides the recipient, subject, plain-text body, and
+ * optional HTML body.
+ *
+ * Returns a Promise whose value contains the email provider's delivery result.
+ * The Promise fails when the provider does not accept the email.
+ */
 async function sendEmail(message) {
     const mailTransporter = getTransporter();
 
@@ -51,6 +80,12 @@ async function sendEmail(message) {
     });
 }
 
+/*
+ * This function emails a password-reset link that can be used only once.
+ * It includes both plain text and HTML so different email apps can display it.
+ *
+ * Returns a Promise that finishes after the email provider accepts the message.
+ */
 async function sendResetPasswordEmail(email, resetPasswordURL) {
     await sendEmail({
         to: email,
@@ -72,6 +107,15 @@ async function sendResetPasswordEmail(email, resetPasswordURL) {
     });
 }
 
+/*
+ * This function sends two notices after an account's email address changes.
+ *
+ * The old address receives a warning in case the owner did not make the change.
+ * The new address receives confirmation that it is now connected to the account.
+ *
+ * Returns a Promise that finishes after both emails are accepted.
+ * It fails if either email cannot be sent.
+ */
 async function sendEmailChangeNotifications(oldEmail, newEmail) {
     await Promise.all([
         sendEmail({
@@ -105,6 +149,11 @@ async function sendEmailChangeNotifications(oldEmail, newEmail) {
     ]);
 }
 
+/*
+ * This function tells the account owner that their password was changed.
+ *
+ * Returns a Promise that finishes after the email provider accepts the message.
+ */
 async function sendPasswordChangedEmail(email) {
     await sendEmail({
         to: email,

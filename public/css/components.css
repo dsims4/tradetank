@@ -1,3 +1,4 @@
+/* Reusable containers, buttons, forms, messages, dialogs, and date-picker controls. */
 .main-container {
     position: relative;
     display: flex;
@@ -119,6 +120,7 @@
     pointer-events: none;
 }
 
+/* Shared interactive controls */
 .button,
 .slideshow-button {
     display: inline-flex;
@@ -165,6 +167,7 @@
     box-shadow: 0 0.1rem 0.25rem rgba(0, 0, 0, 0.16);
 }
 
+/* Authentication and profile forms */
 .form-input {
     width: 100%;
     min-height: clamp(2.2rem, 3vw, 2.5rem);
@@ -280,6 +283,7 @@
     gap: clamp(0.35rem, 0.8vw, 0.6rem);
 }
 
+/* Profile settings */
 .profile-forms {
     width: 100%;
     display: flex;
@@ -419,6 +423,7 @@
     font-size: inherit;
 }
 
+/* Native-looking custom checkboxes shared across forms */
 .checkbox-field {
     display: flex;
     align-items: center;
@@ -453,6 +458,7 @@
     transform: rotate(45deg);
 }
 
+/* Long-form informational page copy */
 .copy {
     display: flex;
     flex-direction: column;

@@ -1,3 +1,12 @@
+/*
+ * This function initializes the read-only Trades page.
+ *
+ * It loads saved trades in groups of five and creates their summary boxes.
+ * Candles are requested only after the user selects a trade. If required page
+ * elements are missing, this function stops without changing the page.
+ *
+ * This function does not return a value.
+ */
 function runTradesChart() {
     const canvas = document.getElementById(
         "trades-candlestick-chart"
@@ -66,6 +75,13 @@ function runTradesChart() {
     resizeObserver.observe(chartContainer);
     chart.resize();
 
+    /*
+     * This function combines a saved trade's buy orders and sell orders into
+     * the single marker list expected by the candlestick chart.
+     *
+     * Returns a new marker array in which every item clearly says "buy" or
+     * "sell." It does not change the saved trade object.
+     */
     function getTradeOrderMarkers(trade) {
         const buyMarkers =
             trade.orderEvents.buySide.map(
@@ -89,6 +105,14 @@ function runTradesChart() {
         ];
     }
 
+    /*
+     * This function shows a warning when Databento marked the day's candle data
+     * degraded, meaning it may be incomplete or less reliable.
+     *
+     * It hides and clears the warning for all other data conditions.
+     *
+     * This function does not return a value.
+     */
     function setDataConditionWarning(dataCondition) {
         const dataIsDegraded =
             dataCondition === "degraded";
@@ -100,6 +124,12 @@ function runTradesChart() {
             : "";
     }
 
+    /*
+     * This function creates one label-and-value row inside an expanded trade box.
+     *
+     * Returns the completed HTML paragraph. An optional CSS class may be added
+     * to the value, for example to make long notes scroll inside a fixed area.
+     */
     function createTradeDetail(
         label,
         value,
@@ -121,6 +151,12 @@ function runTradesChart() {
         return detail;
     }
 
+    /*
+     * This function formats a numeric trade value with two decimal places.
+     *
+     * Values very close to zero are changed to zero so the page never displays
+     * the confusing value -0.00. Returns the number as text.
+     */
     function formatDecimal(value) {
         const number = Number(value);
         const normalizedNumber =
@@ -129,6 +165,14 @@ function runTradesChart() {
         return normalizedNumber.toFixed(2);
     }
 
+    /*
+     * This function collapses every currently expanded trade summary.
+     *
+     * It hides the details and updates aria-expanded, which tells screen readers
+     * whether each box is open or closed.
+     *
+     * This function does not return a value.
+     */
     function closeTradeChoices() {
         const openChoices = tradeSummaries.querySelectorAll(
             '[aria-expanded="true"]'
@@ -143,6 +187,14 @@ function runTradesChart() {
         }
     }
 
+    /*
+     * This function updates the Previous button, Next button, and page number.
+     *
+     * It disables navigation that cannot succeed and hides pagination when
+     * the first page contains no trades.
+     *
+     * This function does not return a value.
+     */
     function updateTradePagination() {
         const renderedTradeCount =
             tradeSummaries.children.length;
@@ -157,6 +209,14 @@ function runTradesChart() {
             currentTradePage === 1;
     }
 
+    /*
+     * This function controls which trade summary boxes remain visible.
+     *
+     * Passing one summary hides the other summaries so the selected trade can
+     * use the full panel. Passing null shows every summary again.
+     *
+     * This function does not return a value.
+     */
     function showOnlyTrade(selectedSummary = null) {
         for (const summary of tradeSummaries.children) {
             summary.hidden = Boolean(
@@ -165,6 +225,14 @@ function runTradesChart() {
         }
     }
 
+    /*
+     * This function renders one page of saved trade choices.
+     *
+     * Each choice shows a short summary and details that can expand. Selecting
+     * one hides the other choices and shows that trade's orders on the chart.
+     *
+     * This function does not return a value.
+     */
     function renderTradeChoices(trades, page) {
         tradeSummaries.replaceChildren();
 
@@ -218,6 +286,10 @@ function runTradesChart() {
                 )
             );
 
+            /*
+             * Selecting a collapsed summary expands it. Selecting the open
+             * summary again collapses it and clears its chart markers.
+             */
             button.addEventListener("click", () => {
                 const willOpen =
                     button.getAttribute("aria-expanded") ===
@@ -250,6 +322,15 @@ function runTradesChart() {
         }
     }
 
+    /*
+     * This function loads one page of trades for one trading date.
+     *
+     * Trades are split into pages of five. Every request receives a number one
+     * larger than the last. If an older request finishes late, its smaller
+     * number reveals that it is outdated, so its result is ignored.
+     *
+     * Returns a Promise that finishes after loading succeeds or fails.
+     */
     async function loadTradeChoices(
         tradingDate = "",
         page = 1
@@ -288,6 +369,10 @@ function runTradesChart() {
                 "The trades request failed."
             );
 
+            /*
+             * Ignore this response when the user made a newer request before
+             * this one finished.
+             */
             if (requestID !== tradeChoicesRequestID) {
                 return;
             }
@@ -320,6 +405,15 @@ function runTradesChart() {
         }
     }
 
+    /*
+     * This function loads candlesticks for a selected saved trade.
+     *
+     * When candles for this date are already on screen, only the order markers
+     * change. Otherwise, it asks the API for candles. If the user selects another
+     * trade while waiting, the old result is ignored.
+     *
+     * Returns a Promise that finishes after loading succeeds or fails.
+     */
     async function loadChart(trade) {
         const tradingDate = trade.tradingDate;
 
@@ -402,6 +496,9 @@ function runTradesChart() {
         }
     }
 
+    /*
+     * Submitting the date selector returns to the first page for that date.
+     */
     controls.addEventListener("submit", (event) => {
         event.preventDefault();
 
@@ -412,6 +509,9 @@ function runTradesChart() {
         loadTradeChoices(dateInput.value, 1);
     });
 
+    /*
+     * The Previous button requests the preceding page when one exists.
+     */
     previousTradesButton.addEventListener("click", () => {
         if (currentTradePage <= 1) return;
 
@@ -421,6 +521,10 @@ function runTradesChart() {
         );
     });
 
+    /*
+     * The Next button requests the following five trades. Another function
+     * disables this button when the API says no following page exists.
+     */
     nextTradesButton.addEventListener("click", () => {
         loadTradeChoices(
             currentTradingDate,
@@ -428,6 +532,11 @@ function runTradesChart() {
         );
     });
 
+    /*
+     * Delete Day removes every saved trade for the loaded date after the user
+     * confirms. The visible chart and summaries are cleared only after the
+     * server confirms that deletion succeeded.
+     */
     deleteButton.addEventListener("click", async () => {
         if (!loadedTradingDate) return;
 

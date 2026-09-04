@@ -1,3 +1,4 @@
+/** Displays account forms and handles signup, login, and logout. */
 const express = require("express");
 const {
     query,
@@ -36,6 +37,10 @@ const {
 const router = express.Router();
 const loginMiddleware = [loginIPRateLimit, accountIPRateLimit];
 
+/*
+ * This route displays Login with a recognized message and, when valid, the
+ * username carried back from a previous attempt.
+ */
 router.get("/login", redirectAuthenticated, (req, res) => {
     const usernameInput = getStringInput(req.query.username).trim();
     const username = (isValidUsername(usernameInput))
@@ -55,6 +60,9 @@ router.get("/login", redirectAuthenticated, (req, res) => {
     });
 });
 
+/*
+ * This route displays Signup with a recognized error or success message.
+ */
 router.get("/signup", redirectAuthenticated, (req, res) => {
     const error = getStringInput(req.query.error);
     const success = getStringInput(req.query.success);
@@ -68,10 +76,17 @@ router.get("/signup", redirectAuthenticated, (req, res) => {
     });
 });
 
+/*
+ * This route checks login credentials and creates a login session.
+ *
+ * Request limits run before password hashing because hashing intentionally uses
+ * significant computer work. A successful login clears the failed-attempt count
+ * for this IP address and account.
+ */
 router.post("/login", ...loginMiddleware, async (req, res, next) => {
-    const username = getStringInput(req.body.username).trim();
-    const password = getStringInput(req.body.password);
-    const rememberMe = getStringInput(req.body.remember) === "on";
+    const username = getStringInput(req.body?.username).trim();
+    const password = getStringInput(req.body?.password);
+    const rememberMe = getStringInput(req.body?.remember) === "on";
 
     if (!username || !password) {
         return redirectWithQuery(res, "/login", {
@@ -124,11 +139,18 @@ router.post("/login", ...loginMiddleware, async (req, res, next) => {
     }
 });
 
+/*
+ * This route creates an account, its default Tank-theme settings, and its empty
+ * statistics row as one all-or-nothing database transaction.
+ *
+ * The earlier availability check is only convenient feedback. PostgreSQL's
+ * unique rules make the final decision about duplicate usernames or emails.
+ */
 router.post("/signup", signupIPRateLimit, async (req, res, next) => {
-    const username = getStringInput(req.body.username).trim();
-    const email = getStringInput(req.body.email).trim().toLowerCase();
-    const password = getStringInput(req.body.password);
-    const confirmPassword = getStringInput(req.body.confirmPassword);
+    const username = getStringInput(req.body?.username).trim();
+    const email = getStringInput(req.body?.email).trim().toLowerCase();
+    const password = getStringInput(req.body?.password);
+    const confirmPassword = getStringInput(req.body?.confirmPassword);
 
     let error = "";
 
@@ -239,6 +261,10 @@ router.post("/signup", signupIPRateLimit, async (req, res, next) => {
     }
 });
 
+/*
+ * This route logs out the current session and deletes its browser cookie.
+ * The cookie is still deleted if updating the database session unexpectedly fails.
+ */
 router.post("/logout", async (req, res, next) => {
     try {
         await invalidateSession(req);

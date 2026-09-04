@@ -1,3 +1,4 @@
+/** Builds the exact data objects sent to the Input and Trades pages. */
 const {
     getCandlesticksForTradingDate,
     getLatestAvailableCandlesticks
@@ -9,6 +10,16 @@ const {
     aggregateFiveMinuteCandlesticks
 } = require("./price-data");
 
+/*
+ * This function builds the Input-page data for one requested trading date.
+ *
+ * It checks for candles and a previous submission at the same time because
+ * neither check needs the other's result. Data marked "degraded" is hidden.
+ * A date that was already submitted cannot be submitted again.
+ *
+ * Returns the market-session information, five-minute candles, and true/false
+ * values that tell the page whether submission is allowed.
+ */
 async function getInputChartData(userID, tradingDate) {
     const [candlestickResult, alreadySubmitted] =
         await Promise.all([
@@ -16,6 +27,7 @@ async function getInputChartData(userID, tradingDate) {
             hasUserTradingDay(userID, tradingDate)
         ]);
 
+    // Input hides degraded candles because users must not submit against suspect data.
     const candlesticksCanBeViewed =
         candlestickResult.candlestickState === "available" &&
         candlestickResult.dataCondition === "available";
@@ -36,6 +48,15 @@ async function getInputChartData(userID, tradingDate) {
     };
 }
 
+/*
+ * This function builds a read-only Trades chart for a submitted day.
+ *
+ * Unlike the Input page, the Trades page shows degraded candles so the user
+ * can still review a journal they already saved.
+ *
+ * Returns the market session and five-minute candles. If the user has no saved
+ * trades for that date, it returns a standard empty result.
+ */
 async function getTradesChartData(userID, tradingDate) {
     const hasTrades = await hasUserTradingDay(userID, tradingDate);
 
@@ -49,6 +70,7 @@ async function getTradesChartData(userID, tradingDate) {
 
     const candlestickResult = await getCandlesticksForTradingDate(tradingDate);
 
+    // Previously submitted journals remain reviewable when their source becomes degraded.
     const candlesticksCanBeViewed =
         candlestickResult.candlestickState === "available" &&
         (
@@ -67,6 +89,12 @@ async function getTradesChartData(userID, tradingDate) {
     };
 }
 
+/*
+ * This function builds Input-page data for the newest day with complete data.
+ *
+ * Returns five-minute candles and submission permissions. If no recent day can
+ * be used, it returns the standard unavailable result.
+ */
 async function getLatestInputChartData(userID, now = new Date()) {
     const candlestickResult =
         await getLatestAvailableCandlesticks(now);

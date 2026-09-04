@@ -1,4 +1,10 @@
+/** Renders responsive candlesticks, axes, crosshairs, and trade-action markers. */
 class CandlestickChart {
+    /*
+     * This constructor initializes canvas state, New York time formatting, and pointer events.
+     *
+     * Returns the newly constructed responsive chart instance.
+     */
     constructor(canvas, candlesticks = []) {
         this.candlesticks = candlesticks;
         this.canvas = canvas;
@@ -27,6 +33,11 @@ class CandlestickChart {
         document.fonts.ready.then(() => this.render());
     }
 
+    /*
+     * This method replaces market data and clears interactions tied to the old series.
+     *
+     * It redraws the chart and returns no value; invalid input throws TypeError.
+     */
     setCandlesticks(candlesticks) {
         if (!Array.isArray(candlesticks)) {
             throw new TypeError(
@@ -40,6 +51,12 @@ class CandlestickChart {
         this.render();
     }
 
+    /*
+     * This method synchronizes the canvas backing store with its responsive CSS dimensions.
+     * Device-pixel scaling keeps drawing sharp while geometry continues to use CSS pixels.
+     *
+     * It redraws only after a dimension changes and returns no value.
+     */
     resize() {
         const boundingClientRect = this.canvas.getBoundingClientRect();
         const devicePixelRatio = window.devicePixelRatio || 1;
@@ -72,6 +89,12 @@ class CandlestickChart {
         this.render();
     }
 
+    /*
+     * This method clears and redraws the complete chart in visual stacking order.
+     * Empty data produces one centered availability message instead of axes.
+     *
+     * It mutates the canvas and returns no value.
+     */
     render() {
         this.ctx.clearRect(
             0,
@@ -110,6 +133,12 @@ class CandlestickChart {
         this.drawCrosshair();
     }
 
+    /*
+     * This method derives the visible price range from candle extremes and marker space.
+     * Marker padding expands only the side on which buy or sell labels must appear.
+     *
+     * Returns minimum and maximum prices, or null when no candles exist.
+     */
     getPriceRange() {
         if (this.candlesticks.length === 0) return null;
 
@@ -127,6 +156,7 @@ class CandlestickChart {
 
         const visibleRange =
             highestPrice - lowestPrice;
+        // Marker labels extend the range only on the side where their labels are drawn.
         const groupedOrderMarkers =
             this.getGroupedOrderMarkers();
         const plotHeight = Math.max(
@@ -181,6 +211,11 @@ class CandlestickChart {
         };
     }
 
+    /*
+     * This method reserves fixed canvas gutters for time and price labels.
+     *
+     * Returns the drawable plot boundaries and their dimensions in CSS pixels.
+     */
     getPlotArea() {
         const left = 10;
         const top = 20;
@@ -197,6 +232,11 @@ class CandlestickChart {
         };
     }
 
+    /*
+     * This method maps a price into the chart's vertically inverted canvas coordinates.
+     *
+     * Returns the corresponding y-coordinate inside the current plot area.
+     */
     priceToY(price, priceRange) {
         const plotArea = this.getPlotArea();
         const rangeSize =
@@ -210,6 +250,11 @@ class CandlestickChart {
         );
     }
 
+    /*
+     * This method calculates one candle's horizontal slot, center, and bounded body width.
+     *
+     * Returns centerX and bodyWidth in CSS pixels.
+     */
     getCandleGeometry(index) {
         const plotArea = this.getPlotArea();
         const rightPadding = 10;
@@ -228,6 +273,11 @@ class CandlestickChart {
         };
     }
 
+    /*
+     * This method draws every wick and body using monochrome bullish and bearish styling.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawCandlesticks() {
         const priceRange = this.getPriceRange();
 
@@ -280,6 +330,11 @@ class CandlestickChart {
         });
     }
 
+    /*
+     * This method draws the right price axis with six labels snapped to quarter points.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawPriceAxis() {
         const priceRange = this.getPriceRange();
 
@@ -325,6 +380,12 @@ class CandlestickChart {
         }
     }
 
+    /*
+     * This method draws at most six evenly distributed New York time labels.
+     * Endpoint labels are clamped so their text remains inside the plot width.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawTimeAxis() {
         if (this.candlesticks.length === 0) return;
 
@@ -384,6 +445,11 @@ class CandlestickChart {
         }
     }
 
+    /*
+     * This method converts a canvas y-coordinate back into a price.
+     *
+     * Returns the unsnapped price represented by that vertical position.
+     */
     yToPrice(y, priceRange) {
         const plotArea = this.getPlotArea();
         const position =
@@ -396,6 +462,11 @@ class CandlestickChart {
         );
     }
 
+    /*
+     * This method maps a horizontal pointer coordinate to its candle slot.
+     *
+     * Returns the bounded candle index, or null when x lies outside the candle area.
+     */
     getCandleIndexAtX(x) {
         const plotArea = this.getPlotArea();
         const rightPadding = 10;
@@ -422,6 +493,12 @@ class CandlestickChart {
         );
     }
 
+    /*
+     * This method converts pointer movement into a candle and quarter-point selection.
+     * Movement outside the plot clears the crosshair rather than clamping it to an edge.
+     *
+     * It updates chart state, redraws the canvas, and returns no value.
+     */
     updateCrosshair(event) {
         if (this.candlesticks.length === 0) return;
 
@@ -473,6 +550,11 @@ class CandlestickChart {
         this.render();
     }
 
+    /*
+     * This method removes an active crosshair and redraws the underlying chart.
+     *
+     * It returns no value and performs no redraw when the crosshair is already absent.
+     */
     clearCrosshair() {
         if (!this.crosshair) return;
 
@@ -480,6 +562,11 @@ class CandlestickChart {
         this.render();
     }
 
+    /*
+     * This method draws crosshair guides and contrasting time and price value boxes.
+     *
+     * It mutates the canvas and returns no value when no crosshair is active.
+     */
     drawCrosshair() {
         if (!this.crosshair) return;
 
@@ -555,6 +642,12 @@ class CandlestickChart {
         this.ctx.restore();
     }
 
+    /*
+     * This method exposes the active candle timestamp and snapped pointer price to Input.
+     * It also reports whether that price falls inside the authoritative candle range.
+     *
+     * Returns the selection object, or null when the crosshair is inactive.
+     */
     getCrosshairSelection() {
         if (!this.crosshair) return null;
 
@@ -569,8 +662,13 @@ class CandlestickChart {
             price: this.crosshair.price,
             isWithinCandleRange
         };
-    }
+}
 
+    /*
+     * This method shallow-copies replacement order markers and redraws the chart.
+     *
+     * It returns no value and throws TypeError when markers are not provided as an array.
+     */
     setOrderMarkers(orderMarkers) {
         if (!Array.isArray(orderMarkers)) {
             throw new TypeError(
@@ -587,6 +685,12 @@ class CandlestickChart {
         this.render();
     }
 
+    /*
+     * This method groups same-side events at one candle into a shared marker label.
+     * Events at the same price also combine their contract quantities.
+     *
+     * Returns an array of grouped markers without mutating the original marker array.
+     */
     getGroupedOrderMarkers() {
         const groupedMarkers = new Map();
 
@@ -640,12 +744,23 @@ class CandlestickChart {
         return [...groupedMarkers.values()];
     }
 
+    /*
+     * This method calculates a multiline marker label's height from its event count.
+     *
+     * Returns the required label height in CSS pixels.
+     */
     getOrderMarkerLabelHeight(orderEventCount) {
         const labelLineCount = orderEventCount * 2 - 1;
 
         return labelLineCount * 12 + 6;
     }
 
+    /*
+     * This method creates vertically ordered B/S quantity lines for one marker.
+     * Higher prices appear earlier, with plus-sign separator lines between events.
+     *
+     * Returns the complete array of label strings.
+     */
     getOrderMarkerLabelLines(orderMarker) {
         const prefix = orderMarker.orderSide === "buy" ? "B" : "S";
         const sortedOrderEvents = [...orderMarker.orderEvents].sort(
@@ -665,6 +780,11 @@ class CandlestickChart {
         );
     }
 
+    /*
+     * This method measures every marker line and adds horizontal text padding.
+     *
+     * Returns the minimum label width in CSS pixels.
+     */
     getOrderMarkerLabelWidth(labelLines) {
         return Math.max(
             ...labelLines.map(
@@ -674,12 +794,23 @@ class CandlestickChart {
         ) + 8;
     }
 
+    /*
+     * This method finds the candle matching an order marker's exact opening timestamp.
+     *
+     * Returns its index, or -1 when the marker does not belong to the displayed data.
+     */
     getCandleIndexForTime(time) {
         return this.candlesticks.findIndex(
             (candlestick) => candlestick.openTime === time
         );
     }
 
+    /*
+     * This method estimates price-range padding for non-overlapping same-side label lanes.
+     * Horizontal interval packing prevents adjacent labels from being counted in one lane.
+     *
+     * Returns the greater of baseline padding or the total required label-lane height.
+     */
     getOrderMarkerPaddingPixels(
         orderSide,
         groupedOrderMarkers,
@@ -755,6 +886,12 @@ class CandlestickChart {
         );
     }
 
+    /*
+     * This method finds a preferred label center beyond every candle under its horizontal span.
+     * Buy labels prefer below the lowest low and sell labels prefer above the highest high.
+     *
+     * Returns the preferred vertical center in CSS pixels.
+     */
     getOrderMarkerLabelY({
         labelCenterX,
         labelWidth,
@@ -801,6 +938,11 @@ class CandlestickChart {
         return isBuy ? belowCenterY : aboveCenterY;
     }
 
+    /*
+     * This method finds candle bounds colliding with a proposed padded label rectangle.
+     *
+     * Returns an array containing the bounds of every overlapping candle.
+     */
     getOverlappingCandlestickBounds(
         bounds,
         priceRange,
@@ -832,6 +974,12 @@ class CandlestickChart {
             ));
     }
 
+    /*
+     * This method walks a label away from candles and prior labels until a free slot exists.
+     * Buy labels move downward and sell labels move upward to preserve their semantic side.
+     *
+     * Returns the accepted center and bounds, or null when no in-plot position is available.
+     */
     getAvailableOrderMarkerLabel({
         preferredCenterY,
         labelCenterX,
@@ -911,6 +1059,12 @@ class CandlestickChart {
         return null;
     }
 
+    /*
+     * This method draws one short execution-price line across its candle.
+     * A wider white underlay keeps the black line visible over bearish candle bodies.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawOrderPriceLine(centerX, halfWidth, priceY) {
         this.ctx.strokeStyle = "#ffffff";
         this.ctx.lineWidth = 3;
@@ -927,6 +1081,11 @@ class CandlestickChart {
         this.ctx.stroke();
     }
 
+    /*
+     * This method draws one white bordered marker box and its centered multiline label.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawOrderMarkerLabel(
         labelLines,
         centerX,
@@ -961,6 +1120,12 @@ class CandlestickChart {
         });
     }
 
+    /*
+     * This method groups, positions, and draws all order price lines and available labels.
+     * Drawing is clipped to the plot so markers never expand or paint over the chart border.
+     *
+     * It mutates the canvas and returns no value.
+     */
     drawOrderMarkers() {
         if (this.orderMarkers.length === 0) return;
 

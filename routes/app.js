@@ -1,3 +1,4 @@
+/** Displays the main application pages after a user logs in. */
 const express = require("express");
 const { loadUser } = require("../middleware/authentication");
 const {
@@ -7,6 +8,14 @@ const {
 
 const router = express.Router();
 
+/*
+ * This function creates the route function used to display one logged-in page.
+ *
+ * Every page receives the name used to highlight its navigation link, the user's
+ * color theme, and the earliest and latest dates accepted by date controls.
+ *
+ * Returns the Express function that handles requests for that page.
+ */
 function createAppPageHandler(pageName) {
     return (req, res) => res.render(`${pageName}.njk`, {
         currentPage: pageName,

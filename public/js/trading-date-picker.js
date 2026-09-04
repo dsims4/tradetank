@@ -1,3 +1,4 @@
+/** Runs the reusable text input and popup calendar for New York trading dates. */
 const TRADING_MONTH_NAMES = [
     "January",
     "February",
@@ -13,6 +14,15 @@ const TRADING_MONTH_NAMES = [
     "December"
 ];
 
+/*
+ * This function reads a date written exactly as YYYY-MM-DD.
+ *
+ * The calendar represents a named day, not an exact moment in time. It therefore
+ * uses the browser's local year, month, and day fields and does not convert time zones.
+ *
+ * Returns a JavaScript Date for that calendar day.
+ * Returns null when the text format or calendar date is invalid.
+ */
 function parseTradingDate(value) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
         return null;
@@ -32,6 +42,12 @@ function parseTradingDate(value) {
     return date;
 }
 
+/*
+ * This function converts a JavaScript Date into text and adds leading zeroes to
+ * one-digit months and days.
+ *
+ * Returns the date as YYYY-MM-DD.
+ */
 function formatTradingDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -40,6 +56,11 @@ function formatTradingDate(date) {
     return `${year}-${month}-${day}`;
 }
 
+/*
+ * This function finds either the first day or final day of a given month.
+ *
+ * Returns the requested JavaScript Date.
+ */
 function getMonthBoundary(year, month, boundary) {
     if (boundary === "start") {
         return new Date(year, month, 1);
@@ -48,20 +69,45 @@ function getMonthBoundary(year, month, boundary) {
     return new Date(year, month + 1, 0);
 }
 
+/*
+ * This function checks whether a date is inside the calendar's allowed period.
+ * The earliest and latest allowed dates themselves are included.
+ *
+ * Returns true when the date is in range. Returns false otherwise.
+ */
 function dateIsInRange(date, minimumDate, maximumDate) {
     return date >= minimumDate && date <= maximumDate;
 }
 
+/*
+ * This function checks whether a calendar date is Monday through Friday.
+ *
+ * Returns true on a weekday. Returns false on Saturday or Sunday.
+ */
 function dateIsAWeekday(date) {
     return date.getDay() !== 0 && date.getDay() !== 6;
 }
 
+/*
+ * This function keeps a displayed date inside the earliest and latest allowed dates.
+ * It creates a copy so changing the result cannot change one of the supplied Dates.
+ *
+ * Returns the copied date, moved to the nearest allowed boundary when necessary.
+ */
 function clampDate(date, minimumDate, maximumDate) {
     if (date < minimumDate) return new Date(minimumDate);
     if (date > maximumDate) return new Date(maximumDate);
     return new Date(date);
 }
 
+/*
+ * This function starts every date picker on the page.
+ *
+ * Each calendar separately remembers its displayed month, selected day, and
+ * current day/month/year view. It also updates labels used by screen readers.
+ *
+ * It registers picker listeners and returns no value.
+ */
 function runTradingDatePickers() {
     const datePickers = document.querySelectorAll("[data-date-picker]");
 
@@ -114,6 +160,10 @@ function runTradingDatePickers() {
         let selectedDate = null;
         let currentView = "days";
 
+        /*
+         * This function returns true when at least one day in a month is inside
+         * the picker's allowed date range.
+         */
         function monthIsInRange(year, month) {
             const firstDate = getMonthBoundary(year, month, "start");
             const lastDate = getMonthBoundary(year, month, "end");
@@ -121,6 +171,10 @@ function runTradingDatePickers() {
             return lastDate >= minimumDate && firstDate <= maximumDate;
         }
 
+        /*
+         * This function creates and returns a calendar button that cannot
+         * accidentally submit the surrounding form.
+         */
         function createOptionButton(text, className) {
             const button = document.createElement("button");
 
@@ -130,6 +184,7 @@ function runTradingDatePickers() {
             return button;
         }
 
+        /* This function shows the day choices and hides month and year choices. */
         function showDayView() {
             currentView = "days";
             dayView.hidden = false;
@@ -137,6 +192,12 @@ function runTradingDatePickers() {
             yearGrid.hidden = true;
         }
 
+        /*
+         * This function rebuilds all day buttons for the displayed month.
+         * The selected date is marked and dates outside the allowed range are disabled.
+         * Clicking a valid day updates the text input and announces a change to
+         * the rest of the page. This function does not return a value.
+         */
         function renderDays() {
             const year = displayedDate.getFullYear();
             const month = displayedDate.getMonth();
@@ -187,6 +248,11 @@ function runTradingDatePickers() {
             }
         }
 
+        /*
+         * This function rebuilds the 12 month choices for the displayed year.
+         * Months completely outside the allowed range are disabled. It does not
+         * return a value.
+         */
         function renderMonths() {
             const displayedYear = displayedDate.getFullYear();
 
@@ -218,6 +284,10 @@ function runTradingDatePickers() {
             });
         }
 
+        /*
+         * This function rebuilds the year choices between the earliest and
+         * latest allowed dates. It does not return a value.
+         */
         function renderYears() {
             const minimumYear = minimumDate.getFullYear();
             const maximumYear = maximumDate.getFullYear();
@@ -247,6 +317,10 @@ function runTradingDatePickers() {
             }
         }
 
+        /*
+         * This function updates the heading, Previous and Next buttons, and the
+         * visible day, month, or year choices. It does not return a value.
+         */
         function renderPicker() {
             const year = displayedDate.getFullYear();
             const month = displayedDate.getMonth();
@@ -269,11 +343,20 @@ function runTradingDatePickers() {
             renderYears();
         }
 
+        /*
+         * This function hides the calendar popup and tells screen readers it is
+         * closed. It does not return a value.
+         */
         function closePicker() {
             popup.hidden = true;
             toggleButton.setAttribute("aria-expanded", "false");
         }
 
+        /*
+         * This function closes any other open calendar, draws this calendar's
+         * current choices, and moves keyboard focus to a useful option.
+         * It does not return a value.
+         */
         function openPicker() {
             document.querySelectorAll("[data-date-picker-popup]")
                 .forEach((otherPopup) => {

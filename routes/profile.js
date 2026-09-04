@@ -1,3 +1,4 @@
+/** Displays Profile and handles changes to a logged-in account. */
 const express = require("express");
 const {
     query,
@@ -33,15 +34,21 @@ const {
 } = require("../middleware/rate-limits");
 
 const router = express.Router();
-const changeEmailMiddleware = [
+const emailChangeMiddleware = [
     redirectUnauthenticated,
     changeEmailUserRateLimit
 ];
-const changePasswordMiddleware = [
+const passwordChangeMiddleware = [
     redirectUnauthenticated,
     changePasswordUserRateLimit
 ];
 
+/*
+ * This route loads and displays the logged-in user's settings and messages.
+ *
+ * If a session exists but its account no longer does, the unusable session cookie
+ * is deleted and the visitor is returned to Login.
+ */
 router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     try {
         const emailError = getStringInput(req.query.emailError);
@@ -108,12 +115,16 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
     }
 });
 
+/*
+ * This route checks and saves one supported color theme.
+ * It updates the preference row or creates it for an older account that lacks one.
+ */
 router.post(
     "/profile/color-scheme",
     redirectUnauthenticated,
     async (req, res, next) => {
         const colorScheme = getStringInput(
-            req.body.changeColorScheme
+            req.body?.changeColorScheme
         ).trim().toLowerCase();
 
         if (!["light", "dark", "tank"].includes(colorScheme)) {
@@ -144,13 +155,19 @@ router.post(
     }
 );
 
-router.post("/profile/change-email", ...changeEmailMiddleware,
-    async (req, res, next) => {
+/*
+ * This route changes an account email and records when the change happened as
+ * one all-or-nothing database operation.
+ *
+ * Notification emails are sent only after the database change is permanent. An
+ * email-delivery failure is reported, but it cannot undo the completed change.
+ */
+router.post("/profile/change-email", ...emailChangeMiddleware, async (req, res, next) => {
     const userID = req.authenticatedUserID;
 
-    const email = getStringInput(req.body.email).trim().toLowerCase();
+    const email = getStringInput(req.body?.email).trim().toLowerCase();
     const confirmEmail =
-        getStringInput(req.body.confirmEmail).trim().toLowerCase();
+        getStringInput(req.body?.confirmEmail).trim().toLowerCase();
 
     if (!email || !confirmEmail) {
         return redirectWithQuery(res, "/profile", {
@@ -257,11 +274,17 @@ router.post("/profile/change-email", ...changeEmailMiddleware,
     }
 });
 
-router.post("/profile/change-password", ...changePasswordMiddleware,
-    async (req, res, next) => {
+/*
+ * This route safely hashes and saves a new password. It also disables unused
+ * reset links and logs the user out of other browsers and devices.
+ *
+ * The current browser stays logged in. A notification-email failure cannot undo
+ * the password change after the database has saved it.
+ */
+router.post("/profile/change-password", ...passwordChangeMiddleware, async (req, res, next) => {
     const userID = req.authenticatedUserID;
-    const newPassword = getStringInput(req.body.newPassword);
-    const confirmPassword = getStringInput(req.body.confirmPassword);
+    const newPassword = getStringInput(req.body?.newPassword);
+    const confirmPassword = getStringInput(req.body?.confirmPassword);
 
     if (!newPassword || !confirmPassword) {
         return redirectWithQuery(res, "/profile", {
@@ -341,11 +364,18 @@ router.post("/profile/change-password", ...changePasswordMiddleware,
     });
 });
 
+/*
+ * This route permanently deletes an account only after the user enters DELETE
+ * exactly and confirms the final popup.
+ *
+ * PostgreSQL relationships automatically delete every row owned by that account
+ * inside the same all-or-nothing operation.
+ */
 router.post(
     "/profile/delete-account",
     redirectUnauthenticated,
     async (req, res, next) => {
-        const confirmation = getStringInput(req.body.deleteConfirmation);
+        const confirmation = getStringInput(req.body?.deleteConfirmation);
 
         if (confirmation !== "DELETE") {
             return redirectWithQuery(res, "/profile", {

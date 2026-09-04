@@ -1,3 +1,4 @@
+/** Checks browser trade drafts and safely saves or deletes complete trading days. */
 const {
     query,
     runTransaction
@@ -12,18 +13,39 @@ const {
 const TRADE_NOTES_MAXIMUM_LENGTH = 1500;
 const TRADE_PAGE_SIZE = 5;
 
+/*
+ * This function checks that a user ID is a positive whole number JavaScript can
+ * represent exactly.
+ *
+ * It returns no value.
+ * It throws a TypeError when the ID is invalid.
+ */
 function validateUserID(userID) {
     if (!Number.isSafeInteger(userID) || userID <= 0) {
         throw new TypeError("A valid user ID is required.");
     }
 }
 
+/*
+ * This function checks that a trade date is a real weekday written as YYYY-MM-DD.
+ *
+ * It returns no value.
+ * It throws a TypeError when the date is invalid.
+ */
 function validateTradingDate(tradingDate) {
     if (!isValidTradingDate(tradingDate)) {
         throw new TypeError("A valid trading date is required.");
     }
 }
 
+/*
+ * This function checks one order sent by the browser.
+ *
+ * It requires a real time, a finite ES price in a 0.25-point increment, and a
+ * positive whole number of contracts.
+ *
+ * Returns true when every field is valid. Returns false otherwise.
+ */
 function isValidOrderEvent(orderEvent) {
     if (
         !orderEvent ||
@@ -46,6 +68,14 @@ function isValidOrderEvent(orderEvent) {
     );
 }
 
+/*
+ * This function checks all buy and sell orders in one completed trade.
+ *
+ * Both sides must contain valid orders. The total number bought must equal the
+ * total number sold, because a completed trade cannot leave a position open.
+ *
+ * Returns true when the orders are valid and balanced. Returns false otherwise.
+ */
 function isValidOrderEventCollection(orderEvents) {
     if (
         !orderEvents ||
@@ -81,6 +111,15 @@ function isValidOrderEventCollection(orderEvents) {
     return buyContractCount === sellContractCount;
 }
 
+/*
+ * This function changes one PostgreSQL trade row into the object sent by the API.
+ *
+ * Database names such as points_per_trade become JavaScript names such as
+ * pointsPerTrade. Points per contract are calculated from the trusted saved
+ * totals instead of being accepted from the browser.
+ *
+ * Returns the newly formatted trade object.
+ */
 function formatUserTrade(trade) {
     return {
         id: trade.id,
@@ -97,6 +136,15 @@ function formatUserTrade(trade) {
     };
 }
 
+/*
+ * This function gets one page of up to five trades for one user and date.
+ *
+ * The query asks for six rows. The sixth row is not shown; its presence simply
+ * tells the page that a Next button is needed.
+ *
+ * Returns the five formatted trades, current page number, and a true/false
+ * hasNext value.
+ */
 async function getUserTradePageForDate(
     userID,
     tradingDate,
@@ -146,6 +194,12 @@ async function getUserTradePageForDate(
     };
 }
 
+/*
+ * This function checks whether a user has already submitted a trading day.
+ * Submitted trading days cannot be edited or submitted a second time.
+ *
+ * Returns a Promise whose value is true when the day exists and false when it does not.
+ */
 async function hasUserTradingDay(userID, tradingDate, db = { query }) {
     validateUserID(userID);
     validateTradingDate(tradingDate);
@@ -166,6 +220,12 @@ async function hasUserTradingDay(userID, tradingDate, db = { query }) {
     return result.rows[0].trading_day_exists;
 }
 
+/*
+ * This function finds the newest date on which a user saved trades.
+ *
+ * Returns the date as YYYY-MM-DD.
+ * Returns null when the user has never saved a trading day.
+ */
 async function getLatestUserTradingDate(userID, db = { query }) {
     validateUserID(userID);
 
@@ -185,6 +245,16 @@ async function getLatestUserTradingDate(userID, db = { query }) {
     return result.rows[0].trading_date;
 }
 
+/*
+ * This function totals one side of a trade.
+ *
+ * "Price-weighted value" means each order price multiplied by its contract
+ * count. Adding those products allows later code to calculate average prices
+ * correctly even when orders use different sizes.
+ *
+ * Returns the total contract count and total price-weighted value.
+ * Throws an error when any order is invalid.
+ */
 function getOrderEventSideSummary(orderEvents) {
     if (
         !Array.isArray(orderEvents) ||
@@ -209,6 +279,16 @@ function getOrderEventSideSummary(orderEvents) {
     return summary;
 }
 
+/*
+ * This function calculates trusted contract and point totals for one completed trade.
+ *
+ * The browser is not trusted to provide these totals. Subtracting the total
+ * amount paid on buys from the total received on sells gives the correct
+ * positive or negative point result for both long and short trades.
+ *
+ * Returns the total contracts traded and total points for the trade.
+ * Throws an error when the trade is invalid or incomplete.
+ */
 function calculateTradeSummary(side, orderEvents) {
     if (
         side !== "long" &&
@@ -231,11 +311,25 @@ function calculateTradeSummary(side, orderEvents) {
     };
 }
 
+/*
+ * This function rebuilds accepted orders using only fields the database allows.
+ *
+ * Any extra properties added by a user in browser developer tools are discarded.
+ * Every time is converted to the same ISO date-and-time format.
+ *
+ * Returns a new object containing cleaned buySide and sellSide arrays.
+ * Throws an error when the submitted orders are invalid.
+ */
 function canonicalizeOrderEvents(orderEvents) {
     if (!isValidOrderEventCollection(orderEvents)) {
         throw new TypeError("Valid order events are required.");
     }
 
+    /*
+     * This helper copies only the order fields allowed to reach PostgreSQL.
+     *
+     * It returns a new event with a normalized ISO timestamp.
+     */
     const canonicalizeEvent = (orderEvent) => ({
         time: new Date(orderEvent.time).toISOString(),
         price: orderEvent.price,
@@ -248,6 +342,15 @@ function canonicalizeOrderEvents(orderEvents) {
     };
 }
 
+/*
+ * This function checks every submitted order against trusted candle data from
+ * the database.
+ *
+ * An order must use the exact time of a real five-minute candle. Its price must
+ * be between that candle's low and high prices.
+ *
+ * Returns true only when every order matches a candle. Returns false otherwise.
+ */
 function areOrderEventsWithinCandlesticks(
     orderEvents,
     candlesticks
@@ -286,6 +389,16 @@ function areOrderEventsWithinCandlesticks(
     });
 }
 
+/*
+ * This function checks one submitted trade and creates the values PostgreSQL
+ * will store.
+ *
+ * Financial totals sent by the browser are ignored. The server calculates them
+ * again from trusted orders, so changing browser data cannot fake the result.
+ *
+ * Returns a cleaned trade ready to save.
+ * Throws an error when any part of the trade is invalid.
+ */
 function prepareTradeForSave(trade, candlesticks) {
     if (
         !trade ||
@@ -335,6 +448,12 @@ function prepareTradeForSave(trade, candlesticks) {
     };
 }
 
+/*
+ * This function checks and cleans a nonempty array of submitted trades.
+ *
+ * Returns a new array of trades ready to save.
+ * Throws an error when the array is empty or any trade is invalid.
+ */
 function prepareTradesForSave(trades, candlesticks) {
     if (
         !Array.isArray(trades) ||
@@ -348,6 +467,16 @@ function prepareTradesForSave(trades, candlesticks) {
     );
 }
 
+/*
+ * This function saves a trading day, all its trades, and its updated statistics
+ * as one all-or-nothing database transaction.
+ *
+ * The trading-day row must be unique for each user and date. If that row already
+ * exists or any later step fails, none of the new changes are permanently saved.
+ *
+ * Returns the number of trades saved.
+ * If the transaction fails, it throws the original error.
+ */
 async function saveUserTradingDay(
     userID,
     tradingDate,
@@ -409,6 +538,16 @@ async function saveUserTradingDay(
     }, db);
 }
 
+/*
+ * This function deletes a trading day and recalculates statistics as one
+ * all-or-nothing database transaction.
+ *
+ * PostgreSQL's cascading relationship automatically deletes every trade that
+ * belongs to the deleted day.
+ *
+ * Returns true when a day was deleted.
+ * Returns false when no matching day existed.
+ */
 async function deleteUserTradingDay(
     userID,
     tradingDate,

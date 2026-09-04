@@ -1,7 +1,20 @@
+/** Prevents identical slow operations from running more than once at a time. */
+/*
+ * This function makes callers asking for the same key share one unfinished
+ * operation.
+ *
+ * For example, ten users asking for the same trading date wait for one download
+ * instead of causing ten downloads. After it succeeds or fails, the saved
+ * Promise is removed so a later request can try again.
+ *
+ * Returns the shared operation's final value. If that operation fails, this
+ * function throws the same error.
+ */
 async function runWithPromiseLock(pendingPromises, key, createPromise) {
     let pendingPromise = pendingPromises.get(key);
 
     if (!pendingPromise) {
+        // Store before awaiting so later callers join this exact operation.
         pendingPromise = createPromise();
         pendingPromises.set(key, pendingPromise);
     }
@@ -9,6 +22,7 @@ async function runWithPromiseLock(pendingPromises, key, createPromise) {
     try {
         return await pendingPromise;
     } finally {
+        // Identity checking prevents an older request from deleting a replacement Promise.
         if (pendingPromises.get(key) === pendingPromise) {
             pendingPromises.delete(key);
         }

@@ -1,3 +1,4 @@
+/** Turns saved trades into the points and calculations used by Visualize charts. */
 const { query } = require("./db");
 const { isValidTradingDate } = require("./trading-sessions");
 
@@ -69,6 +70,16 @@ const DAY_ONLY_Y_AXES = new Set([
     "breakevenDayRate"
 ]);
 
+/*
+ * This function finds the y-axis choices that make sense for the selected x-axis.
+ *
+ * For example, a per-day value is not allowed when each x point represents a
+ * single trade. It also removes choices that would compare the same count with
+ * itself, such as trade count against cumulative trade count.
+ *
+ * Returns a Set containing every allowed y-axis name. A Set is used because it
+ * provides a direct check for whether a name exists.
+ */
 function getValidYAxisValues(xAxis) {
     if (xAxis === "time") {
         return new Set([
@@ -90,6 +101,13 @@ function getValidYAxisValues(xAxis) {
     );
 }
 
+/*
+ * This function checks the user ID, both axis names, their compatibility, and
+ * the optional starting and ending dates.
+ *
+ * It returns no value.
+ * It throws a TypeError when any request value is invalid.
+ */
 function validateVisualizationInputs(userID, xAxis, yAxis, fromDate, toDate) {
     if (!Number.isSafeInteger(userID) || userID <= 0) {
         throw new TypeError("A valid user ID is required.");
@@ -112,6 +130,14 @@ function validateVisualizationInputs(userID, xAxis, yAxis, fromDate, toDate) {
     }
 }
 
+/*
+ * This function finds the time of the earliest order in one trade.
+ *
+ * Old or malformed rows might contain no orders. For those rows, noon UTC on
+ * the trading date is used so the trade can still be placed in a stable order.
+ *
+ * Returns the chosen time as the number of milliseconds since January 1, 1970.
+ */
 function getTradeTime(trade) {
     const orderEvents = [
         ...(trade.order_events?.buySide || []),
@@ -126,6 +152,12 @@ function getTradeTime(trade) {
         : new Date(`${trade.trading_date}T12:00:00Z`).getTime();
 }
 
+/*
+ * This function checks whether a trade scaled into or out of its position.
+ *
+ * Returns true when buys or sells contain more than one order.
+ * Returns false otherwise.
+ */
 function tradeUsesScaling(trade) {
     return (
         (trade.order_events?.buySide?.length || 0) > 1 ||
@@ -133,10 +165,26 @@ function tradeUsesScaling(trade) {
     );
 }
 
+/*
+ * This function safely divides one number by another.
+ * A zero bottom number cannot be divided normally, so it is handled explicitly.
+ *
+ * Returns the division result, or zero when the bottom number is zero.
+ */
 function divide(numerator, denominator) {
     return denominator === 0 ? 0 : numerator / denominator;
 }
 
+/*
+ * This function calculates the overall direction and steepness of a chart line.
+ *
+ * It uses the standard least-squares formula, which finds the straight line
+ * that best fits all chart points. When the x-axis is time, milliseconds are
+ * changed into days so the slope has a useful, readable meaning.
+ *
+ * Returns the calculated slope.
+ * Returns null when there are fewer than two points or every x value is equal.
+ */
 function calculateSlope(points, xIsTime) {
     if (points.length < 2) return null;
 
@@ -160,6 +208,15 @@ function calculateSlope(points, xIsTime) {
     return variance === 0 ? null : covariance / variance;
 }
 
+/*
+ * This function finds the chart's largest fall from an earlier high point.
+ * This is called maximum drawdown.
+ *
+ * The first high point starts at zero. Therefore, a cumulative line that begins
+ * below zero correctly counts that opening loss as a drawdown.
+ *
+ * Returns the largest drop as a positive number or zero when there was no drop.
+ */
 function calculateMaximumDrawdown(points) {
     let peak = 0;
     let maximumDrawdown = 0;
@@ -175,6 +232,17 @@ function calculateMaximumDrawdown(points) {
     return maximumDrawdown;
 }
 
+/*
+ * This function reads trades from earliest to latest and creates each chart point.
+ *
+ * As it moves through the trades, it keeps the running counts, point totals,
+ * rates, and expected values needed by the selected axes. A value representing
+ * a whole day is added only after that day's final trade, so the chart never
+ * shows a partly calculated day.
+ *
+ * Returns an array of chart points. Each point contains numeric x and y values
+ * and the trading date that produced it.
+ */
 function createVisualizationPoints(trades, xAxis, yAxis) {
     const dayTotals = new Map();
 
@@ -307,6 +375,7 @@ function createVisualizationPoints(trades, xAxis, yAxis) {
         };
     });
 
+    // Day-based series emit one point per day instead of repeating it for every trade.
     const displayedPoints =
         xAxis === "tradingDays" || DAY_ONLY_Y_AXES.has(yAxis)
             ? points.filter((point) => point.isDayEnd)
@@ -319,6 +388,16 @@ function createVisualizationPoints(trades, xAxis, yAxis) {
     }));
 }
 
+/*
+ * This function loads a user's trades in date order and builds the complete
+ * response needed by the Visualize page.
+ *
+ * Optional starting and ending dates are included in the range. PostgreSQL
+ * filters out trades outside that range before JavaScript performs calculations.
+ *
+ * Returns the chart points, slope, maximum drawdown, available date range, and
+ * true/false values that tell the browser how to format both axes.
+ */
 async function getUserVisualization(
     userID,
     xAxis,

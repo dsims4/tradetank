@@ -1,3 +1,4 @@
+/** Receives logged-in browser requests and responds with JSON data. */
 const express = require("express");
 const { query } = require("../services/db");
 const {
@@ -50,6 +51,12 @@ const ANALYZE_STAT_NAMES = new Set([
     "averageTradesPerDay"
 ]);
 
+/*
+ * This function checks a user's saved ordering of Analyze-page cards.
+ * Every known card name must appear exactly once, with no missing or repeated names.
+ *
+ * Returns true for a complete valid order. Returns false otherwise.
+ */
 function isValidAnalyzeStatOrder(statOrder) {
     return (
         Array.isArray(statOrder) &&
@@ -61,9 +68,19 @@ function isValidAnalyzeStatOrder(statOrder) {
     );
 }
 
+/*
+ * This function checks whether a submitted username and email are available.
+ *
+ * This early check gives the Signup page quick feedback. Another person could
+ * still register the same value a moment later, so PostgreSQL's unique rules
+ * perform the final check when the account is actually created.
+ *
+ * Returns JSON containing validation errors or true/false availability values.
+ * Passes an unexpected error to Express's final error handler.
+ */
 async function checkSignupAvailability(req, res, next) {
-    const username = getStringInput(req.body.username).trim();
-    const email = getStringInput(req.body.email).trim().toLowerCase();
+    const username = getStringInput(req.body?.username).trim();
+    const email = getStringInput(req.body?.email).trim().toLowerCase();
 
     if (!isValidUsername(username) || !isValidEmail(email)) {
         return res.status(400).json({
@@ -100,6 +117,12 @@ async function checkSignupAvailability(req, res, next) {
     }
 }
 
+/*
+ * This route returns the user's calculated statistics and saved card order.
+ *
+ * The two database reads run at the same time because neither depends on the
+ * other. This reduces how long the browser waits.
+ */
 router.get("/analyze-stats", requireAPIAuthentication, async (req, res, next) => {
     try {
         const [stats, preferencesResult] = await Promise.all([
@@ -125,6 +148,11 @@ router.get("/analyze-stats", requireAPIAuthentication, async (req, res, next) =>
     }
 });
 
+/*
+ * This route checks the requested chart axes and returns points calculated by
+ * the server. An invalid choice returns HTTP status 400, meaning the request was
+ * bad, instead of incorrectly reporting a server failure.
+ */
 router.get("/visualize", requireAPIAuthentication, async (req, res, next) => {
     const xAxis = getStringInput(req.query.xAxis);
     const yAxis = getStringInput(req.query.yAxis);
@@ -150,11 +178,17 @@ router.get("/visualize", requireAPIAuthentication, async (req, res, next) => {
     }
 });
 
+/*
+ * This route saves the logged-in user's complete Analyze-card order.
+ *
+ * An "upsert" updates an existing preference row or inserts one when it does not
+ * exist. This also supports older accounts created before preferences were added.
+ */
 router.put(
     "/analyze-stat-order",
     requireAPIAuthentication,
     async (req, res, next) => {
-        const statOrder = req.body.statOrder;
+        const statOrder = req.body?.statOrder;
 
         if (!isValidAnalyzeStatOrder(statOrder)) {
             return res.status(400).json({
@@ -184,6 +218,13 @@ router.put(
     }
 );
 
+/*
+ * This route returns an Input chart for the requested date. With no date, it
+ * returns the newest available chart.
+ *
+ * If candles are not already saved, the market-data service may download them.
+ * Identical requests made at the same time share that download.
+ */
 router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =
         getStringInput(req.query.date);
@@ -210,6 +251,12 @@ router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     }
 });
 
+/*
+ * This route returns up to five saved trades from one trading date.
+ *
+ * With no date, it uses the user's newest submitted day. The page number must be
+ * a positive whole number within a safe maximum.
+ */
 router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate = getStringInput(req.query.date);
     const pageInput = getStringInput(req.query.page) || "1";
@@ -262,6 +309,12 @@ router.get("/trades", requireAPIAuthentication, async (req, res, next) => {
     }
 });
 
+/*
+ * This route deletes one complete trading day belonging to the logged-in user.
+ *
+ * A missing day returns HTTP status 404. Success returns status 204, which means
+ * the request succeeded and there is no response body.
+ */
 router.delete("/trades", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate = getStringInput(req.query.date);
 
@@ -290,6 +343,11 @@ router.delete("/trades", requireAPIAuthentication, async (req, res, next) => {
     }
 });
 
+/*
+ * This route loads read-only candles for a previously submitted trading day.
+ * Unlike the Input page, it may return candles marked degraded so an existing
+ * journal can still be reviewed with a warning.
+ */
 router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => {
     const tradingDate =
         getStringInput(req.query.date);
@@ -312,12 +370,22 @@ router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => 
     }
 });
 
+/*
+ * This route lets the Signup page run the availability check. A rate limiter
+ * prevents the browser from sending excessive checks.
+ */
 router.post(
     "/signup-availability",
     signupAvailabilityIPRateLimit,
     checkSignupAvailability
 );
 
+/*
+ * This route saves all trades from one previously unsubmitted Input chart.
+ *
+ * It reloads trusted candles from the server and recalculates financial totals.
+ * Values changed in browser developer tools are therefore not trusted.
+ */
 router.post("/input-chart", requireAPIAuthentication, async (req, res, next) => {
     if (!req.is("application/json")) {
         return res.status(415).json({

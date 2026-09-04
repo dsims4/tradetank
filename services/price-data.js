@@ -1,7 +1,17 @@
+/** Checks, combines, reads, and saves candlestick price data. */
 const { query } = require("./db");
 
 const FIVE_MINUTE_DURATION = 1000 * 60 * 5;
 
+/*
+ * This function reads saved one-minute candles from the requested period.
+ *
+ * The starting time is included and the ending time is excluded. Excluding the
+ * ending time prevents the first candle of the next session from being included.
+ *
+ * Returns an array ordered from earliest to latest. Each candle has an ISO time
+ * string and numeric open, high, low, and close prices.
+ */
 async function getCandlesticks(startTime, endTime, db = { query }) {
     const result = await db.query(
         `SELECT
@@ -30,6 +40,14 @@ async function getCandlesticks(startTime, endTime, db = { query }) {
     }));
 }
 
+/*
+ * This function checks one candle's time and prices.
+ *
+ * Every price must be a normal finite number. The high cannot be below the open
+ * or close, and the low cannot be above them.
+ *
+ * Returns true when every field is valid. Returns false otherwise.
+ */
 function isValidCandlestick(candlestick) {
     if (!candlestick || typeof candlestick !== "object") return false;
 
@@ -57,6 +75,16 @@ function isValidCandlestick(candlestick) {
     );
 }
 
+/*
+ * This function combines groups of five one-minute candles into five-minute
+ * candles.
+ *
+ * Each new candle uses the first opening price, highest high, lowest low, and
+ * final closing price from its five source candles.
+ *
+ * Returns the new five-minute candle array.
+ * Throws an error if a source candle is invalid or is not in time order.
+ */
 function aggregateFiveMinuteCandlesticks(candlesticks) {
     if (!Array.isArray(candlesticks)) {
         throw new TypeError(
@@ -127,6 +155,16 @@ function aggregateFiveMinuteCandlesticks(candlesticks) {
     return aggregatedCandlesticks;
 }
 
+/*
+ * This function checks an entire Databento candle response against the requested
+ * market-session period.
+ *
+ * Every time must fall inside the period, start on an exact minute, and be later
+ * than the previous candle. The ending time itself is not included.
+ *
+ * Returns true only when the response is not empty and every candle passes every
+ * check. Returns false otherwise.
+ */
 function areCandlesticksValidForRange(candlesticks, startTime, endTime) {
     const rangeIsValid =
         startTime instanceof Date &&
@@ -169,6 +207,16 @@ function areCandlesticksValidForRange(candlesticks, startTime, endTime) {
     });
 }
 
+/*
+ * This function saves many valid candles with one PostgreSQL query.
+ *
+ * UNNEST turns the supplied JavaScript arrays into rows inside PostgreSQL. This
+ * avoids sending one query per candle. If a candle time already exists, that
+ * candle is skipped and its saved prices are not changed.
+ *
+ * Returns the number of new candle rows saved.
+ * Throws an error before saving when any candle is invalid.
+ */
 async function saveCandlesticks(candlesticks, db = { query }) {
     if (!Array.isArray(candlesticks)) {
         throw new TypeError("The candlesticks must be in an array.");

@@ -33,6 +33,7 @@
                 </p>
             </header>
 
+            {# SVG data hooks are updated without replacing this accessible chart shell. #}
             <div class="visualize-chart-layout">
                 <p
                     class="visualize-axis-title visualize-y-axis-title"
@@ -51,8 +52,8 @@
                         <rect
                             x="30"
                             y="25"
-                            width="805"
-                            height="475"
+                            width="840"
+                            height="465"
                             class="visualize-chart-plot"
                         />
                         <path
@@ -67,7 +68,7 @@
                             data-visualize-last-point
                         />
                         <path
-                            d="M 835 25 V 500 H 30"
+                            d="M 870 25 V 490 H 30"
                             class="visualize-chart-axis"
                         />
                         <g
@@ -101,11 +102,11 @@
                             </g>
                             <g data-visualize-crosshair-y-label>
                                 <rect
-                                    width="150"
+                                    width="110"
                                     height="26"
                                     rx="4"
                                 />
-                                <text x="75" y="13"></text>
+                                <text x="55" y="13"></text>
                             </g>
                         </g>
                     </svg>
@@ -123,6 +124,7 @@
                 Axes
             </h2>
 
+            {# Native selects remain the state source behind the styled option controls. #}
             <aside class="input-trade-sidebar visualize-axis-sidebar">
                 <fieldset>
                     <div class="visualize-axis-control">

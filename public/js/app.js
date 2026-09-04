@@ -1,3 +1,10 @@
+/** Runs behavior shared by navigation, forms, popups, and logged-in pages. */
+/*
+ * This function asks the browser how the current page was opened.
+ *
+ * Returns text such as "navigate," "reload," or "back_forward."
+ * Returns undefined when the browser does not provide the information.
+ */
 function getNavigationType() {
     const navigationEntries =
         window.performance.getEntriesByType("navigation");
@@ -5,11 +12,22 @@ function getNavigationType() {
     return navigationEntries[0]?.type;
 }
 
+/*
+ * This function removes earlier custom errors from two password inputs.
+ *
+ * It changes both input elements and does not return a value.
+ */
 function clearPasswordValidation(passwordInput, confirmationInput) {
     passwordInput.setCustomValidity("");
     confirmationInput.setCustomValidity("");
 }
 
+/*
+ * This function checks whether a password and confirmation password match.
+ *
+ * Returns true when they match. When they differ, it asks the browser to show
+ * an error on the confirmation field and returns false.
+ */
 function validatePasswordConfirmation(passwordInput, confirmationInput) {
     clearPasswordValidation(passwordInput, confirmationInput);
 
@@ -22,6 +40,14 @@ function validatePasswordConfirmation(passwordInput, confirmationInput) {
     return false;
 }
 
+/*
+ * This function reads an API response in the format used by browser scripts.
+ *
+ * JSON is the text format used to send data between this browser code and the
+ * API. A successful JSON response is converted into a JavaScript object. A
+ * failed response throws an Error using the server's message when available,
+ * or the supplied backup message otherwise.
+ */
 async function readAPIResponse(response, fallbackErrorMessage) {
     const responseIsJSON = response.headers
         .get("content-type")
@@ -39,6 +65,15 @@ async function readAPIResponse(response, fallbackErrorMessage) {
     return responseData;
 }
 
+/*
+ * This function starts the landing-page image slideshow.
+ *
+ * Moving past the final slide returns to the first slide, and moving backward
+ * from the first returns to the final slide. If the page has no slideshow, the
+ * function stops without changing anything.
+ *
+ * It registers event listeners and returns no value.
+ */
 function runSlideshow() {
     const slides = Array.from(
         document.querySelectorAll(".slideshow-slide")
@@ -56,10 +91,21 @@ function runSlideshow() {
 
     let currentIndex = 1;
 
+    /*
+     * This function changes any slide number into a valid position in the list.
+     *
+     * Returns a valid array position from zero through the final slide.
+     */
     function getWrappedIndex(index) {
         return (index + slides.length) % slides.length;
     }
 
+    /*
+     * This function shows the current slide and places nearby slides on its left
+     * and right with the correct styling.
+     *
+     * It changes the slides' CSS classes and does not return a value.
+     */
     function renderSlides() {
         const leftIndex = getWrappedIndex(currentIndex - 1);
         const middleIndex = currentIndex;
@@ -107,11 +153,13 @@ function runSlideshow() {
         });
     }
 
+    /* This function moves to the previous slide and redraws the slideshow. */
     function showPreviousSlide() {
         currentIndex = getWrappedIndex(currentIndex - 1);
         renderSlides();
     }
 
+    /* This function moves to the next slide and redraws the slideshow. */
     function showNextSlide() {
         currentIndex = getWrappedIndex(currentIndex + 1);
         renderSlides();
@@ -121,6 +169,15 @@ function runSlideshow() {
     rightButton.addEventListener("click", showNextSlide);
 }
 
+/*
+ * This function starts Signup-page validation.
+ *
+ * It checks that passwords match and asks the API whether the username and email
+ * are free. The normal form submission waits until the latest availability
+ * request succeeds, preventing submission with an outdated result.
+ *
+ * It registers Signup form listeners and returns no value.
+ */
 function runSignupForm() {
     const signupForm = document.querySelector("[data-signup-form]");
 
@@ -135,11 +192,13 @@ function runSignupForm() {
         "#confirm-password"
     );
 
+    /* This function removes old username and email errors after either value changes. */
     function clearAccountValidation() {
         usernameInput.setCustomValidity("");
         emailInput.setCustomValidity("");
     }
 
+    /* This function runs the shared password-matching check and returns its result. */
     function validatePasswords() {
         return validatePasswordConfirmation(
             passwordInput,
@@ -147,6 +206,7 @@ function runSignupForm() {
         );
     }
 
+    /* This function clears passwords when the browser restores an old Signup page. */
     function clearPasswords() {
         clearPasswordValidation(
             passwordInput,
@@ -154,6 +214,12 @@ function runSignupForm() {
         );
     }
 
+    /*
+     * This function asks the API whether another account already uses the current
+     * username or email.
+     *
+     * Returns a Promise whose value is true only when both values are available.
+     */
     async function validateAvailability() {
         clearAccountValidation();
 
@@ -228,6 +294,12 @@ function runSignupForm() {
     confirmPasswordInput.addEventListener("input", clearPasswords);
 }
 
+/*
+ * This function prevents the Login password from reappearing when the browser
+ * restores the page after Back or Forward navigation.
+ *
+ * It registers Login listeners and returns no value.
+ */
 function runLoginForm() {
     const loginForm = document.querySelector("[data-login-form]");
 
@@ -237,6 +309,7 @@ function runLoginForm() {
 
     const passwordInput = loginForm.querySelector("#password");
 
+    /* This function clears the Login password while preserving the username field. */
     function clearPasswordField() {
         if (passwordInput) {
             passwordInput.value = "";
@@ -255,6 +328,12 @@ function runLoginForm() {
     });
 }
 
+/*
+ * This function starts matching-password checks on the Reset Password page and
+ * clears old password values when the browser restores the page.
+ *
+ * It registers Reset Password listeners and returns no value.
+ */
 function runResetPasswordForm() {
     const resetPasswordForm = document.querySelector("[data-reset-password-form]");
 
@@ -267,6 +346,7 @@ function runResetPasswordForm() {
         "#confirm-password"
     );
 
+    /* This function delegates Reset password-pair validation and returns its boolean result. */
     function validatePasswords() {
         return validatePasswordConfirmation(
             passwordInput,
@@ -274,6 +354,7 @@ function runResetPasswordForm() {
         );
     }
 
+    /* This function clears both reset password fields after restored-page navigation. */
     function clearPasswords() {
         clearPasswordValidation(
             passwordInput,
@@ -291,6 +372,12 @@ function runResetPasswordForm() {
     confirmPasswordInput.addEventListener("input", clearPasswords);
 }
 
+/*
+ * This function requires the exact word DELETE and a second browser confirmation
+ * before the account-deletion form can be submitted.
+ *
+ * It registers Profile deletion listeners and returns no value.
+ */
 function runDeleteAccountForm() {
     const deleteAccountForm = document.querySelector(
         "[data-delete-account-form]"
@@ -308,6 +395,7 @@ function runDeleteAccountForm() {
         return;
     }
 
+    /* This function clears the custom DELETE validation message after input changes. */
     function clearConfirmationValidation() {
         confirmationInput.setCustomValidity("");
     }
@@ -336,6 +424,14 @@ function runDeleteAccountForm() {
     confirmationInput.addEventListener("input", clearConfirmationValidation);
 }
 
+/*
+ * This function removes temporary form information from the address bar after
+ * the page loads. Specifically listed parameters may remain when page behavior
+ * still needs them.
+ *
+ * It replaces the current history entry instead of creating a new Back-button
+ * entry. It does not return a value.
+ */
 function runQueryCleaner() {
     const queryCleaner = document.querySelector("[data-clear-query]");
 
@@ -364,6 +460,15 @@ function runQueryCleaner() {
     window.history.replaceState({}, document.title, cleanURL);
 }
 
+/*
+ * This function reloads a private page when the browser restores an old copy
+ * after Back or Forward navigation.
+ *
+ * Without the reload, a person who logged out might still see the old private
+ * page even though new server requests would reject them.
+ *
+ * It registers a pageshow listener and returns no value.
+ */
 function runProtectedPageGuard() {
     const protectedPage = document.body?.dataset.protectedPage !== undefined;
 
@@ -381,6 +486,15 @@ function runProtectedPageGuard() {
     });
 }
 
+/*
+ * This function controls how the navigation bar behaves while the page scrolls.
+ *
+ * At the top, the bar stays in its normal page position. After it scrolls out of
+ * view, it becomes fixed to the screen. Scrolling down hides the fixed bar.
+ * Scrolling up shows it for at most three seconds.
+ *
+ * It registers resize, scroll, and focus listeners and returns no value.
+ */
 function runNavbarScroll() {
     const navbar = document.querySelector(".navbar");
 
@@ -388,6 +502,10 @@ function runNavbarScroll() {
         return;
     }
 
+    /*
+     * This function gives CSS the navbar's current height. The empty header can
+     * then keep the page from jumping when the navbar becomes fixed.
+     */
     function updateNavbarHeight() {
         document.documentElement.style.setProperty(
             "--navbar-height",
@@ -403,20 +521,41 @@ function runNavbarScroll() {
     let previousScrollPosition = Math.max(window.scrollY, 0);
     let navbarHideTimer = null;
 
-    function hideNavbar() {
+    /* This function cancels the countdown that would hide the fixed navbar. */
+    function clearNavbarHideTimer() {
         window.clearTimeout(navbarHideTimer);
+        navbarHideTimer = null;
+    }
+
+    /* This function hides the navbar only when it is fixed to the screen. */
+    function hideNavbar() {
+        clearNavbarHideTimer();
+
+        if (!navbar.classList.contains("navbar--fixed")) return;
+
         navbar.classList.add("navbar--hidden");
     }
 
-    function showNavbar() {
-        window.clearTimeout(navbarHideTimer);
-        navbar.classList.remove("navbar--hidden");
+    /* This function starts a new three-second countdown while the navbar is fixed. */
+    function scheduleNavbarHide() {
+        clearNavbarHideTimer();
 
-        if (window.scrollY > navbar.offsetHeight) {
+        if (navbar.classList.contains("navbar--fixed")) {
             navbarHideTimer = window.setTimeout(hideNavbar, 3000);
         }
     }
 
+    /* This function shows the fixed navbar and restarts its hide countdown. */
+    function showNavbar() {
+        navbar.classList.remove("navbar--hidden");
+        scheduleNavbarHide();
+    }
+
+    /*
+     * This function compares the previous and current scroll positions to learn
+     * whether the page moved up or down. The navbar remains visible in its normal
+     * position while the original header area is still on screen.
+     */
     function updateNavbar() {
         const currentScrollPosition = Math.max(window.scrollY, 0);
         const navbarIsPastViewport =
@@ -428,11 +567,18 @@ function runNavbarScroll() {
         );
 
         if (!navbarIsPastViewport) {
-            showNavbar();
-        } else if (currentScrollPosition < previousScrollPosition) {
+            clearNavbarHideTimer();
+            navbar.classList.remove("navbar--hidden");
+            previousScrollPosition = currentScrollPosition;
+            return;
+        }
+
+        if (currentScrollPosition < previousScrollPosition) {
             showNavbar();
         } else if (currentScrollPosition > previousScrollPosition) {
             hideNavbar();
+        } else if (!navbar.classList.contains("navbar--hidden")) {
+            scheduleNavbarHide();
         }
 
         previousScrollPosition = currentScrollPosition;
@@ -440,17 +586,18 @@ function runNavbarScroll() {
 
     window.addEventListener("scroll", updateNavbar, { passive: true });
 
-    window.addEventListener("wheel", (event) => {
-        if (event.deltaY < 0) {
-            showNavbar();
-        }
-    }, { passive: true });
-
     navbar.addEventListener("focusin", () => {
         showNavbar();
     });
+
+    updateNavbar();
 }
 
+/*
+ * This function previews Profile theme-radio changes before the form is submitted.
+ *
+ * It registers input listeners and returns no value.
+ */
 function runColorSchemeForm() {
     const colorSchemeForm = document.querySelector(
         "[data-color-scheme-form]"
@@ -471,6 +618,12 @@ function runColorSchemeForm() {
     });
 }
 
+/*
+ * This function inserts YYYY-MM-DD separators as users type numeric trading dates.
+ * Non-digit input is discarded and output is bounded to eight date digits.
+ *
+ * It registers formatting listeners and returns no value.
+ */
 function runTradingDateInputs() {
     const dateInputs = document.querySelectorAll(
         "[data-trading-date-input]"

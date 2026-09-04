@@ -1,3 +1,13 @@
+/*
+ * This function initializes the interactive Input page.
+ *
+ * It connects the candlestick chart, unsaved trades, date selector, buttons,
+ * notes, and final save request. Unsaved trades stay only in browser memory
+ * until Save Chart succeeds. If required Input-page elements are missing, this
+ * function stops without changing the page.
+ *
+ * This function does not return a value.
+ */
 function runCandlestickChart() {
     const canvas = document.getElementById("candlestick-chart");
     const chartContainer = canvas?.closest(
@@ -73,6 +83,14 @@ function runCandlestickChart() {
 
     let selectedTradeAction = null;
 
+    /*
+     * This function clears the currently selected Buy, Sell, or Close action.
+     *
+     * It also marks every action button unpressed. Screen readers use this state
+     * to tell the user that no action is selected.
+     *
+     * This function does not return a value.
+     */
     function clearSelectedTradeAction() {
         selectedTradeAction = null;
 
@@ -81,6 +99,14 @@ function runCandlestickChart() {
         });
     }
 
+    /*
+     * This function enables or disables buttons based on the unsaved trades.
+     *
+     * Close is available only while a position is open. Undo and Reset are
+     * available only after at least one unsaved order has been placed.
+     *
+     * This function does not return a value.
+     */
     function updateTradeActionAvailability() {
         closeTradeButton.disabled =
             !tradeDraft.hasActiveTrade();
@@ -91,11 +117,24 @@ function runCandlestickChart() {
         resetOrdersButton.disabled = !canUndo;
     }
 
+    /*
+     * This function clears the notes and process-deviation inputs.
+     *
+     * This function does not return a value.
+     */
     function resetTradeDetails() {
         tradeNotesInput.value = "";
         processDeviationInput.checked = false;
     }
 
+    /*
+     * This function puts the open trade's notes and process-deviation choice
+     * back into the form after Undo changes the active trade.
+     *
+     * If no trade is active, it clears the detail inputs instead.
+     *
+     * This function does not return a value.
+     */
     function restoreActiveTradeDetails() {
         const details = tradeDraft.getActiveTradeDetails();
 
@@ -109,6 +148,14 @@ function runCandlestickChart() {
             details.processDeviation;
     }
 
+    /*
+     * This function creates an editable notes box for each completed unsaved trade.
+     *
+     * Typing in a generated box updates the matching trade stored in browser
+     * memory. The completed-notes section stays hidden when there are none.
+     *
+     * This function does not return a value.
+     */
     function renderCompletedTradeNotes() {
         const trades =
             tradeDraft.getCompletedTradesForDisplay();
@@ -140,6 +187,14 @@ function runCandlestickChart() {
         });
     }
 
+    /*
+     * This function removes every unsaved trade, chart marker, note, and selected
+     * action from the Input page.
+     *
+     * A successful save can additionally reset the contract count to one.
+     *
+     * This function does not return a value.
+     */
     function resetTradeDraft(resetContractCount = false) {
         tradeDraft.clear();
         chart.setOrderMarkers([]);
@@ -153,6 +208,10 @@ function runCandlestickChart() {
         }
     }
 
+    /*
+     * Each action button selects the order action that the next valid chart
+     * click will record.
+     */
     tradeActionButtons.forEach((button) => {
         button.addEventListener("click", () => {
             selectedTradeAction = button.dataset.tradeAction;
@@ -170,6 +229,10 @@ function runCandlestickChart() {
         });
     });
 
+    /*
+     * A chart click checks the selected action, candle, price, and contract count
+     * before adding an unsaved order to browser memory.
+     */
     canvas.addEventListener("click", () => {
         if (!selectedTradeAction) {
             status.textContent =
@@ -195,6 +258,11 @@ function runCandlestickChart() {
         let orderSide = selectedTradeAction;
         let contractCount = contractCountInput.valueAsNumber;
 
+        /*
+         * Close automatically uses the opposite action and the exact number of
+         * contracts still open. For example, closing a long three-contract
+         * position creates Sell 3. Buy and Sell use the number entered by the user.
+         */
         if (selectedTradeAction === "close") {
             const netContractCount =
                 tradeDraft.getNetContractCount();
@@ -230,6 +298,12 @@ function runCandlestickChart() {
             tradeDraft.getCompletedTradeCount();
 
         try {
+            /*
+             * Notes and process deviation belong to a complete trade, not to one
+             * order. Save the fields on the already open trade before recording
+             * this order. If this is the first order of a new trade, attach the
+             * same fields immediately after creating that trade.
+             */
             if (hadActiveTrade) {
                 tradeDraft.updateActiveTradeDetails(
                     notes,
@@ -292,6 +366,15 @@ function runCandlestickChart() {
     resizeObserver.observe(chartContainer);
     chart.resize();
 
+    /*
+     * This function asks the API for candles on a selected trading date.
+     *
+     * An empty date asks for the newest trading day with complete data. A
+     * successful response updates the remembered date, chart, Save permission,
+     * and message. A failed response removes any old candles from the chart.
+     *
+     * Returns a Promise that finishes after the response succeeds or fails.
+     */
     async function loadChart(tradingDate = "") {
         resetTradeDraft();
         tradeFieldset.disabled = true;
@@ -343,6 +426,10 @@ function runCandlestickChart() {
         }
     }
 
+    /*
+     * Submitting the date form loads the requested New York trading date with
+     * JavaScript instead of letting the browser leave or reload the page.
+     */
     controls.addEventListener("submit", (event) => {
         event.preventDefault();
 
@@ -353,6 +440,10 @@ function runCandlestickChart() {
         loadChart(dateInput.value);
     });
 
+    /*
+     * Undo removes the newest order and restores the trades, chart markers, form
+     * fields, buttons, and message to their earlier state.
+     */
     undoOrderButton.addEventListener("click", () => {
         if (!tradeDraft.undoLastOrderEvent()) return;
 
@@ -382,6 +473,9 @@ function runCandlestickChart() {
         }
     });
 
+    /*
+     * Reset discards the entire unsaved draft only after user confirmation.
+     */
     resetOrdersButton.addEventListener("click", () => {
         const shouldReset = window.confirm(
             "Do you want to discard all unsaved trades for this chart?"
@@ -395,6 +489,11 @@ function runCandlestickChart() {
             "All unsaved trades were discarded.";
     });
 
+    /*
+     * Save Chart checks the completed unsaved trades and sends them to the server
+     * as JSON. JSON is the text format used to carry the trade objects. Browser
+     * memory is cleared only after the server confirms the save.
+     */
     tradeForm.addEventListener("submit", async (event) => {
         event.preventDefault();
 
@@ -444,6 +543,11 @@ function runCandlestickChart() {
         }
     });
 
+    /*
+     * Remember the most recently viewed date only for this browser tab. Closing
+     * the tab removes this sessionStorage value.
+     * An empty value lets the server choose the latest available session.
+     */
     const rememberedTradingDate =
         window.sessionStorage.getItem(
             "tradetank-input-chart-date"

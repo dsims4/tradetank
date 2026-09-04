@@ -1,3 +1,9 @@
+/*
+ * These lists define which measurements may appear on the Visualize chart.
+ *
+ * The browser and server use the same rules. This prevents the dropdown from
+ * offering a combination that the server would reject.
+ */
 const TRADE_Y_AXES = [
     "cumulativePoints",
     "expectedValuePerContract",
@@ -43,7 +49,24 @@ const MATCHING_Y_AXIS = new Map([
     ["nonScalingTrades", "cumulativeNonScalingTrades"]
 ]);
 const VISUALIZATION_CHART_STATES = new WeakMap();
+const VISUALIZATION_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+});
+const VISUALIZATION_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit"
+});
 
+/*
+ * This function finds every y-axis choice that makes sense with one x-axis choice.
+ *
+ * Returns a new Set of allowed names. A Set makes it easy to ask whether a
+ * particular name is allowed and cannot change the original lists.
+ */
 function getValidYAxisValues(xAxis) {
     if (xAxis === "time") {
         return new Set([
@@ -63,6 +86,12 @@ function getValidYAxisValues(xAxis) {
     );
 }
 
+/*
+ * This function creates a shape or text element for the SVG chart.
+ * SVG is the browser format used to draw the Visualize chart.
+ *
+ * Returns the new SVG element with the requested type, such as text or path.
+ */
 function createVisualizationSVGElement(name) {
     return document.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -70,35 +99,92 @@ function createVisualizationSVGElement(name) {
     );
 }
 
+/*
+ * This function shows or hides an SVG chart element.
+ *
+ * This function does not return a value.
+ */
+function setVisualizationElementHidden(element, shouldHide) {
+    element.toggleAttribute("hidden", shouldHide);
+}
+
+/*
+ * This function formats a normal chart number with at most three decimal places.
+ *
+ * Returns an em dash when the value is Infinity, negative Infinity, or NaN.
+ * Otherwise, returns the number as compact text without unnecessary ending zeroes.
+ */
 function formatVisualizationNumber(value) {
     if (!Number.isFinite(value)) return "—";
 
     return Number(value.toFixed(3)).toString();
 }
 
-function clearVisualizationCrosshair(chart) {
-    VISUALIZATION_CHART_STATES.delete(chart);
-    chart.querySelector("[data-visualize-crosshair]").hidden = true;
+/*
+ * This function converts an exact time into its New York calendar date.
+ *
+ * Returns a YYYY-MM-DD string, including leading zeroes for month and day.
+ */
+function formatVisualizationDate(value) {
+    const parts = VISUALIZATION_DATE_FORMATTER.formatToParts(
+        new Date(value)
+    );
+    const dateParts = Object.fromEntries(
+        parts.map((part) => [part.type, part.value])
+    );
+
+    return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
 }
 
+/*
+ * This function forgets the number ranges used by a chart's crosshair and hides
+ * both crosshair lines.
+ *
+ * This function does not return a value.
+ */
+function clearVisualizationCrosshair(chart) {
+    VISUALIZATION_CHART_STATES.delete(chart);
+    setVisualizationElementHidden(
+        chart.querySelector("[data-visualize-crosshair]"),
+        true
+    );
+}
+
+/*
+ * This function formats a crosshair x value for its axis type.
+ *
+ * A time value includes its New York date and time. Any other value uses the
+ * normal chart-number formatter.
+ *
+ * Returns the complete text shown underneath the crosshair.
+ */
 function formatVisualizationCrosshairX(value, xIsTime) {
     if (!xIsTime) return formatVisualizationNumber(value);
 
-    return new Date(value).toLocaleString("en-US", {
-        timeZone: "America/New_York",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit"
-    });
+    const time = VISUALIZATION_TIME_FORMATTER.format(new Date(value));
+
+    return `${formatVisualizationDate(value)} ${time}`;
 }
 
+/*
+ * This function formats a crosshair y value for its axis type.
+ *
+ * Returns a rate multiplied by 100 with a percent sign.
+ * Returns every other value as a plain formatted number.
+ */
 function formatVisualizationCrosshairY(value, yIsRate) {
     return yIsRate
         ? `${formatVisualizationNumber(value * 100)}%`
         : formatVisualizationNumber(value);
 }
 
+/*
+ * This function converts the pointer's screen position into a position inside
+ * the SVG chart.
+ *
+ * Returns the converted point. Returns null when the browser cannot provide the
+ * conversion information needed for this chart.
+ */
 function getVisualizationPointer(chart, event) {
     const point = chart.createSVGPoint();
     const screenMatrix = chart.getScreenCTM();
@@ -111,6 +197,13 @@ function getVisualizationPointer(chart, event) {
     return point.matrixTransform(screenMatrix.inverse());
 }
 
+/*
+ * This function moves and labels the visualization crosshair.
+ *
+ * The pointer position is rounded to one of 100 small steps across each axis.
+ * This avoids needless tiny updates while still appearing smooth. The crosshair
+ * is hidden outside the white plotting area. This function does not return a value.
+ */
 function updateVisualizationCrosshair(chart, event) {
     const state = VISUALIZATION_CHART_STATES.get(chart);
     const pointer = getVisualizationPointer(chart, event);
@@ -128,10 +221,14 @@ function updateVisualizationCrosshair(chart, event) {
         pointer.y < plot.top ||
         pointer.y > plot.bottom
     ) {
-        crosshair.hidden = true;
+        setVisualizationElementHidden(crosshair, true);
         return;
     }
 
+    /*
+     * Round the horizontal and vertical positions to hundredths of the plot.
+     * This keeps motion smooth without updating for every individual screen pixel.
+     */
     const xPortion = Math.round(
         (pointer.x - plot.left) /
         (plot.right - plot.left) * 100
@@ -186,20 +283,36 @@ function updateVisualizationCrosshair(chart, event) {
         formatVisualizationCrosshairX(xValue, state.xIsTime);
     yLabel.querySelector("text").textContent =
         formatVisualizationCrosshairY(yValue, state.yIsRate);
-    crosshair.hidden = false;
+    setVisualizationElementHidden(crosshair, false);
 }
 
+/*
+ * This function adds crosshair pointer behavior to one visualization chart.
+ *
+ * Moving inside updates the lines and values. Leaving the SVG hides them.
+ * This function does not return a value.
+ */
 function runVisualizationCrosshair(chart) {
     chart.addEventListener("pointermove", (event) => {
         updateVisualizationCrosshair(chart, event);
     });
     chart.addEventListener("pointerleave", () => {
-        chart.querySelector(
-            "[data-visualize-crosshair]"
-        ).hidden = true;
+        setVisualizationElementHidden(
+            chart.querySelector("[data-visualize-crosshair]"),
+            true
+        );
     });
 }
 
+/*
+ * This function draws API visualization data inside the SVG chart.
+ *
+ * It finds useful lowest and highest axis values, draws the line and its final
+ * point, creates five labels on each axis, and remembers the number ranges used
+ * by the crosshair.
+ *
+ * Returns true when at least one point was drawn. Returns false for no points.
+ */
 function renderVisualizationChart(chart, responseData) {
     const series = chart.querySelector("[data-visualize-series]");
     const lastPoint = chart.querySelector(
@@ -213,17 +326,17 @@ function renderVisualizationChart(chart, responseData) {
     yTicks.replaceChildren();
 
     if (points.length === 0) {
-        series.hidden = true;
-        lastPoint.hidden = true;
+        setVisualizationElementHidden(series, true);
+        setVisualizationElementHidden(lastPoint, true);
         clearVisualizationCrosshair(chart);
         return false;
     }
 
     const plot = {
         left: 30,
-        right: 835,
+        right: 870,
         top: 25,
-        bottom: 500
+        bottom: 490
     };
     const xValues = points.map((point) => point.x);
     const yValues = points.map((point) => point.y);
@@ -265,6 +378,10 @@ function renderVisualizationChart(chart, responseData) {
         yMaximum += padding;
     }
 
+    /*
+     * These two helpers convert real x and y data values into drawing positions
+     * inside the chart's white plotting rectangle.
+     */
     const scaleX = (value) =>
         plot.left +
         (value - xMinimum) /
@@ -292,10 +409,10 @@ function renderVisualizationChart(chart, responseData) {
     });
 
     series.setAttribute("d", path);
-    series.hidden = false;
+    setVisualizationElementHidden(series, false);
     lastPoint.setAttribute("cx", scaleX(finalPoint.x));
     lastPoint.setAttribute("cy", scaleY(finalPoint.y));
-    lastPoint.hidden = false;
+    setVisualizationElementHidden(lastPoint, false);
 
     for (let index = 0; index <= 4; index += 1) {
         const portion = index / 4;
@@ -305,7 +422,7 @@ function renderVisualizationChart(chart, responseData) {
         const yLabel = createVisualizationSVGElement("text");
 
         xLabel.setAttribute("x", scaleX(xValue));
-        xLabel.setAttribute("y", "530");
+        xLabel.setAttribute("y", plot.bottom + 38);
         xLabel.setAttribute(
             "text-anchor",
             index === 0
@@ -315,14 +432,10 @@ function renderVisualizationChart(chart, responseData) {
                     : "middle"
         );
         xLabel.textContent = responseData.xIsTime
-            ? new Date(xValue).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                year: "2-digit"
-            })
+            ? formatVisualizationDate(xValue)
             : formatVisualizationNumber(xValue);
 
-        yLabel.setAttribute("x", "850");
+        yLabel.setAttribute("x", plot.right + 20);
         yLabel.setAttribute("y", scaleY(yValue) + 5);
         yLabel.setAttribute("text-anchor", "start");
         yLabel.textContent = responseData.yIsRate
@@ -336,6 +449,16 @@ function renderVisualizationChart(chart, responseData) {
     return true;
 }
 
+/*
+ * This function builds styled dropdown controls around the browser's normal
+ * select elements.
+ *
+ * The original select remains the official value submitted to page logic. The
+ * new buttons copy its groups, choices, and disabled states. They also send the
+ * same change events and support both mouse and keyboard use.
+ *
+ * This function does not return a value.
+ */
 function runVisualizeSelects() {
     const visualizeSelects = document.querySelectorAll(
         "[data-visualize-select]"
@@ -353,11 +476,22 @@ function runVisualizeSelects() {
             "[data-visualize-select-options]"
         );
 
+        /*
+         * This function closes this custom select's option list.
+         *
+         * This function does not return a value.
+         */
         function closeOptions() {
             options.hidden = true;
             toggle.setAttribute("aria-expanded", "false");
         }
 
+        /*
+         * This function closes every other styled dropdown and opens this one.
+         *
+         * Keyboard focus moves to the selected choice when possible.
+         * This function does not return a value.
+         */
         function openOptions() {
             document.querySelectorAll(
                 "[data-visualize-select-options]"
@@ -379,6 +513,11 @@ function runVisualizeSelects() {
 
         let currentGroup = "";
 
+        /*
+         * Create one button for each normal select option. An optgroup is a
+         * labeled group of related options; its label is added once at the start
+         * of that group.
+         */
         Array.from(select.options).forEach((option) => {
             const group = option.parentElement.tagName === "OPTGROUP"
                 ? option.parentElement.label
@@ -425,6 +564,9 @@ function runVisualizeSelects() {
             options.append(optionButton);
         });
 
+        /*
+         * Clicking the custom select toggle opens or closes its options.
+         */
         toggle.addEventListener("click", () => {
             if (options.hidden) {
                 openOptions();
@@ -440,6 +582,9 @@ function runVisualizeSelects() {
             }
         });
 
+        /*
+         * Arrow, Home, and End keys move focus among visible enabled options.
+         */
         options.addEventListener("keydown", (event) => {
             const optionButtons = Array.from(
                 options.querySelectorAll("[role='option']")
@@ -481,6 +626,15 @@ function runVisualizeSelects() {
     });
 }
 
+/*
+ * This function initializes the Visualize page's data workflow.
+ *
+ * It checks axis combinations, controls optional starting and ending dates,
+ * requests chart data, and draws the chart and summary values. If either axis
+ * dropdown is missing, it stops without changing the page.
+ *
+ * This function does not return a value.
+ */
 function runVisualizePage() {
     const xAxisSelect = document.querySelector(
         "[data-visualize-x-axis]"
@@ -513,10 +667,23 @@ function runVisualizePage() {
 
     runVisualizationCrosshair(chart);
 
+    /*
+     * This function reads the visible words for a normal select's current choice.
+     *
+     * Returns the label text with extra outside spaces removed.
+     */
     function getSelectedLabel(select) {
         return select.options[select.selectedIndex].text.trim();
     }
 
+    /*
+     * This function enables only y-axis choices that make sense with the current x-axis.
+     *
+     * If changing x makes the current y choice invalid, the first valid y choice
+     * is selected. The normal and styled dropdowns are always updated together.
+     *
+     * This function does not return a value.
+     */
     function updateYAxisOptions() {
         const validYAxisValues = getValidYAxisValues(
             xAxisSelect.value
@@ -568,6 +735,14 @@ function runVisualizePage() {
         });
     }
 
+    /*
+     * This function updates the visible labels and date controls after an axis changes.
+     *
+     * Date inputs work only when time is the x-axis. The newly selected chart is
+     * requested immediately.
+     *
+     * This function does not return a value.
+     */
     function updateAxisControls() {
         updateYAxisOptions();
 
@@ -601,6 +776,15 @@ function runVisualizePage() {
         loadVisualization();
     }
 
+    /*
+     * This function requests and renders the selected visualization.
+     *
+     * Valid time-axis dates are added to the API address. Each request gets an
+     * increasing number. If an older request finishes after a newer one, its
+     * number reveals that it is old and its result is ignored.
+     *
+     * Returns a Promise that finishes after the response has been handled.
+     */
     async function loadVisualization() {
         const requestID = ++visualizationRequestID;
         const searchParameters = new URLSearchParams({
@@ -681,10 +865,14 @@ function runVisualizePage() {
         } catch (error) {
             if (requestID !== visualizationRequestID) return;
 
-            chart.querySelector("[data-visualize-series]").hidden = true;
-            chart.querySelector(
-                "[data-visualize-last-point]"
-            ).hidden = true;
+            setVisualizationElementHidden(
+                chart.querySelector("[data-visualize-series]"),
+                true
+            );
+            setVisualizationElementHidden(
+                chart.querySelector("[data-visualize-last-point]"),
+                true
+            );
             clearVisualizationCrosshair(chart);
             relationship.textContent = error.message;
             slope.textContent = "—";

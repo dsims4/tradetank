@@ -1,3 +1,4 @@
+/** Starts the web server and connects its security checks, pages, APIs, and errors. */
 require("dotenv").config();
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const isProduction = process.env.NODE_ENV === "production";
@@ -22,6 +23,14 @@ const { verifySameOrigin } = require("./middleware/csrf");
 
 const app = express();
 
+/*
+ * This function sends an error in the format expected by the requested address.
+ *
+ * API requests receive JSON so browser JavaScript can read the message. Normal
+ * page requests receive plain text.
+ *
+ * Returns the Express response object after sending the error.
+ */
 function sendErrorResponse(req, res, status, message) {
     if (req.path === "/api" || req.path.startsWith("/api/")) {
         return res.status(status).json({ error: message });
@@ -36,6 +45,7 @@ nunjucks.configure("views", {
     noCache: !isProduction
 });
 
+// Security and body limits run before every route, including public endpoints.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -56,16 +66,27 @@ app.use(express.urlencoded({
 }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Routers own domain behavior; this file owns their order and shared error responses.
 app.use("/", authenticationRouter);
 app.use("/", resetPasswordRouter);
 app.use("/", profileRouter);
 app.use("/", appRouter);
 app.use("/", publicRouter);
 app.use("/api", apiRouter);
+/*
+ * Requests that reached this point did not match any application route.
+ */
 app.use((req, res) => {
     return sendErrorResponse(req, res, 404, "Page not found.");
 });
 
+/*
+ * This final error handler turns known body-reading failures and unexpected
+ * errors into consistent responses.
+ *
+ * If a response has already started, control is passed to Express instead of
+ * trying to send a second response, which would itself cause an error.
+ */
 app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
 
@@ -96,6 +117,10 @@ app.use((error, req, res, next) => {
     );
 });
 
+/*
+ * Start accepting browser connections only after every setting, security check,
+ * and route has been registered.
+ */
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });

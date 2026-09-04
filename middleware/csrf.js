@@ -1,3 +1,4 @@
+/** Blocks another website from secretly sending account-changing requests. */
 const SAFE_METHODS = new Set([
     "GET",
     "HEAD",
@@ -18,9 +19,20 @@ try {
     throw new Error("APP_ORIGIN is an invalid origin.");
 }
 
+/*
+ * This middleware allows read-only request methods without another check. For a
+ * request that can change data, it verifies that the request came from Trade Tank.
+ *
+ * The Origin header is the clearest source and is checked first. If it is absent,
+ * the Referer page address is accepted only when it belongs to the same website.
+ *
+ * Returns the result of continuing a safe same-site request.
+ * Returns HTTP status 403 when the source is missing or belongs to another site.
+ */
 function verifySameOrigin(req, res, next) {
     if (SAFE_METHODS.has(req.method)) return next();
 
+    // Modern browsers send Origin; Referer is a fallback for compatible same-origin forms.
     const origin = req.get("origin");
 
     if (origin && origin !== "null") {

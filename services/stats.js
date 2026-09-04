@@ -1,11 +1,30 @@
+/** Recalculates, saves, and reads each user's trading statistics. */
 const { query } = require("./db");
 
+/*
+ * This function checks that a user ID is a positive whole number JavaScript can
+ * represent exactly.
+ *
+ * It returns no value.
+ * It throws a TypeError when the ID is invalid.
+ */
 function validateUserID(userID) {
     if (!Number.isSafeInteger(userID) || userID <= 0) {
         throw new TypeError("A valid user ID is required.");
     }
 }
 
+/*
+ * This function recalculates all saved statistics from the user's actual trade
+ * rows.
+ *
+ * A statistics "snapshot" is the latest saved set of totals and averages. The
+ * function must use the same transaction connection that is saving or deleting
+ * a trading day. This keeps the trades and their statistics in agreement.
+ *
+ * Returns a Promise that finishes after the statistics row is updated.
+ * Throws an error when validation or a database query fails.
+ */
 async function recalculateUserStats(userID, client) {
     validateUserID(userID);
 
@@ -13,6 +32,7 @@ async function recalculateUserStats(userID, client) {
         throw new TypeError("A database client is required.");
     }
 
+    // Calculate the entire snapshot from source trades so deletions cannot leave stale totals.
     await client.query(
         `INSERT INTO
             user_stats
@@ -33,6 +53,7 @@ async function recalculateUserStats(userID, client) {
                     AS points_per_contract,
                 process_deviation,
                 CASE
+                    -- The opening-side event is an entry; later events are scale-ins.
                     WHEN side = 'long'
                     THEN
                         jsonb_array_length(
@@ -40,10 +61,11 @@ async function recalculateUserStats(userID, client) {
                         ) - 1
                     ELSE
                         jsonb_array_length(
-                        order_events -> 'sellSide'
+                            order_events -> 'sellSide'
                         ) - 1
                 END AS scale_ins,
                 CASE
+                    -- The final opposing event closes; earlier events are scale-outs.
                     WHEN side = 'long'
                     THEN
                         jsonb_array_length(
@@ -150,6 +172,16 @@ async function recalculateUserStats(userID, client) {
     );
 }
 
+/*
+ * This function reads the user's saved statistics and calculates how many
+ * calendar days have passed since their first trade.
+ *
+ * A database result of null stays null. This lets the page distinguish "there
+ * is not enough information" from a real result of zero.
+ *
+ * Returns a statistics object whose number-like database values have been
+ * converted into JavaScript numbers. Throws an error if the user has no row.
+ */
 async function getUserStats(userID, db = { query }) {
     validateUserID(userID);
 
@@ -196,6 +228,12 @@ async function getUserStats(userID, db = { query }) {
     }
 
     const stats = result.rows[0];
+    /*
+     * This helper keeps a database null unchanged. When a number is present,
+     * it converts PostgreSQL's text representation into a JavaScript number.
+     *
+     * It returns null or the converted number.
+     */
     const numberOrNull = (value) =>
         value === null ? null : Number(value);
 

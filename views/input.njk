@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block content %}
+    {# Data attributes connect this server-rendered shell to input-chart.js. #}
     <div class="main-container main-container--input-chart">
         <h1 class="app-page-heading">Trade Input</h1>
 
@@ -50,6 +51,7 @@
                     Trade input
                 </h2>
 
+                {# The browser keeps this draft local until the user saves the complete day. #}
                 <aside class="input-trade-sidebar">
                     <form
                         method="post"

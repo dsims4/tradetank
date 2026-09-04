@@ -1,3 +1,4 @@
+/* Shared public-site footer layout and responsive link treatment. */
 .footer {
     position: relative;
     border-top: var(--border-thin);

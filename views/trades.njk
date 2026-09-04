@@ -10,6 +10,7 @@
 {% endblock %}
 
 {% block content %}
+    {# Saved trades are read-only; deleting a day is the only replacement workflow. #}
     <div class="main-container main-container--input-chart main-container--trades-chart">
         <h1 class="app-page-heading">Trades</h1>
 
@@ -63,6 +64,7 @@
                     Trades
                 </h2>
 
+                {# Exactly one expanded summary controls which order markers appear. #}
                 <aside
                     class="input-trade-sidebar trades-summary-sidebar"
                 >

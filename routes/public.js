@@ -1,3 +1,4 @@
+/** Displays pages that visitors can open without logging in. */
 const express = require("express");
 const {
     loadUserOptional,
@@ -6,6 +7,12 @@ const {
 
 const router = express.Router();
 
+/*
+ * This function creates a route for an informational page.
+ * Logged-in users receive application navigation; visitors receive public navigation.
+ *
+ * Returns the Express function that displays the requested page template.
+ */
 function createInformationalPageHandler(pageName) {
     return (req, res) => {
         return res.render(`${pageName}.njk`, {
@@ -18,6 +25,9 @@ function createInformationalPageHandler(pageName) {
     };
 }
 
+/*
+ * This route displays the public landing page only when the visitor is logged out.
+ */
 router.get("/", redirectAuthenticated, (req, res) => {
     return res.render("index.njk", {
         currentPage: "index"

@@ -1,3 +1,4 @@
+-- Account identity and authentication history.
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS email_change_events (
     change_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Per-user display preferences are separate from security-sensitive account data.
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     color_scheme VARCHAR(20) NOT NULL DEFAULT 'tank',
@@ -48,6 +50,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Market data is shared by every user and keyed by its immutable opening timestamp.
 CREATE TABLE IF NOT EXISTS candlesticks (
     id BIGSERIAL PRIMARY KEY,
     open_time TIMESTAMPTZ NOT NULL UNIQUE,
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS candlesticks (
     close_price NUMERIC(10, 2) NOT NULL
 );
 
+-- Session rows cache exchange hours and Databento publication state for each date.
 CREATE TABLE IF NOT EXISTS trading_sessions (
     trading_date DATE PRIMARY KEY,
     state VARCHAR(10) NOT NULL
@@ -91,6 +95,7 @@ CREATE TABLE IF NOT EXISTS trading_sessions (
     )
 );
 
+-- One parent row prevents a user from submitting the same trading day twice.
 CREATE TABLE IF NOT EXISTS user_trading_days (
     user_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE CASCADE,
@@ -101,6 +106,7 @@ CREATE TABLE IF NOT EXISTS user_trading_days (
     PRIMARY KEY (user_id, trading_date)
 );
 
+-- Order events remain JSONB while server-derived summaries stay queryable columns.
 CREATE TABLE IF NOT EXISTS user_trades (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -111,7 +117,7 @@ CREATE TABLE IF NOT EXISTS user_trades (
     order_events JSONB NOT NULL DEFAULT
         '{"buySide": [], "sellSide": []}'::jsonb
         CHECK (jsonb_typeof(order_events) = 'object'),
-    points_per_trade NUMERIC (10, 3) NOT NULL,
+    points_per_trade NUMERIC(10, 3) NOT NULL,
     process_deviation BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT CHECK (length(notes) <= 1500),
     creation_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -121,6 +127,7 @@ CREATE TABLE IF NOT EXISTS user_trades (
         ON DELETE CASCADE
 );
 
+-- This snapshot is fully recalculated whenever a submitted trading day changes.
 CREATE TABLE IF NOT EXISTS user_stats (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     trades_count INTEGER NOT NULL DEFAULT 0,
@@ -133,8 +140,8 @@ CREATE TABLE IF NOT EXISTS user_stats (
     expectancy_without_process_deviation NUMERIC(10, 3),
     process_deviation_rate NUMERIC(5, 4),
     average_trades_per_day NUMERIC(10, 3),
-    average_scale_ins NUMERIC(5,2),
-    average_scale_outs NUMERIC(5,2),
+    average_scale_ins NUMERIC(5, 2),
+    average_scale_outs NUMERIC(5, 2),
     biggest_win_contract NUMERIC(10, 3),
     biggest_loss_contract NUMERIC(10, 3),
     biggest_win_trade NUMERIC(10, 3),
@@ -142,6 +149,7 @@ CREATE TABLE IF NOT EXISTS user_stats (
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Index foreign keys and time-based maintenance lookups used outside primary keys.
 CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx
     ON user_sessions (user_id);
 

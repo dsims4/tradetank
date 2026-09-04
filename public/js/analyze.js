@@ -1,3 +1,12 @@
+/*
+ * This function initializes the Analyze page.
+ *
+ * It asks the API for the user's statistics, puts the cards back in the user's
+ * saved order, and lets cards be reordered by dragging them. If this script is
+ * loaded on a page without the statistics grid, it stops without doing anything.
+ *
+ * This function does not return a value.
+ */
 function runAnalyzePage() {
     const analyzeGrid = document.querySelector(
         "[data-analyze-stats]"
@@ -31,16 +40,36 @@ function runAnalyzePage() {
         ["biggestLossTrade", "point"]
     ]);
 
+    /*
+     * This function reads the internal statistic name stored inside one card.
+     *
+     * Returns the card's data-stat text, such as "tradesCount."
+     * Returns undefined when the card does not contain that value element.
+     */
     function getStatName(statCard) {
         return statCard.querySelector("[data-stat]")?.dataset.stat;
     }
 
+    /*
+     * This function reads the statistic names in the order currently shown.
+     *
+     * Returns a new array of statistic names from first card to last card.
+     */
     function getStatOrder() {
         return [
             ...analyzeGrid.querySelectorAll(".analyze-stat")
         ].map(getStatName);
     }
 
+    /*
+     * This function applies a previously saved statistic-card order.
+     *
+     * The saved order is ignored if it contains an unknown name, repeats a name,
+     * or misses a card. The page then keeps its normal HTML order. This prevents
+     * old saved settings from breaking the page after a new statistic is added.
+     *
+     * This function does not return a value.
+     */
     function applyStatOrder(statOrder) {
         if (
             !Array.isArray(statOrder) ||
@@ -68,6 +97,15 @@ function runAnalyzePage() {
         }
     }
 
+    /*
+     * This function formats one statistic with its appropriate unit.
+     *
+     * A missing value becomes a dash. Rates become percentages. Whole-number
+     * counts do not show decimal places, and other numbers show two decimal
+     * places. Singular and plural units are chosen from the value.
+     *
+     * Returns the complete text shown in the card.
+     */
     function formatStatValue(statName, value) {
         if (value === null || value === undefined) return "-";
 
@@ -87,6 +125,13 @@ function runAnalyzePage() {
         return `${formattedValue} ${unit}`;
     }
 
+    /*
+     * This function loads all Analyze-page statistics from the API.
+     *
+     * It first restores the saved card order and then fills each card's value.
+     *
+     * Returns a Promise that finishes after the cards have been updated.
+     */
     async function loadStats() {
         const response = await fetch("/api/analyze-stats");
         const stats = await readAPIResponse(
@@ -108,6 +153,14 @@ function runAnalyzePage() {
         }
     }
 
+    /*
+     * This function saves the current statistic-card order to the API.
+     *
+     * Saves are placed in a line and sent one after another. This prevents a
+     * slower old save from arriving after a newer save and replacing it.
+     *
+     * Returns a Promise that fails if the server rejects the new order.
+     */
     async function saveStatOrder(statOrder) {
         const response = await fetch("/api/analyze-stat-order", {
             method: "PUT",
@@ -132,10 +185,19 @@ function runAnalyzePage() {
     let orderBeforeDrag = "";
     let statOrderSave = Promise.resolve();
 
+    /*
+     * Browsers do not make ordinary elements draggable automatically, so each
+     * statistics card must have its draggable setting turned on.
+     */
     for (const statCard of statsCards) {
         statCard.draggable = true;
     }
 
+    /*
+     * When dragging starts, remember where the pointer grabbed the card and the
+     * card's size. A temporary copy is used as the floating drag image so its
+     * rounded corners match the real card.
+     */
     analyzeGrid.addEventListener("dragstart", (event) => {
         const statCard = event.target.closest(".analyze-stat");
 
@@ -179,6 +241,10 @@ function runAnalyzePage() {
         });
     });
 
+    /*
+     * While a card is dragged, compare it with the card underneath it. Reorder
+     * them after at least 40 percent of the dragged card covers the other card.
+     */
     analyzeGrid.addEventListener("dragover", (event) => {
         event.preventDefault();
 
@@ -205,6 +271,10 @@ function runAnalyzePage() {
             Math.min(draggedBottom, targetBounds.bottom) -
                 Math.max(draggedTop, targetBounds.top)
         );
+        /*
+         * Requiring 40 percent overlap prevents an accidental swap when the
+         * dragged card only touches the other card's edge.
+         */
         const overlapRatio =
             overlapWidth * overlapHeight /
             (draggedWidth * draggedHeight);
@@ -224,6 +294,10 @@ function runAnalyzePage() {
         }
     });
 
+    /*
+     * When dragging ends, remove the temporary drag appearance. Save the card
+     * order only if it is different from the order before dragging began.
+     */
     analyzeGrid.addEventListener("dragend", () => {
         const statOrder = getStatOrder();
 
@@ -243,6 +317,9 @@ function runAnalyzePage() {
             });
     });
 
+    /*
+     * A failed statistics request gives every card the same clear fallback.
+     */
     loadStats().catch(() => {
         for (const statValue of analyzeGrid.querySelectorAll(
             "[data-stat]"

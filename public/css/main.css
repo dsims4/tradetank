@@ -1,3 +1,4 @@
+/* Page-specific layouts and responsive behavior built from shared components. */
 .slideshow {
     display: flex;
     flex-wrap: wrap;
@@ -143,6 +144,7 @@
     }
 }
 
+/* Shared application chart pages */
 .input-chart-page {
     width: 100%;
     min-width: 0;
@@ -176,6 +178,7 @@
     line-height: 1;
 }
 
+/* Statistical visualization chart and axis controls */
 .input-chart-workspace.visualize-workspace {
     grid-template-rows: auto auto;
     gap: 0.75rem;
@@ -476,6 +479,7 @@
     }
 }
 
+/* Candlestick chart workspace shared by Input and Trades */
 .input-chart-workspace {
     display: grid;
     grid-template-columns:
@@ -971,6 +975,7 @@
     overflow: hidden;
 }
 
+/* Read-only Trades sidebar, summaries, and pagination */
 .trades-chart-messages {
     display: grid;
     flex: 1 1 12rem;
@@ -1130,6 +1135,7 @@
     margin-top: auto;
 }
 
+/* Draggable analysis-stat card grid */
 .analyze-grid {
     display: grid;
     grid-template-columns: repeat(
