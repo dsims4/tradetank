@@ -318,7 +318,7 @@ function runCandlestickChart() {
             if (responseData.tradingDate) {
                 dateInput.value = responseData.tradingDate;
                 window.sessionStorage.setItem(
-                    "trade-tank-input-chart-date",
+                    "tradetank-input-chart-date",
                     responseData.tradingDate
                 );
             }
@@ -446,7 +446,7 @@ function runCandlestickChart() {
 
     const rememberedTradingDate =
         window.sessionStorage.getItem(
-            "trade-tank-input-chart-date"
+            "tradetank-input-chart-date"
         ) || "";
 
     loadChart(rememberedTradingDate);

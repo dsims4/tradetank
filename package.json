@@ -1,5 +1,5 @@
 {
-  "name": "trade-tank",
+  "name": "tradetank",
   "version": "1.0.0",
   "description": "",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dsims4/trade-tank.git"
+    "url": "git+https://github.com/dsims4/tradetank.git"
   },
   "keywords": [],
   "author": "",
@@ -18,9 +18,9 @@
   "private": true,
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/dsims4/trade-tank/issues"
+    "url": "https://github.com/dsims4/tradetank/issues"
   },
-  "homepage": "https://github.com/dsims4/trade-tank#readme",
+  "homepage": "https://github.com/dsims4/tradetank#readme",
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
