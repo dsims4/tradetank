@@ -23,7 +23,7 @@
 }
 
 :root {
-    --site-max-width: 75rem;
+    --site-max-width: clamp(75rem, 80vw, 100rem);
     --color-ink: #000000;
     --color-contrast: #ffffff;
     --color-surface: rgba(255, 255, 255, 0.85);
@@ -61,6 +61,14 @@ body {
 
 body[data-color-scheme="dark"] {
     background-color: #000000;
+}
+
+body[data-color-scheme="tank"] {
+    background-color: #465b70;
+    background-image: url("../images/tradetank-tank.svg");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
 }
 
 body[data-color-scheme="dark"] .navbar {

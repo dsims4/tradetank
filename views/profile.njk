@@ -84,6 +84,18 @@
                                         >
                                         <span>Dark</span>
                                     </label>
+
+                                    <label class="profile-radio-option">
+                                        <input
+                                            type="radio"
+                                            name="changeColorScheme"
+                                            value="tank"
+                                            {% if profile.colorScheme == "tank" %}
+                                                checked
+                                            {% endif %}
+                                        >
+                                        <span>Tank</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>

@@ -6,6 +6,7 @@
     justify-content: center;
     gap: clamp(1.25rem, 2vw, 2rem);
 
+    width: min(calc(100% - 2rem), var(--site-max-width));
     max-width: var(--site-max-width);
     margin: clamp(1.5rem, 4vw, 5rem) auto;
     padding: clamp(1.5rem, 3vw, 3rem) clamp(1.5rem, 8vw, 10rem);
@@ -309,14 +310,18 @@
 .profile-radio-group {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: clamp(0.75rem, 1.5vw, 1rem);
     align-items: center;
+    width: 100%;
     min-height: clamp(2.2rem, 3vw, 2.5rem);
 }
 
 .profile-radio-option {
-    display: inline-flex;
+    display: flex;
+    flex: 0 0 6.25rem;
     align-items: center;
+    justify-content: center;
     gap: 0.45rem;
     padding: 0.45rem 0.75rem;
     border: var(--border-strong);
@@ -326,6 +331,30 @@
     font-size: 1rem;
     font-weight: 400;
     white-space: nowrap;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.profile-radio-option:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-radio-option:active {
+    transform: translateY(1px);
+}
+
+.profile-radio-option:has(input[type="radio"]:checked) {
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow:
+        var(--edge-highlight),
+        var(--edge-shadow);
+}
+
+.profile-radio-option:has(input[type="radio"]:focus-visible) {
+    outline: 3px solid var(--focus-outline);
+    outline-offset: 2px;
 }
 
 .profile-radio-option input[type="radio"] {
@@ -356,8 +385,7 @@
 }
 
 .profile-radio-option input[type="radio"]:focus-visible {
-    outline: 3px solid var(--focus-outline);
-    outline-offset: 2px;
+    outline: none;
 }
 
 .form-misc--signup p {

@@ -103,7 +103,7 @@ router.post("/profile/color-scheme", redirectUnauthenticated, async (req, res, n
     const colorScheme =
         getStringInput(req.body.changeColorScheme).trim().toLowerCase();
 
-    if (!["light", "dark"].includes(colorScheme)) {
+    if (!["light", "dark", "tank"].includes(colorScheme)) {
         const searchParams = new URLSearchParams({
             colorSchemeError: "invalid-color-scheme"
         });
