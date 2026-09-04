@@ -399,6 +399,7 @@ async function getOrResolveTradingSession(tradingDate) {
 }
 
 module.exports = {
+    TRADING_SESSION_INCEPTION_DATE,
     getNewYorkDate,
     getOrResolveTradingSession,
     markTradingSessionCandlesticksSynced,

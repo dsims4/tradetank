@@ -1,8 +1,241 @@
 {% extends "layouts/app.njk" %}
+{% from "partials/trading-date-picker.njk" import tradingDatePicker %}
+{% from "partials/visualize-axis-options.njk" import visualizeXAxisOptions, visualizeYAxisOptions %}
 
 {% block title %}Trade Tank: Visualize{% endblock %}
 
+{% block scripts %}
+    <script defer src="/js/trading-date-picker.js"></script>
+    <script defer src="/js/visualize.js"></script>
+{% endblock %}
+
 {% block content %}
-    <h1>Visualize</h1>
-    <p>Normal</p>
+    <div class="main-container main-container--visualize">
+        <h1 class="app-page-heading">Visualize</h1>
+
+        <div class="input-chart-workspace visualize-workspace">
+            <header class="input-chart-header visualize-chart-header">
+                <div>
+                    <h2 id="visualize-chart-heading">
+                        Trade statistics
+                    </h2>
+                    <p>
+                        Choose two axes to compare your trading data.
+                    </p>
+                </div>
+
+                <p
+                    class="input-chart-status"
+                    aria-live="polite"
+                    data-visualize-relationship
+                >
+                    Time compared with Cumulative points.
+                </p>
+            </header>
+
+            <div class="candlestick-chart-container visualize-chart-container">
+                <svg
+                    class="visualize-chart"
+                    viewBox="0 0 1000 560"
+                    role="img"
+                    aria-labelledby="visualize-chart-title visualize-chart-description"
+                >
+                    <title id="visualize-chart-title">
+                        Trade statistics chart
+                    </title>
+                    <desc id="visualize-chart-description">
+                        An empty chart awaiting axis selections.
+                    </desc>
+
+                    <defs>
+                        <pattern
+                            id="visualize-grid"
+                            width="80"
+                            height="80"
+                            patternUnits="userSpaceOnUse"
+                        >
+                            <path
+                                d="M 80 0 L 0 0 0 80"
+                                class="visualize-chart-grid-line"
+                            />
+                        </pattern>
+                    </defs>
+
+                    <rect
+                        x="50"
+                        y="40"
+                        width="850"
+                        height="425"
+                        class="visualize-chart-plot"
+                    />
+                    <rect
+                        x="50"
+                        y="40"
+                        width="850"
+                        height="425"
+                        fill="url(#visualize-grid)"
+                    />
+                    <path
+                        class="visualize-chart-series"
+                        hidden
+                        data-visualize-series
+                    />
+                    <circle
+                        r="6"
+                        class="visualize-chart-last-point"
+                        hidden
+                        data-visualize-last-point
+                    />
+                    <path
+                        d="M 900 40 V 465 H 50"
+                        class="visualize-chart-axis"
+                    />
+                    <g
+                        class="visualize-chart-ticks"
+                        data-visualize-x-ticks
+                    ></g>
+                    <g
+                        class="visualize-chart-ticks"
+                        data-visualize-y-ticks
+                    ></g>
+
+                    <text
+                        x="475"
+                        y="525"
+                        class="visualize-chart-axis-label"
+                    >
+                        X-axis: Time
+                    </text>
+                    <text
+                        x="960"
+                        y="252.5"
+                        class="visualize-chart-axis-label"
+                        transform="rotate(-90 960 252.5)"
+                    >
+                        Y-axis: Cumulative points
+                    </text>
+                    <text
+                        x="475"
+                        y="252.5"
+                        class="visualize-chart-empty-message"
+                    >
+                        Axis controls will plot your trades here
+                    </text>
+                </svg>
+            </div>
+
+            <h2 class="sidebar-heading chart-sidebar-heading">
+                Axes
+            </h2>
+
+            <aside class="input-trade-sidebar visualize-axis-sidebar">
+                <fieldset>
+                    <div class="visualize-axis-control">
+                        <label for="visualize-x-axis">X-axis:</label>
+                        <div class="visualize-select" data-visualize-select>
+                            <select
+                                hidden
+                                aria-label="X-axis"
+                                data-visualize-x-axis
+                            >
+                                {{ visualizeXAxisOptions("time") }}
+                            </select>
+                            <button
+                                id="visualize-x-axis"
+                                type="button"
+                                class="form-input visualize-select-toggle"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                aria-controls="visualize-x-axis-options"
+                                data-visualize-select-toggle
+                            >
+                                <span data-visualize-select-value>
+                                    Time
+                                </span>
+                                <span aria-hidden="true">⌄</span>
+                            </button>
+                            <div
+                                id="visualize-x-axis-options"
+                                class="visualize-select-options"
+                                role="listbox"
+                                hidden
+                                data-visualize-select-options
+                            ></div>
+                        </div>
+                    </div>
+
+                    <div class="visualize-axis-control">
+                        <label for="visualize-y-axis">Y-axis:</label>
+                        <div class="visualize-select" data-visualize-select>
+                            <select
+                                hidden
+                                aria-label="Y-axis"
+                                data-visualize-y-axis
+                            >
+                                {{ visualizeYAxisOptions("cumulativePoints") }}
+                            </select>
+                            <button
+                                id="visualize-y-axis"
+                                type="button"
+                                class="form-input visualize-select-toggle"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                aria-controls="visualize-y-axis-options"
+                                data-visualize-select-toggle
+                            >
+                                <span data-visualize-select-value>
+                                    Cumulative points
+                                </span>
+                                <span aria-hidden="true">⌄</span>
+                            </button>
+                            <div
+                                id="visualize-y-axis-options"
+                                class="visualize-select-options"
+                                role="listbox"
+                                hidden
+                                data-visualize-select-options
+                            ></div>
+                        </div>
+                    </div>
+
+                    <div class="visualize-date-range">
+                        <div class="visualize-axis-control">
+                            <label for="visualize-date-from">
+                                From:
+                            </label>
+                            {{ tradingDatePicker(
+                                "visualize-date-from",
+                                "visualize",
+                                tradingSessionInceptionDate,
+                                currentTradingDate
+                            ) }}
+                        </div>
+
+                        <div class="visualize-axis-control">
+                            <label for="visualize-date-to">
+                                To:
+                            </label>
+                            {{ tradingDatePicker(
+                                "visualize-date-to",
+                                "visualize",
+                                tradingSessionInceptionDate,
+                                currentTradingDate
+                            ) }}
+                        </div>
+                    </div>
+
+                    <div class="visualize-chart-details">
+                        <p>
+                            <strong>Slope:</strong>
+                            <span data-visualize-slope>—</span>
+                        </p>
+                        <p>
+                            <strong>Maximum drawdown:</strong>
+                            <span data-visualize-drawdown>—</span>
+                        </p>
+                    </div>
+                </fieldset>
+            </aside>
+        </div>
+    </div>
 {% endblock %}

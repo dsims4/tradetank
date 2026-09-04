@@ -74,7 +74,7 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
 
         return res.render("profile.njk", {
             currentPage: "profile",
-            colorScheme: user.color_scheme || "light",
+            colorScheme: user.color_scheme || "tank",
             profile: {
                 username: user.username,
                 email: user.email,
@@ -83,7 +83,7 @@ router.get("/profile", redirectUnauthenticated, async (req, res, next) => {
                     day: "numeric",
                     year: "numeric"
                 }).format(new Date(user.creation_time)),
-                colorScheme: user.color_scheme || "light"
+                colorScheme: user.color_scheme || "tank"
             },
             emailErrorMessage: emailErrorMessage,
             passwordErrorMessage: passwordErrorMessage,

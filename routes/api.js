@@ -26,6 +26,9 @@ const {
     deleteUserTradingDay
 } = require("../services/trades");
 const { getUserStats } = require("../services/stats");
+const {
+    getUserVisualization
+} = require("../services/visualizations");
 
 const router = express.Router();
 const ANALYZE_STAT_NAMES = new Set([
@@ -118,6 +121,31 @@ router.get("/analyze-stats", requireAPIAuthentication, async (req, res, next) =>
                 preferencesResult.rows[0]?.analyze_stat_order || []
         });
     } catch (error) {
+        return next(error);
+    }
+});
+
+router.get("/visualize", requireAPIAuthentication, async (req, res, next) => {
+    const xAxis = getStringInput(req.query.xAxis);
+    const yAxis = getStringInput(req.query.yAxis);
+    const fromDate = getStringInput(req.query.from);
+    const toDate = getStringInput(req.query.to);
+
+    try {
+        const visualization = await getUserVisualization(
+            req.authenticatedUserID,
+            xAxis,
+            yAxis,
+            fromDate,
+            toDate
+        );
+
+        return res.json(visualization);
+    } catch (error) {
+        if (error instanceof TypeError) {
+            return res.status(400).json({ error: error.message });
+        }
+
         return next(error);
     }
 });

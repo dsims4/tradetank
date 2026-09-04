@@ -31,6 +31,18 @@
         inset 0 -0.0625rem 0 rgba(0, 0, 0, 0.18);
 }
 
+.main-container--account {
+    max-width: 42rem;
+}
+
+.main-container--profile {
+    max-width: 55rem;
+}
+
+.main-container--confirmation {
+    max-width: 55rem;
+}
+
 .main-container::after {
     content: "";
     position: absolute;
@@ -83,10 +95,10 @@
         0.75rem 2.75rem,
         0.75rem 2.75rem;
     background-repeat:
-        repeat-x,
-        repeat-x,
-        repeat-y,
-        repeat-y;
+        round no-repeat,
+        round no-repeat,
+        no-repeat round,
+        no-repeat round;
     background-position:
         center top,
         center bottom,
@@ -310,7 +322,7 @@
 .profile-radio-group {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
     gap: clamp(0.75rem, 1.5vw, 1rem);
     align-items: center;
     width: 100%;

@@ -1,0 +1,124 @@
+{% macro tradingDatePicker(inputID, chartType, inceptionDate, currentDate, isDisabled=false) %}
+    <div
+        class="trading-date-picker"
+        data-date-picker
+        data-min-date="{{ inceptionDate }}"
+        data-max-date="{{ currentDate }}"
+    >
+        <input
+            id="{{ inputID }}"
+            class="form-input trading-date-input"
+            name="tradingDate"
+            type="text"
+            inputmode="numeric"
+            size="10"
+            maxlength="10"
+            pattern="\d{4}-\d{2}-\d{2}"
+            placeholder="YYYY-MM-DD"
+            autocomplete="off"
+            required
+            {% if isDisabled %}disabled{% endif %}
+            data-trading-date-input
+            {% if chartType == "input" %}
+                data-input-chart-date
+            {% elif chartType == "visualize" %}
+                data-visualize-date
+            {% else %}
+                data-trades-chart-date
+            {% endif %}
+        >
+
+        <button
+            type="button"
+            class="button date-picker-toggle"
+            aria-label="Choose trading date"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="{{ inputID }}-calendar"
+            {% if isDisabled %}disabled{% endif %}
+            data-date-picker-toggle
+        >
+            <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path
+                    d="M7 2v3M17 2v3M3 9h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
+                />
+            </svg>
+        </button>
+
+        <section
+            id="{{ inputID }}-calendar"
+            class="date-picker-popup"
+            role="dialog"
+            aria-label="Choose trading date"
+            hidden
+            data-date-picker-popup
+        >
+            <div class="date-picker-header">
+                <button
+                    type="button"
+                    class="date-picker-navigation"
+                    aria-label="Previous month"
+                    data-date-picker-previous
+                >
+                    &lsaquo;
+                </button>
+
+                <button
+                    type="button"
+                    class="date-picker-heading"
+                    aria-label="Choose month"
+                    data-date-picker-month
+                ></button>
+
+                <button
+                    type="button"
+                    class="date-picker-heading"
+                    aria-label="Choose year"
+                    data-date-picker-year
+                ></button>
+
+                <button
+                    type="button"
+                    class="date-picker-navigation"
+                    aria-label="Next month"
+                    data-date-picker-next
+                >
+                    &rsaquo;
+                </button>
+            </div>
+
+            <div data-date-picker-day-view>
+                <div class="date-picker-weekdays" aria-hidden="true">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                </div>
+
+                <div
+                    class="date-picker-days"
+                    data-date-picker-days
+                ></div>
+            </div>
+
+            <div
+                class="date-picker-options date-picker-months"
+                hidden
+                data-date-picker-months
+            ></div>
+
+            <div
+                class="date-picker-options date-picker-years"
+                hidden
+                data-date-picker-years
+            ></div>
+        </section>
+    </div>
+{% endmacro %}

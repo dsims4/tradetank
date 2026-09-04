@@ -311,14 +311,6 @@ function runTradesChart() {
             status.textContent = responseData.trades.length
                 ? "Choose a trade to view its chart."
                 : "No submitted trades were found.";
-
-            const latestTrade = responseData.trades[0];
-
-            if (latestTrade) {
-                tradeSummaries
-                    .querySelector(".trade-summary-choice")
-                    .click();
-            }
         } catch (error) {
             if (requestID !== tradeChoicesRequestID) {
                 return;

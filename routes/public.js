@@ -13,7 +13,7 @@ function createInformationalPageHandler(pageName) {
             layoutTemplate: req.user
                 ? "layouts/app.njk"
                 : "layouts/main.njk",
-            colorScheme: req.user?.colorScheme || "light"
+            colorScheme: req.user?.colorScheme || "tank"
         });
     };
 }

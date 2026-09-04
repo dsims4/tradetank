@@ -1,8 +1,10 @@
 {% extends "layouts/app.njk" %}
+{% from "partials/trading-date-picker.njk" import tradingDatePicker %}
 
 {% block title %}Trade Tank: Trades{% endblock %}
 
 {% block scripts %}
+    <script defer src="/js/trading-date-picker.js"></script>
     <script defer src="/js/candlestick-chart.js"></script>
     <script defer src="/js/trades-chart.js"></script>
 {% endblock %}
@@ -22,20 +24,12 @@
                             Trading date:
                         </label>
 
-                        <input
-                            id="trades-chart-date"
-                            class="form-input"
-                            name="tradingDate"
-                            type="text"
-                            inputmode="numeric"
-                            maxlength="10"
-                            pattern="\d{4}-\d{2}-\d{2}"
-                            placeholder="YYYY-MM-DD"
-                            autocomplete="off"
-                            required
-                            data-trading-date-input
-                            data-trades-chart-date
-                        >
+                        {{ tradingDatePicker(
+                            "trades-chart-date",
+                            "trades",
+                            tradingSessionInceptionDate,
+                            currentTradingDate
+                        ) }}
                         <button type="submit" class="button">
                             Load
                         </button>

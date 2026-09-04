@@ -220,7 +220,7 @@ class CandlestickChart {
         const centerX =
             plotArea.left + slotWidth * (index + 0.5);
         const bodyWidth =
-            Math.max(1, Math.min(slotWidth * 0.65, 10));
+            Math.max(2, Math.min(slotWidth * 0.7, 12));
 
         return {
             centerX,
@@ -233,7 +233,7 @@ class CandlestickChart {
 
         if (!priceRange) return;
 
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = 1.5;
         this.ctx.strokeStyle = "#000000";
 
         this.candlesticks.forEach((candlestick, index) => {
@@ -256,7 +256,7 @@ class CandlestickChart {
 
             const bodyTop = Math.min(openY, closeY);
             const bodyHeight =
-                Math.max(Math.abs(closeY - openY), 1);
+                Math.max(Math.abs(closeY - openY), 2);
             const bodyLeft = centerX - bodyWidth / 2;
             const isBullish =
                 candlestick.closePrice >= candlestick.openPrice;

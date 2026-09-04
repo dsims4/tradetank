@@ -1,5 +1,9 @@
 {% extends "layouts/base.njk" %}
 
+{% block bodyAttributes %}
+    data-color-scheme="tank"
+{% endblock %}
+
 {% block navbar %}
     {% include "partials/navbar-main.njk" %}
 {% endblock %}

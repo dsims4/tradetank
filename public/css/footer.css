@@ -27,7 +27,7 @@
         transparent 100%
     );
     background-size: 2.75rem 0.65rem;
-    background-repeat: repeat-x;
+    background-repeat: round no-repeat;
     background-position: left center;
 
     mix-blend-mode: multiply;

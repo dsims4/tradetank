@@ -1,11 +1,30 @@
 .navbar {
     position: relative;
+    z-index: 100;
     border-bottom: var(--border-thin);
     background: linear-gradient(to bottom in oklch, #6d6d6d 0%, #d7d7d7 100%);
     box-shadow:
         var(--edge-highlight),
         var(--edge-shadow);
     padding: 0.25rem clamp(0.25rem, 1vw, 0.75rem) clamp(0.5rem, 1.2vw, 0.75rem);
+    transition: transform 0.2s ease;
+}
+
+.navbar--fixed {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+}
+
+.navbar--hidden {
+    transform: translateY(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .navbar {
+        transition: none;
+    }
 }
 
 .navbar::after {
@@ -27,7 +46,7 @@
         transparent 100%
     );
     background-size: 2.75rem 0.65rem;
-    background-repeat: repeat-x;
+    background-repeat: round no-repeat;
     background-position: left center;
     mix-blend-mode: multiply;
     opacity: 0.95;

@@ -381,6 +381,76 @@ function runProtectedPageGuard() {
     });
 }
 
+function runNavbarScroll() {
+    const navbar = document.querySelector(".navbar");
+
+    if (!navbar) {
+        return;
+    }
+
+    function updateNavbarHeight() {
+        document.documentElement.style.setProperty(
+            "--navbar-height",
+            `${navbar.offsetHeight}px`
+        );
+    }
+
+    const navbarResizeObserver = new ResizeObserver(updateNavbarHeight);
+
+    navbarResizeObserver.observe(navbar);
+    updateNavbarHeight();
+
+    let previousScrollPosition = Math.max(window.scrollY, 0);
+    let navbarHideTimer = null;
+
+    function hideNavbar() {
+        window.clearTimeout(navbarHideTimer);
+        navbar.classList.add("navbar--hidden");
+    }
+
+    function showNavbar() {
+        window.clearTimeout(navbarHideTimer);
+        navbar.classList.remove("navbar--hidden");
+
+        if (window.scrollY > navbar.offsetHeight) {
+            navbarHideTimer = window.setTimeout(hideNavbar, 3000);
+        }
+    }
+
+    function updateNavbar() {
+        const currentScrollPosition = Math.max(window.scrollY, 0);
+        const navbarIsPastViewport =
+            currentScrollPosition > navbar.offsetHeight;
+
+        navbar.classList.toggle(
+            "navbar--fixed",
+            navbarIsPastViewport
+        );
+
+        if (!navbarIsPastViewport) {
+            showNavbar();
+        } else if (currentScrollPosition < previousScrollPosition) {
+            showNavbar();
+        } else if (currentScrollPosition > previousScrollPosition) {
+            hideNavbar();
+        }
+
+        previousScrollPosition = currentScrollPosition;
+    }
+
+    window.addEventListener("scroll", updateNavbar, { passive: true });
+
+    window.addEventListener("wheel", (event) => {
+        if (event.deltaY < 0) {
+            showNavbar();
+        }
+    }, { passive: true });
+
+    navbar.addEventListener("focusin", () => {
+        showNavbar();
+    });
+}
+
 function runColorSchemeForm() {
     const colorSchemeForm = document.querySelector(
         "[data-color-scheme-form]"
@@ -430,4 +500,5 @@ runResetPasswordForm();
 runDeleteAccountForm();
 runQueryCleaner();
 runProtectedPageGuard();
+runNavbarScroll();
 runTradingDateInputs();

@@ -49,7 +49,7 @@ async function loadUser(req, res, next) {
 
         req.user = {
             id: user.id,
-            colorScheme: user.color_scheme || "light"
+            colorScheme: user.color_scheme || "tank"
         };
 
         return next();
@@ -77,7 +77,7 @@ async function loadUserOptional(req, res, next) {
 
         req.user = {
             id: user.id,
-            colorScheme: user.color_scheme || "light"
+            colorScheme: user.color_scheme || "tank"
         };
 
         return next();
