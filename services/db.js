@@ -61,7 +61,7 @@ async function runTransaction(operation, db = { getClient }) {
         try {
             await client.query("ROLLBACK");
         } catch (rollbackError) {
-            // Preserve the operation error because it explains the transaction failure.
+            // Keep the first error because it best explains why the grouped work failed.
             console.error("Database rollback failed:", rollbackError);
         }
 

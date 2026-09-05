@@ -4,42 +4,55 @@
 {% block title %}Trade Tank: Home{% endblock %}
 
 {% block content %}
-    <div class="main-container">
-        <div class="copy">
-            <h1>Home</h1>
-            <p>
-                Use the Trade Tank pages to record, review, and understand
-                your trading performance.
+    <div class="main-container main-container--home">
+        <header class="home-introduction">
+            <h1 class="app-page-heading">Trade Tank Home</h1>
+            <p class="home-description">
+                Record each trading day, review individual trades, and find
+                useful patterns in your performance.
             </p>
+        </header>
 
-            <ul>
-                <li>
-                    <strong><a href="/analyze">Analyze</a>:</strong>
-                    Review your overall trading statistics. Drag and drop
-                    any statistic box to change its position; your preferred
-                    order is saved automatically.
-                </li>
+        <nav class="home-page-grid" aria-label="Trade Tank pages">
+            <a class="home-page-card" href="/input">
+                <span class="home-page-card-heading">
+                    <span>Input</span>
+                </span>
+                <span class="home-page-card-copy">
+                    Plot orders on a candlestick chart, record notes, and save
+                    a completed trading day.
+                </span>
+            </a>
 
-                <li>
-                    <strong><a href="/visualize">Visualize</a>:</strong>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                </li>
+            <a class="home-page-card" href="/trades">
+                <span class="home-page-card-heading">
+                    <span>Trades</span>
+                </span>
+                <span class="home-page-card-copy">
+                    Return to submitted days and inspect one saved trade at a
+                    time on its original chart.
+                </span>
+            </a>
 
-                <li>
-                    <strong><a href="/trades">Trades</a>:</strong>
-                    Browse your submitted trades. Each trade box starts
-                    collapsed; select one to expand its details and load its
-                    candlestick chart, then select it again to collapse it.
-                </li>
+            <a class="home-page-card" href="/analyze">
+                <span class="home-page-card-heading">
+                    <span>Analyze</span>
+                </span>
+                <span class="home-page-card-copy">
+                    Review your calculated trading statistics and arrange the
+                    measurements that matter most to you.
+                </span>
+            </a>
 
-                <li>
-                    <strong><a href="/input">Input</a>:</strong>
-                    Load a trading date and enter the contract count. Select
-                    Buy or Sell first, then click the candlestick chart at the
-                    intended time and price to place the order. Close the
-                    position, add notes, and save the chart when finished.
-                </li>
-            </ul>
-        </div>
+            <a class="home-page-card" href="/visualize">
+                <span class="home-page-card-heading">
+                    <span>Visualize</span>
+                </span>
+                <span class="home-page-card-copy">
+                    Compare trading measurements on a configurable chart and
+                    explore how they change over time.
+                </span>
+            </a>
+        </nav>
     </div>
 {% endblock %}

@@ -40,7 +40,7 @@ function isValidUsername(username) {
  */
 function isValidEmail(email) {
     return (
-        email.length > 0 &&
+        email.length > 4 &&
         email.length <= EMAIL_MAXIMUM_LENGTH &&
         EMAIL_PATTERN.test(email)
     );

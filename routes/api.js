@@ -15,7 +15,8 @@ const {
     getLatestInputChartData
 } = require("../services/chart-data");
 const {
-    requireAPIAuthentication
+    requireAPIAuthentication,
+    requireMarketDataAccess
 } = require("../middleware/authentication");
 const {
     isValidTradingDate
@@ -225,31 +226,36 @@ router.put(
  * If candles are not already saved, the market-data service may download them.
  * Identical requests made at the same time share that download.
  */
-router.get("/input-chart", requireAPIAuthentication, async (req, res, next) => {
-    const tradingDate =
-        getStringInput(req.query.date);
+router.get(
+    "/input-chart",
+    requireAPIAuthentication,
+    requireMarketDataAccess,
+    async (req, res, next) => {
+        const tradingDate =
+            getStringInput(req.query.date);
 
-    if (tradingDate && !isValidTradingDate(tradingDate)) {
-        return res.status(400).json({
-            error: "A valid trading date is required."
-        });
+        if (tradingDate && !isValidTradingDate(tradingDate)) {
+            return res.status(400).json({
+                error: "A valid trading date is required."
+            });
+        }
+
+        try {
+            const chartData = tradingDate
+                ? await getInputChartData(
+                    req.authenticatedUserID,
+                    tradingDate
+                )
+                : await getLatestInputChartData(
+                    req.authenticatedUserID
+                );
+
+            return res.json(chartData);
+        } catch (error) {
+            return next(error);
+        }
     }
-
-    try {
-        const chartData = tradingDate
-            ? await getInputChartData(
-                req.authenticatedUserID,
-                tradingDate
-            )
-            : await getLatestInputChartData(
-                req.authenticatedUserID
-            );
-
-        return res.json(chartData);
-    } catch (error) {
-        return next(error);
-    }
-});
+);
 
 /*
  * This route returns up to five saved trades from one trading date.
@@ -348,27 +354,32 @@ router.delete("/trades", requireAPIAuthentication, async (req, res, next) => {
  * Unlike the Input page, it may return candles marked degraded so an existing
  * journal can still be reviewed with a warning.
  */
-router.get("/trades-chart", requireAPIAuthentication, async (req, res, next) => {
-    const tradingDate =
-        getStringInput(req.query.date);
+router.get(
+    "/trades-chart",
+    requireAPIAuthentication,
+    requireMarketDataAccess,
+    async (req, res, next) => {
+        const tradingDate =
+            getStringInput(req.query.date);
 
-    if (!isValidTradingDate(tradingDate)) {
-        return res.status(400).json({
-            error: "A valid trading date is required."
-        });
+        if (!isValidTradingDate(tradingDate)) {
+            return res.status(400).json({
+                error: "A valid trading date is required."
+            });
+        }
+
+        try {
+            const chartData = await getTradesChartData(
+                req.authenticatedUserID,
+                tradingDate
+            );
+
+            return res.json(chartData);
+        } catch (error) {
+            return next(error);
+        }
     }
-
-    try {
-        const chartData = await getTradesChartData(
-            req.authenticatedUserID,
-            tradingDate
-        );
-
-        return res.json(chartData);
-    } catch (error) {
-        return next(error);
-    }
-});
+);
 
 /*
  * This route lets the Signup page run the availability check. A rate limiter
@@ -386,69 +397,74 @@ router.post(
  * It reloads trusted candles from the server and recalculates financial totals.
  * Values changed in browser developer tools are therefore not trusted.
  */
-router.post("/input-chart", requireAPIAuthentication, async (req, res, next) => {
-    if (!req.is("application/json")) {
-        return res.status(415).json({
-            error: "JSON content is required."
-        });
-    }
-
-    const tradingDate =
-        getStringInput(req.body?.tradingDate);
-
-    const trades = req.body?.trades;
-
-    if (!isValidTradingDate(tradingDate)) {
-        return res.status(400).json({
-            error: "A valid trading date is required."
-        });
-    }
-
-    try {
-        const chartData = await getInputChartData(
-            req.authenticatedUserID,
-            tradingDate
-        );
-
-        if (chartData.alreadySubmitted) {
-            return res.status(409).json({
-                error: "That trading day was already submitted."
+router.post(
+    "/input-chart",
+    requireAPIAuthentication,
+    requireMarketDataAccess,
+    async (req, res, next) => {
+        if (!req.is("application/json")) {
+            return res.status(415).json({
+                error: "JSON content is required."
             });
         }
 
-        if (!chartData.canSubmit) {
-            return res.status(409).json({
-                error: "That chart cannot currently be submitted."
+        const tradingDate =
+            getStringInput(req.body?.tradingDate);
+
+        const trades = req.body?.trades;
+
+        if (!isValidTradingDate(tradingDate)) {
+            return res.status(400).json({
+                error: "A valid trading date is required."
             });
         }
 
-        const savedTradeCount =
-            await saveUserTradingDay(
+        try {
+            const chartData = await getInputChartData(
                 req.authenticatedUserID,
-                tradingDate,
-                trades,
-                chartData.candlesticks
+                tradingDate
             );
 
-        return res.status(201).json({
-            tradingDate,
-            savedTradeCount
-        });
-    } catch (error) {
-        if (error instanceof TypeError) {
-            return res.status(400).json({
-                error: error.message
-            });
-        }
+            if (chartData.alreadySubmitted) {
+                return res.status(409).json({
+                    error: "That trading day was already submitted."
+                });
+            }
 
-        if (error.code === "23505") {
-            return res.status(409).json({
-                error: "That trading day was already submitted."
-            });
-        }
+            if (!chartData.canSubmit) {
+                return res.status(409).json({
+                    error: "That chart cannot currently be submitted."
+                });
+            }
 
-        return next(error);
+            const savedTradeCount =
+                await saveUserTradingDay(
+                    req.authenticatedUserID,
+                    tradingDate,
+                    trades,
+                    chartData.candlesticks
+                );
+
+            return res.status(201).json({
+                tradingDate,
+                savedTradeCount
+            });
+        } catch (error) {
+            if (error instanceof TypeError) {
+                return res.status(400).json({
+                    error: error.message
+                });
+            }
+
+            if (error.code === "23505") {
+                return res.status(409).json({
+                    error: "That trading day was already submitted."
+                });
+            }
+
+            return next(error);
+        }
     }
-});
+);
 
 module.exports = router;

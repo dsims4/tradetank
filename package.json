@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "test": "node --test",
+    "test:unit": "node --test test/utilities/*.test.js test/middleware/*.test.js test/services/password.test.js test/services/databento.test.js test/services/promise-lock.test.js",
     "start": "node server.js",
     "db:check": "node scripts/db-check.js",
     "db:init": "node scripts/db-init.js"

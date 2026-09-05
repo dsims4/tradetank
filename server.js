@@ -45,7 +45,7 @@ nunjucks.configure("views", {
     noCache: !isProduction
 });
 
-// Security and body limits run before every route, including public endpoints.
+// Run security checks and request-size limits before every public or private route.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -66,7 +66,7 @@ app.use(express.urlencoded({
 }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Routers own domain behavior; this file owns their order and shared error responses.
+// Each router handles one feature; this file decides their order and handles shared errors.
 app.use("/", authenticationRouter);
 app.use("/", resetPasswordRouter);
 app.use("/", profileRouter);

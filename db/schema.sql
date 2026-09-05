@@ -1,9 +1,10 @@
--- Account identity and authentication history.
+-- These tables store user accounts and records of important account changes.
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     hashed_password TEXT NOT NULL,
+    market_data_access BOOLEAN NOT NULL DEFAULT FALSE,
     creation_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS email_change_events (
     change_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Per-user display preferences are separate from security-sensitive account data.
+-- Display settings are kept separate from private login and account information.
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     color_scheme VARCHAR(20) NOT NULL DEFAULT 'tank',
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Market data is shared by every user and keyed by its immutable opening timestamp.
+-- All users share the same market candles. A candle's opening time uniquely identifies it.
 CREATE TABLE IF NOT EXISTS candlesticks (
     id BIGSERIAL PRIMARY KEY,
     open_time TIMESTAMPTZ NOT NULL UNIQUE,
@@ -60,7 +61,7 @@ CREATE TABLE IF NOT EXISTS candlesticks (
     close_price NUMERIC(10, 2) NOT NULL
 );
 
--- Session rows cache exchange hours and Databento publication state for each date.
+-- Save each day's market hours and Databento status so they need not be downloaded repeatedly.
 CREATE TABLE IF NOT EXISTS trading_sessions (
     trading_date DATE PRIMARY KEY,
     state VARCHAR(10) NOT NULL
@@ -95,7 +96,7 @@ CREATE TABLE IF NOT EXISTS trading_sessions (
     )
 );
 
--- One parent row prevents a user from submitting the same trading day twice.
+-- One row per user and date prevents the same trading day from being submitted twice.
 CREATE TABLE IF NOT EXISTS user_trading_days (
     user_id BIGINT NOT NULL
         REFERENCES users(id) ON DELETE CASCADE,
@@ -106,7 +107,7 @@ CREATE TABLE IF NOT EXISTS user_trading_days (
     PRIMARY KEY (user_id, trading_date)
 );
 
--- Order events remain JSONB while server-derived summaries stay queryable columns.
+-- Buy and sell order lists use JSONB. Server-calculated totals use normal searchable columns.
 CREATE TABLE IF NOT EXISTS user_trades (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -127,7 +128,7 @@ CREATE TABLE IF NOT EXISTS user_trades (
         ON DELETE CASCADE
 );
 
--- This snapshot is fully recalculated whenever a submitted trading day changes.
+-- These saved totals and averages are recalculated whenever a trading day changes.
 CREATE TABLE IF NOT EXISTS user_stats (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     trades_count INTEGER NOT NULL DEFAULT 0,
@@ -149,7 +150,7 @@ CREATE TABLE IF NOT EXISTS user_stats (
     update_time TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index foreign keys and time-based maintenance lookups used outside primary keys.
+-- These indexes help PostgreSQL find related rows and time-based records more quickly.
 CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx
     ON user_sessions (user_id);
 

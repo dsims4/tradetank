@@ -89,7 +89,7 @@ function runSlideshow() {
         return;
     }
 
-    let currentIndex = 1;
+    let currentIndex = 0;
 
     /*
      * This function changes any slide number into a valid position in the list.
@@ -167,6 +167,7 @@ function runSlideshow() {
 
     leftButton.addEventListener("click", showPreviousSlide);
     rightButton.addEventListener("click", showNextSlide);
+    renderSlides();
 }
 
 /*
@@ -220,28 +221,30 @@ function runSignupForm() {
      *
      * Returns a Promise whose value is true only when both values are available.
      */
-    async function validateAvailability() {
-        clearAccountValidation();
-
-        if (!usernameInput.value && !emailInput.value) {
-            return true;
-        }
-
+    async function validateAvailability(username, email) {
         const response = await fetch("/api/signup-availability", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                username: usernameInput.value,
-                email: emailInput.value
-            })
+            body: JSON.stringify({ username, email })
         });
 
         const result = await readAPIResponse(
             response,
             "Signup availability check failed."
         );
+
+        if (usernameInput.value !== username || emailInput.value !== email) {
+            throw new Error("Your account details changed. Please submit again.");
+        }
+
+        if (
+            typeof result?.usernameAvailable !== "boolean" ||
+            typeof result?.emailAvailable !== "boolean"
+        ) {
+            throw new Error("The availability response was invalid. Please try again.");
+        }
 
         if (!result.usernameAvailable) {
             usernameInput.setCustomValidity(
@@ -260,32 +263,43 @@ function runSignupForm() {
         return true;
     }
 
+    let availabilityCheckPending = false;
+
     signupForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+
+        if (availabilityCheckPending) return;
 
         usernameInput.value = usernameInput.value.trim();
         emailInput.value = emailInput.value.trim().toLowerCase();
         clearAccountValidation();
 
-        if (!validatePasswords()) {
-            return;
-        }
+        if (!validatePasswords() || !signupForm.reportValidity()) return;
 
-        if (!signupForm.reportValidity()) {
-            return;
-        }
+        availabilityCheckPending = true;
 
         try {
-            const isAvailable = await validateAvailability();
+            const isAvailable = await validateAvailability(
+                usernameInput.value,
+                emailInput.value
+            );
 
-            if (!isAvailable) {
-                return;
-            }
-        } catch {
-            // This is intentionally blank.
+            if (!isAvailable) return;
+
+            // Fields may change while waiting. Recheck them before bypassing normal submission.
+            if (!validatePasswords() || !signupForm.reportValidity()) return;
+
+            HTMLFormElement.prototype.submit.call(signupForm);
+        } catch (error) {
+            // A failed check must block submission, but allow another attempt without an edit.
+            usernameInput.setCustomValidity(
+                error.message || "Availability could not be checked. Please try again."
+            );
+            usernameInput.reportValidity();
+            usernameInput.setCustomValidity("");
+        } finally {
+            availabilityCheckPending = false;
         }
-
-        HTMLFormElement.prototype.submit.call(signupForm);
     });
 
     usernameInput.addEventListener("input", clearAccountValidation);
@@ -620,7 +634,7 @@ function runColorSchemeForm() {
 
 /*
  * This function inserts YYYY-MM-DD separators as users type numeric trading dates.
- * Non-digit input is discarded and output is bounded to eight date digits.
+ * Letters and symbols are discarded, and no more than eight date digits are kept.
  *
  * It registers formatting listeners and returns no value.
  */

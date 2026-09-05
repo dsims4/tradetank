@@ -49,6 +49,9 @@ function runCandlestickChart() {
     const completedTradeNotes = document.querySelector(
         "[data-completed-trade-notes]"
     );
+    const marketDataAccess = document.querySelector(
+        "[data-market-data-access]"
+    ) !== null;
 
     if (
         !canvas ||
@@ -80,8 +83,26 @@ function runCandlestickChart() {
 
     const chart = new CandlestickChart(canvas);
     const tradeDraft = new TradeDraft();
-
     let selectedTradeAction = null;
+    let chartRequestID = 0;
+    let loadedTradingDate = "";
+    let isSaving = false;
+
+    const resizeObserver = new ResizeObserver(() => chart.resize());
+    resizeObserver.observe(chartContainer);
+    chart.resize();
+
+    /*
+     * A restricted account keeps the visible page shell, but returns before
+     * registering chart controls or creating any market-data request.
+     */
+    if (!marketDataAccess) {
+        chart.setCandlesticks([]);
+        tradeFieldset.disabled = true;
+        status.textContent =
+            "Market-data access is not enabled for this account.";
+        return;
+    }
 
     /*
      * This function clears the currently selected Buy, Sell, or Close action.
@@ -234,6 +255,8 @@ function runCandlestickChart() {
      * before adding an unsaved order to browser memory.
      */
     canvas.addEventListener("click", () => {
+        if (tradeFieldset.disabled) return;
+
         if (!selectedTradeAction) {
             status.textContent =
                 "Select Buy, Sell, or Close first.";
@@ -362,20 +385,22 @@ function runCandlestickChart() {
         }
     });
 
-    const resizeObserver = new ResizeObserver(() => chart.resize());
-    resizeObserver.observe(chartContainer);
-    chart.resize();
-
     /*
      * This function asks the API for candles on a selected trading date.
      *
      * An empty date asks for the newest trading day with complete data. A
      * successful response updates the remembered date, chart, Save permission,
-     * and message. A failed response removes any old candles from the chart.
+     * and message. Only the newest request may update the page, including errors.
+     * Loading clears the previous chart so orders cannot use another day's candles.
      *
      * Returns a Promise that finishes after the response succeeds or fails.
      */
     async function loadChart(tradingDate = "") {
+        if (isSaving) return;
+
+        const requestID = ++chartRequestID;
+        loadedTradingDate = "";
+        chart.setCandlesticks([]);
         resetTradeDraft();
         tradeFieldset.disabled = true;
 
@@ -398,6 +423,10 @@ function runCandlestickChart() {
                 "The chart request failed."
             );
 
+            if (requestID !== chartRequestID) return;
+
+            loadedTradingDate = responseData.tradingDate || "";
+
             if (responseData.tradingDate) {
                 dateInput.value = responseData.tradingDate;
                 window.sessionStorage.setItem(
@@ -410,7 +439,8 @@ function runCandlestickChart() {
                 responseData.candlesticks
             );
 
-            tradeFieldset.disabled = !responseData.canSubmit;
+            tradeFieldset.disabled =
+                !loadedTradingDate || responseData.canSubmit !== true;
 
             if (responseData.alreadySubmitted) {
                 status.textContent =
@@ -421,6 +451,10 @@ function runCandlestickChart() {
                     `five-minute candlesticks.`;
             }
         } catch (error) {
+            if (requestID !== chartRequestID) return;
+
+            loadedTradingDate = "";
+            tradeFieldset.disabled = true;
             chart.setCandlesticks([]);
             status.textContent = error.message;
         }
@@ -497,6 +531,8 @@ function runCandlestickChart() {
     tradeForm.addEventListener("submit", async (event) => {
         event.preventDefault();
 
+        if (isSaving || tradeFieldset.disabled || !loadedTradingDate) return;
+
         let trades;
 
         try {
@@ -507,6 +543,8 @@ function runCandlestickChart() {
             return;
         }
 
+        // Keep this chart in place until saving finishes, and submit its loaded date.
+        isSaving = true;
         tradeFieldset.disabled = true;
         status.textContent = "The chart is saving.";
 
@@ -519,7 +557,7 @@ function runCandlestickChart() {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        tradingDate: dateInput.value,
+                        tradingDate: loadedTradingDate,
                         trades
                     })
                 }
@@ -540,6 +578,8 @@ function runCandlestickChart() {
             tradeFieldset.disabled = false;
             updateTradeActionAvailability();
             status.textContent = error.message;
+        } finally {
+            isSaving = false;
         }
     });
 

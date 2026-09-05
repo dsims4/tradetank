@@ -27,7 +27,7 @@ async function getInputChartData(userID, tradingDate) {
             hasUserTradingDay(userID, tradingDate)
         ]);
 
-    // Input hides degraded candles because users must not submit against suspect data.
+    // Input hides questionable candles so users cannot save trades against unreliable data.
     const candlesticksCanBeViewed =
         candlestickResult.candlestickState === "available" &&
         candlestickResult.dataCondition === "available";
@@ -70,7 +70,7 @@ async function getTradesChartData(userID, tradingDate) {
 
     const candlestickResult = await getCandlesticksForTradingDate(tradingDate);
 
-    // Previously submitted journals remain reviewable when their source becomes degraded.
+    // Keep an existing journal viewable if its candles are later marked questionable.
     const candlesticksCanBeViewed =
         candlestickResult.candlestickState === "available" &&
         (

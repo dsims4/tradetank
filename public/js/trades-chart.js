@@ -44,6 +44,9 @@ function runTradesChart() {
     const tradePage = document.querySelector(
         "[data-trade-page]"
     );
+    const marketDataAccess = document.querySelector(
+        "[data-market-data-access]"
+    ) !== null;
 
     if (
         !canvas ||
@@ -393,9 +396,14 @@ function runTradesChart() {
                 responseData.hasNext;
             updateTradePagination();
 
-            status.textContent = responseData.trades.length
-                ? "Choose a trade to view its chart."
-                : "No submitted trades were found.";
+            if (responseData.trades.length === 0) {
+                status.textContent =
+                    "No submitted trades were found.";
+            } else {
+                status.textContent = marketDataAccess
+                    ? "Choose a trade to view its chart."
+                    : "Choose a trade to inspect its saved details.";
+            }
         } catch (error) {
             if (requestID !== tradeChoicesRequestID) {
                 return;
@@ -416,6 +424,22 @@ function runTradesChart() {
      */
     async function loadChart(trade) {
         const tradingDate = trade.tradingDate;
+
+        /*
+         * Restricted accounts may inspect or delete their saved trade records,
+         * but the browser must not request the underlying market candles.
+         */
+        if (!marketDataAccess) {
+            loadedTradingDate = tradingDate;
+            chart.setCandlesticks([]);
+            chart.setOrderMarkers([]);
+            setDataConditionWarning(null);
+            deleteButton.hidden = false;
+            status.textContent =
+                "The trade is selected, but its market-data " +
+                "chart is unavailable.";
+            return;
+        }
 
         if (loadedTradingDate === tradingDate) {
             chart.setOrderMarkers(

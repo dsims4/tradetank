@@ -43,7 +43,7 @@ async function getCandlesticks(startTime, endTime, db = { query }) {
 /*
  * This function checks one candle's time and prices.
  *
- * Every price must be a normal finite number. The high cannot be below the open
+ * Every price must be a real number, not Infinity or NaN. The high cannot be below the open
  * or close, and the low cannot be above them.
  *
  * Returns true when every field is valid. Returns false otherwise.
@@ -156,55 +156,47 @@ function aggregateFiveMinuteCandlesticks(candlesticks) {
 }
 
 /*
- * This function checks an entire Databento candle response against the requested
- * market-session period.
+ * This function checks that a response contains every minute of the requested
+ * market session, including shortened sessions. The start is included and the
+ * end is excluded. Both boundaries must fall on exact minutes.
  *
- * Every time must fall inside the period, start on an exact minute, and be later
- * than the previous candle. The ending time itself is not included.
- *
- * Returns true only when the response is not empty and every candle passes every
- * check. Returns false otherwise.
+ * Returns true only when every expected minute has one valid candle in order.
+ * Returns false for missing, extra, duplicate, unordered, or invalid candles.
  */
 function areCandlesticksValidForRange(candlesticks, startTime, endTime) {
+    const minuteDuration = 1000 * 60;
     const rangeIsValid =
         startTime instanceof Date &&
         !Number.isNaN(startTime.getTime()) &&
         endTime instanceof Date &&
         !Number.isNaN(endTime.getTime()) &&
-        startTime < endTime;
+        startTime < endTime &&
+        startTime.getTime() % minuteDuration === 0 &&
+        endTime.getTime() % minuteDuration === 0;
 
-    if (
-        !Array.isArray(candlesticks) ||
-        candlesticks.length === 0 ||
-        !rangeIsValid
-    ) {
+    if (!Array.isArray(candlesticks) || !rangeIsValid) {
         return false;
     }
 
-    return candlesticks.every((candlestick, index) => {
-        if (!isValidCandlestick(candlestick)) return false;
+    const expectedCount =
+        (endTime.getTime() - startTime.getTime()) / minuteDuration;
 
-        const openTime = candlestick.openTime;
-        const previousCandlestick = candlesticks[index - 1];
+    if (candlesticks.length !== expectedCount) return false;
 
-        const beginsOnExactMinute =
-            openTime.getUTCSeconds() === 0 &&
-            openTime.getUTCMilliseconds() === 0;
+    // Check each position explicitly so an empty array slot cannot hide a missing minute.
+    for (let index = 0; index < expectedCount; index += 1) {
+        const candlestick = candlesticks[index];
+        const expectedTime = startTime.getTime() + index * minuteDuration;
 
-        const isInsideRange =
-            openTime >= startTime &&
-            openTime < endTime;
+        if (
+            !isValidCandlestick(candlestick) ||
+            candlestick.openTime.getTime() !== expectedTime
+        ) {
+            return false;
+        }
+    }
 
-        const isStrictlyIncreasing =
-            !previousCandlestick ||
-            openTime > previousCandlestick.openTime;
-
-        return (
-            beginsOnExactMinute &&
-            isInsideRange &&
-            isStrictlyIncreasing
-        );
-    });
+    return true;
 }
 
 /*

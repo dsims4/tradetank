@@ -22,6 +22,10 @@ function validateUserID(userID) {
  * function must use the same transaction connection that is saving or deleting
  * a trading day. This keeps the trades and their statistics in agreement.
  *
+ * Expectancy per contract averages each trade's points per contract equally.
+ * Unlike Visualize's cumulative points divided by total contracts, larger trades
+ * do not receive extra weight in this average.
+ *
  * Returns a Promise that finishes after the statistics row is updated.
  * Throws an error when validation or a database query fails.
  */
@@ -32,7 +36,7 @@ async function recalculateUserStats(userID, client) {
         throw new TypeError("A database client is required.");
     }
 
-    // Calculate the entire snapshot from source trades so deletions cannot leave stale totals.
+    // Recalculate every statistic from trades so deleted trades cannot remain in old totals.
     await client.query(
         `INSERT INTO
             user_stats

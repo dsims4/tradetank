@@ -11,11 +11,14 @@
 {% endblock %}
 
 {% block content %}
-    {# Data attributes connect this server-rendered shell to input-chart.js. #}
+    {# JavaScript finds these HTML elements through their data-* names. #}
     <div class="main-container main-container--input-chart">
         <h1 class="app-page-heading">Trade Input</h1>
 
-        <div class="input-chart-page">
+        <div
+            class="input-chart-page"
+            {% if marketDataAccess %}data-market-data-access{% endif %}
+        >
             <div class="input-chart-workspace">
                 <div class="input-chart-header">
                     <form
@@ -27,9 +30,16 @@
                             "trading-date",
                             "input",
                             tradingSessionInceptionDate,
-                            currentTradingDate
+                            currentTradingDate,
+                            not marketDataAccess
                         ) }}
-                        <button type="submit" class="button">Load</button>
+                        <button
+                            type="submit"
+                            class="button"
+                            {% if not marketDataAccess %}disabled{% endif %}
+                        >
+                            Load
+                        </button>
                     </form>
 
                     <p
@@ -45,13 +55,17 @@
                         role="img"
                         aria-label="Five-minute candlestick chart"
                     ></canvas>
+
+                    {% if not marketDataAccess %}
+                        {% include "partials/market-data-unavailable.njk" %}
+                    {% endif %}
                 </div>
 
                 <h2 class="sidebar-heading chart-sidebar-heading">
                     Trade input
                 </h2>
 
-                {# The browser keeps this draft local until the user saves the complete day. #}
+                {# Unsaved trades remain only in this browser until Save Chart succeeds. #}
                 <aside class="input-trade-sidebar">
                     <form
                         method="post"

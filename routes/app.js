@@ -20,6 +20,7 @@ function createAppPageHandler(pageName) {
     return (req, res) => res.render(`${pageName}.njk`, {
         currentPage: pageName,
         colorScheme: req.user.colorScheme,
+        marketDataAccess: req.user.marketDataAccess,
         tradingSessionInceptionDate:
             TRADING_SESSION_INCEPTION_DATE,
         currentTradingDate: getNewYorkDate()

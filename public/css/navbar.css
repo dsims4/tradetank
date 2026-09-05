@@ -1,4 +1,4 @@
-/* Shared navigation, including its off-screen fixed and hidden states. */
+/* Shared navigation styles for its normal, fixed-to-screen, and hidden positions. */
 .navbar {
     position: relative;
     z-index: 100;

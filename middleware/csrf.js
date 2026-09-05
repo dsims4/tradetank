@@ -32,7 +32,7 @@ try {
 function verifySameOrigin(req, res, next) {
     if (SAFE_METHODS.has(req.method)) return next();
 
-    // Modern browsers send Origin; Referer is a fallback for compatible same-origin forms.
+    // Check Origin first. Use the full referring-page address only when Origin is absent.
     const origin = req.get("origin");
 
     if (origin && origin !== "null") {
@@ -47,7 +47,7 @@ function verifySameOrigin(req, res, next) {
         try {
             if (new URL(referer).origin === appOrigin) return next();
         } catch {
-            // This is intentionally blank.
+            // A malformed referring address is treated as untrusted below.
         }
     }
 

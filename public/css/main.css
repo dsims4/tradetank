@@ -1,4 +1,4 @@
-/* Page-specific layouts and responsive behavior built from shared components. */
+/* Individual page layouts and rules that rearrange them for different screen widths. */
 .slideshow {
     display: flex;
     flex-wrap: wrap;
@@ -26,8 +26,13 @@
     margin: 0;
     padding: 0;
     display: block;
-    object-fit: cover;
+    object-fit: contain;
+    background-color: #465b70;
     transition: filter 250ms ease;
+}
+
+.index-access-notice {
+    font-weight: 500;
 }
 
 .slideshow-slide--hidden {
@@ -178,7 +183,90 @@
     line-height: 1;
 }
 
-/* Statistical visualization chart and axis controls */
+/* Home-page introduction and links to the four main application workflows */
+.main-container--home {
+    align-items: stretch;
+    max-width: 68rem;
+    padding: clamp(2rem, 5vw, 4.5rem);
+}
+
+.home-introduction {
+    max-width: 46rem;
+}
+
+.home-introduction > * {
+    margin: 0;
+}
+
+.home-description {
+    margin-top: 1rem;
+    font-size: clamp(1rem, 0.9rem + 0.55vw, 1.25rem);
+    line-height: 1.55;
+}
+
+.home-page-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(0.8rem, 1.5vw, 1.25rem);
+}
+
+.home-page-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 11rem;
+    overflow: hidden;
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-ink);
+    background-color: var(--color-surface);
+    box-shadow: 0 0.25rem 0.6rem rgba(0, 0, 0, 0.14);
+    text-decoration: none;
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.home-page-card:hover {
+    box-shadow: 0 0.45rem 0.9rem rgba(0, 0, 0, 0.22);
+    transform: translateY(-0.2rem);
+}
+
+.home-page-card:focus-visible {
+    outline: 3px solid var(--focus-outline);
+    outline-offset: 3px;
+}
+
+.home-page-card-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    color: var(--color-contrast);
+    background-color: var(--color-ink);
+    font-size: clamp(1.2rem, 1.05rem + 0.75vw, 1.55rem);
+    font-weight: 600;
+}
+
+.home-page-card-copy {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    padding: clamp(1rem, 2vw, 1.4rem);
+    font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.08rem);
+    line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+    .home-page-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-page-card {
+        min-height: 9rem;
+    }
+}
+
+/* Visualize-page line chart and its x-axis and y-axis controls */
 .input-chart-workspace.visualize-workspace {
     grid-template-rows: auto auto;
     gap: 0.75rem;
@@ -293,8 +381,10 @@
 
 .visualize-axis-title {
     margin: 0;
-    font-size: 22px;
+    font-size: clamp(0.75rem, 0.5rem + 1vw, 1.375rem);
     font-weight: 600;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
 }
 
 .visualize-x-axis-title {
@@ -323,6 +413,7 @@
 }
 
 .visualize-axis-control label {
+    font-size: clamp(0.8rem, 0.7rem + 0.35vw, 1rem);
     font-weight: 600;
 }
 
@@ -587,11 +678,16 @@
 .date-picker-heading,
 .date-picker-day,
 .date-picker-option {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     border: var(--border-thin);
     color: var(--color-ink);
     background-color: var(--color-surface);
     font: inherit;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -656,6 +752,7 @@
     padding: 0.4rem;
     border: var(--border-strong);
     border-radius: 0.75rem;
+    font-size: clamp(0.75rem, 0.7rem + 0.25vw, 1rem);
 }
 
 .date-picker-navigation:hover:not(:disabled),
@@ -736,6 +833,7 @@
 }
 
 .candlestick-chart-container {
+    position: relative;
     grid-column: 1;
     grid-row: 2;
     min-width: 0;
@@ -745,6 +843,31 @@
     border: var(--border-strong);
     border-radius: 2rem;
     background-color: #ffffff;
+}
+
+/* Explains why a chart is blank without hiding the rest of its page. */
+.market-data-unavailable {
+    position: absolute;
+    z-index: 2;
+    inset: 50% auto auto 50%;
+    width: min(calc(100% - 2rem), 34rem);
+    padding: clamp(1rem, 2vw, 1.5rem);
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-ink);
+    background-color: var(--color-surface);
+    text-align: center;
+    transform: translate(-50%, -50%);
+}
+
+.market-data-unavailable p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.market-data-unavailable a {
+    color: inherit;
+    font-weight: 600;
 }
 
 #candlestick-chart,
@@ -964,6 +1087,7 @@
     .input-trade-sidebar [data-completed-trade-notes] textarea {
         min-height: 6rem;
     }
+
 }
 
 [data-trade-summaries] {
@@ -1029,6 +1153,15 @@
     overflow: hidden;
     border: var(--border-strong);
     border-radius: 1rem;
+    box-shadow: 0 0.2rem 0.45rem rgba(0, 0, 0, 0.14);
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.trade-summary:hover {
+    box-shadow: 0 0.4rem 0.75rem rgba(0, 0, 0, 0.2);
+    transform: translateY(-0.15rem);
 }
 
 @media (min-width: 801px) {
@@ -1047,14 +1180,13 @@
     border-radius: 0;
     background: linear-gradient(
         to bottom,
-        var(--color-contrast) 0 50%,
-        var(--color-ink) 50% 100%
+        var(--color-ink) 0 50%,
+        var(--color-contrast) 50% 100%
     );
     font-size: clamp(1rem, 0.94rem + 0.12vw, 1.1rem);
     text-align: center;
 }
 
-.trade-summary-choice:hover,
 .trade-summary-choice[aria-expanded="true"] {
     color: var(--color-contrast);
     background: var(--color-ink);
@@ -1077,15 +1209,13 @@
 }
 
 .trade-summary-label {
-    color: var(--color-ink);
-}
-
-.trade-summary-points {
     color: var(--color-contrast);
 }
 
-.trade-summary-choice:hover .trade-summary-label,
-.trade-summary-choice:hover .trade-summary-points,
+.trade-summary-points {
+    color: var(--color-ink);
+}
+
 .trade-summary-choice[aria-expanded="true"] .trade-summary-points,
 .trade-summary-choice[aria-expanded="true"] .trade-summary-label {
     color: var(--color-contrast);
@@ -1135,7 +1265,28 @@
     margin-top: auto;
 }
 
-/* Draggable analysis-stat card grid */
+@media (max-width: 800px) {
+    .trades-summary-sidebar,
+    .trades-summary-panel {
+        height: auto;
+        overflow: visible;
+    }
+
+    [data-trade-summaries] {
+        flex: none;
+        overflow: visible;
+    }
+
+    .trade-summary {
+        flex: 0 0 auto;
+    }
+
+    .trade-summary--expanded {
+        min-height: max-content;
+    }
+}
+
+/* Analyze-page statistics cards that users can reorder by dragging */
 .analyze-grid {
     display: grid;
     grid-template-columns: repeat(
@@ -1155,11 +1306,22 @@
     border-radius: 2rem;
     background-color: var(--color-contrast);
     cursor: pointer;
+    box-shadow: 0 0.25rem 0.6rem rgba(0, 0, 0, 0.14);
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.analyze-stat:not(.analyze-stat--dragging):hover {
+    box-shadow: 0 0.45rem 0.9rem rgba(0, 0, 0, 0.22);
+    transform: translateY(-0.2rem);
 }
 
 .analyze-stat--dragging {
     border-style: dotted;
     background-color: transparent;
+    box-shadow: none;
+    transform: none;
 }
 
 .analyze-stat--dragging > * {
@@ -1194,4 +1356,56 @@
     background-color: var(--color-contrast);
     font-size: 1.5rem;
     font-weight: bold;
+}
+
+/* Improve public-page text flow without changing the shared page container. */
+.copy--information {
+    width: 100%;
+    gap: 1.25rem;
+    text-align: left;
+}
+
+.copy--information h1,
+.copy--index h1 {
+    line-height: 1.15;
+    text-wrap: balance;
+}
+
+.copy--information h2 {
+    margin-top: 0.5rem;
+    font-size: clamp(1.2rem, 1.05rem + 0.5vw, 1.5rem);
+    line-height: 1.3;
+}
+
+.copy--information p,
+.copy--information li,
+.copy--index p {
+    line-height: 1.7;
+}
+
+.copy--information li + li {
+    margin-top: 1rem;
+}
+
+.copy--index {
+    gap: 1.25rem;
+}
+
+.copy--index .index-access-notice {
+    font-size: 0.95rem;
+}
+
+/* Reuse the home-page card for the contact address, keeping its original colors. */
+.copy--information .contact-email-card {
+    width: min(100%, 25rem);
+    min-height: 0;
+    align-self: flex-start;
+}
+
+.contact-email-card .home-page-card-copy {
+    overflow-wrap: anywhere;
+}
+
+.copy--information .contact-email-card:hover {
+    color: var(--color-ink);
 }

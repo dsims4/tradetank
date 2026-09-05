@@ -240,6 +240,10 @@ function calculateMaximumDrawdown(points) {
  * a whole day is added only after that day's final trade, so the chart never
  * shows a partly calculated day.
  *
+ * Expected value per contract divides cumulative points by cumulative contracts.
+ * Larger trades therefore carry more weight than in Analyze's equally weighted
+ * average of each trade's points per contract.
+ *
  * Returns an array of chart points. Each point contains numeric x and y values
  * and the trading date that produced it.
  */
@@ -375,7 +379,7 @@ function createVisualizationPoints(trades, xAxis, yAxis) {
         };
     });
 
-    // Day-based series emit one point per day instead of repeating it for every trade.
+    // Add one point for each complete day instead of repeating that day after every trade.
     const displayedPoints =
         xAxis === "tradingDays" || DAY_ONLY_Y_AXES.has(yAxis)
             ? points.filter((point) => point.isDayEnd)

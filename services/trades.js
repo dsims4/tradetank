@@ -41,7 +41,7 @@ function validateTradingDate(tradingDate) {
 /*
  * This function checks one order sent by the browser.
  *
- * It requires a real time, a finite ES price in a 0.25-point increment, and a
+ * It requires a real time, an ES price that is not Infinity or NaN, and a
  * positive whole number of contracts.
  *
  * Returns true when every field is valid. Returns false otherwise.
@@ -328,7 +328,7 @@ function canonicalizeOrderEvents(orderEvents) {
     /*
      * This helper copies only the order fields allowed to reach PostgreSQL.
      *
-     * It returns a new event with a normalized ISO timestamp.
+     * It returns a new order whose time uses the standard ISO date-and-time format.
      */
     const canonicalizeEvent = (orderEvent) => ({
         time: new Date(orderEvent.time).toISOString(),

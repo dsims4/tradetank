@@ -29,6 +29,7 @@ async function findUser(userID) {
     const userResult = await query(
         `SELECT
             users.id,
+            users.market_data_access,
             user_preferences.color_scheme
         FROM
             users
@@ -73,6 +74,7 @@ async function loadUser(req, res, next) {
 
         req.user = {
             id: user.id,
+            marketDataAccess: user.market_data_access,
             colorScheme: user.color_scheme || "tank"
         };
 
@@ -108,6 +110,7 @@ async function loadUserOptional(req, res, next) {
 
         req.user = {
             id: user.id,
+            marketDataAccess: user.market_data_access,
             colorScheme: user.color_scheme || "tank"
         };
 
@@ -178,10 +181,43 @@ async function requireAPIAuthentication(req, res, next) {
     }
 }
 
+/*
+ * This middleware prevents accounts without market-data permission from using
+ * API routes that return candlesticks or save trades against those candles.
+ *
+ * It runs after requireAPIAuthentication, so the authenticated user ID is
+ * already available. Returns HTTP status 403 when the account lacks access.
+ */
+async function requireMarketDataAccess(req, res, next) {
+    try {
+        const userResult = await query(
+            `SELECT
+                market_data_access
+            FROM
+                users
+            WHERE
+                id = $1
+            LIMIT 1`,
+            [req.authenticatedUserID]
+        );
+
+        if (!userResult.rows[0]?.market_data_access) {
+            return res.status(403).json({
+                error: "Market-data access is not enabled for this account."
+            });
+        }
+
+        return next();
+    } catch (error) {
+        return next(error);
+    }
+}
+
 module.exports = {
     loadUser,
     loadUserOptional,
     redirectAuthenticated,
     redirectUnauthenticated,
-    requireAPIAuthentication
+    requireAPIAuthentication,
+    requireMarketDataAccess
 };

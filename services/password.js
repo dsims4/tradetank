@@ -40,7 +40,7 @@ async function hashPassword(password) {
 async function verifyPassword(password, storedHashedPassword) {
     const [salt, storedDerivedKey] = storedHashedPassword.split(":");
 
-    // A malformed stored value cannot represent a password created by hashPassword.
+    // A wrongly shaped stored value could not have been created by hashPassword.
     if (!salt || !storedDerivedKey) {
         return false;
     }
@@ -58,7 +58,7 @@ async function verifyPassword(password, storedHashedPassword) {
 
     const storedDerivedKeyBuffer = Buffer.from(storedDerivedKey, "hex");
 
-    // timingSafeEqual requires equally sized buffers and throws when their lengths differ.
+    // Node's timing-safe comparison requires two byte values with exactly the same length.
     if (derivedKey.length !== storedDerivedKeyBuffer.length) {
         return false;
     }

@@ -1,20 +1,22 @@
-/** Maintains and validates the browser-only draft for one submitted trading day. */
+/** Holds and checks unsaved trades in the browser until a trading day is saved. */
 const TRADE_NOTES_MAXIMUM_LENGTH = 1500;
 
 /*
- * This function validates the two order actions recognized by the draft model.
+ * This function checks whether an order action is one the trade draft understands.
  *
- * Returns true for buy or sell; otherwise false.
+ * Returns true for "buy" or "sell." Returns false for every other value.
  */
 function isValidOrderSide(orderSide) {
     return orderSide === "buy" || orderSide === "sell";
 }
 
 /*
- * This function validates one local event before it can change position state.
- * Prices use quarter points and quantities use positive whole contracts.
+ * This function checks one unsaved order before it can change the open position.
  *
- * Returns true when every event field is valid; otherwise false.
+ * The order needs a real time, an ES price in a 0.25-point increment, and a
+ * positive whole number of contracts.
+ *
+ * Returns true when every field is valid. Returns false otherwise.
  */
 function isValidOrderEvent(orderEvent) {
     return (
@@ -31,19 +33,22 @@ function isValidOrderEvent(orderEvent) {
 }
 
 /*
- * This function maps an order action to its storage property.
+ * This function finds the property where an order should be stored.
  *
- * Returns buySide for buy and sellSide for sell.
+ * Returns "buySide" for a buy and "sellSide" for a sell.
  */
 function getOrderEventCollectionName(orderSide) {
     return orderSide === "buy" ? "buySide" : "sellSide";
 }
 
 /*
- * This function appends a selected quantity from an event to one side of a trade.
- * A smaller selected quantity allows a reversal event to be split between two trades.
+ * This function adds all or part of an order to one side of a trade.
  *
- * It mutates the trade and returns no value.
+ * Part of an oversized order may close the current trade while the remaining
+ * contracts open a reversed trade. The selected contract count lets the same
+ * original order be divided between those two trades.
+ *
+ * It changes the supplied trade object and does not return a value.
  */
 function addOrderEvent(trade, orderSide, orderEvent, contractCount) {
     const collectionName = getOrderEventCollectionName(orderSide);
@@ -56,9 +61,9 @@ function addOrderEvent(trade, orderSide, orderEvent, contractCount) {
 }
 
 /*
- * This function totals the quantities represented by an order-event array.
+ * This function adds the contract counts from an array of orders.
  *
- * Returns the summed contract count.
+ * Returns the total number of contracts in those orders.
  */
 function getContractCount(orderEvents) {
     return orderEvents.reduce(
@@ -68,9 +73,9 @@ function getContractCount(orderEvents) {
 }
 
 /*
- * This function adds display-only side information to copied order events.
+ * This function copies orders and labels each copy as a buy or sell for the chart.
  *
- * Returns a new marker array without modifying the draft events.
+ * Returns a new chart-marker array without changing the saved draft orders.
  */
 function getOrderMarkers(orderEvents, orderSide) {
     return orderEvents.map((orderEvent) => ({
@@ -81,7 +86,8 @@ function getOrderMarkers(orderEvents, orderSide) {
 
 class TradeDraft {
     /*
-     * This constructor creates an empty day draft with no position or undo history.
+     * This constructor creates a new empty trading-day draft.
+     * It begins with no completed trades, open position, or Undo history.
      *
      * Returns the new TradeDraft instance.
      */
@@ -92,9 +98,9 @@ class TradeDraft {
     }
 
     /*
-     * This method removes every completed trade, active position, and undo snapshot.
+     * This method removes every completed trade, open position, and saved Undo state.
      *
-     * It mutates the draft and returns no value.
+     * It changes the draft and does not return a value.
      */
     clear() {
         this.trades = [];
@@ -103,18 +109,20 @@ class TradeDraft {
     }
 
     /*
-     * This method checks whether the draft currently contains an open position.
+     * This method checks whether an unsaved trade still has contracts open.
      *
-     * Returns true while a trade is active; otherwise false.
+     * Returns true while a trade is open. Returns false otherwise.
      */
     hasActiveTrade() {
         return this.activeTrade !== null;
     }
 
     /*
-     * This method creates a long or short trade from its first valid order event.
+     * This method opens a new long or short trade from its first valid order.
+     * A buy opens a long trade and a sell opens a short trade.
      *
-     * It returns no value and throws when another trade is active or input is invalid.
+     * It does not return a value.
+     * It throws an error when another trade is open or the order is invalid.
      */
     startTrade(orderSide, orderEvent) {
         if (this.hasActiveTrade()) {
@@ -148,10 +156,13 @@ class TradeDraft {
     }
 
     /*
-     * This method calculates buys minus sells for the active trade.
-     * Positive values are long, negative values are short, and zero is closed.
+     * This method calculates the open position by subtracting contracts sold
+     * from contracts bought.
      *
-     * Returns the signed net contract count, or zero when no trade is active.
+     * A positive result is long, a negative result is short, and zero is closed.
+     *
+     * Returns the positive or negative number of open contracts.
+     * Returns zero when there is no open trade.
      */
     getNetContractCount() {
         if (!this.hasActiveTrade()) return 0;
@@ -167,9 +178,10 @@ class TradeDraft {
     }
 
     /*
-     * This method moves a flat active trade into the completed trade array.
+     * This method moves a trade with zero open contracts into the completed list.
      *
-     * It returns no value and throws when no trade exists or its net position is open.
+     * It does not return a value.
+     * It throws an error when no trade exists or contracts remain open.
      */
     completeActiveTrade() {
         if (!this.hasActiveTrade()) {
@@ -185,10 +197,13 @@ class TradeDraft {
     }
 
     /*
-     * This method splits one oversized opposing order into a close and a new opening trade.
-     * Both parts retain the original event time and price but use their respective quantities.
+     * This method handles an opposite-side order larger than the open position.
      *
-     * It mutates draft state and returns no value.
+     * The amount equal to the open position closes the current trade. The excess
+     * opens a new trade in the opposite direction. Both parts keep the original
+     * time and price but use their own contract counts.
+     *
+     * It changes the draft and does not return a value.
      */
     startReversal(
         orderSide,
@@ -213,10 +228,14 @@ class TradeDraft {
     }
 
     /*
-     * This method applies one buy or sell event as an open, scale, close, or reversal.
-     * State is snapshotted first so every accepted action can be undone exactly once.
+     * This method applies one buy or sell as an opening order, scale-in, scale-out,
+     * full close, or reversal.
      *
-     * It mutates the draft and returns no value; invalid event input throws TypeError.
+     * Before changing anything, it saves a complete copy of the current draft.
+     * Undo can restore that exact earlier copy.
+     *
+     * It changes the draft and does not return a value.
+     * It throws a TypeError when the order is invalid.
      */
     recordOrderEvent(orderSide, orderEvent) {
         if (!isValidOrderSide(orderSide)) {
@@ -282,10 +301,14 @@ class TradeDraft {
     }
 
     /*
-     * This method produces the completed trade payload only when the entire day is flat.
-     * A deep copy prevents request preparation from mutating the displayed draft.
+     * This method prepares completed trades to be sent to the server.
      *
-     * Returns the copied trade array, or throws for an open or empty draft.
+     * It works only when no contracts remain open. A deep copy duplicates every
+     * nested trade and order, so later request changes cannot alter the draft
+     * still displayed on the page.
+     *
+     * Returns the copied completed-trade array.
+     * Throws an error when a trade is open or the draft contains no trades.
      */
     getTradesForSubmission() {
         if (this.hasActiveTrade()) {
@@ -304,9 +327,12 @@ class TradeDraft {
     }
 
     /*
-     * This method updates notes and process-deviation state on the current open trade.
+     * This method changes the notes and yes/no process-deviation value for the
+     * current open trade.
      *
-     * It returns no value and throws for missing state, oversized notes, or invalid boolean.
+     * It does not return a value.
+     * It throws an error when no trade is open, notes are too long, or the
+     * process-deviation value is not true or false.
      */
     updateActiveTradeDetails(notes, processDeviation) {
         if (!this.hasActiveTrade()) {
@@ -333,18 +359,20 @@ class TradeDraft {
     }
 
     /*
-     * This method reports how many complete flat trades are stored in the draft.
+     * This method reports how many completed trades are in the unsaved draft.
      *
-     * Returns the completed trade-array length.
+     * Returns the number of completed trades.
      */
     getCompletedTradeCount() {
         return this.trades.length;
     }
 
     /*
-     * This method flattens completed and active order events into chart marker objects.
+     * This method combines orders from completed and open trades into one list
+     * of chart markers.
      *
-     * Returns a new chronological-by-trade marker array containing display-side fields.
+     * Returns a new marker array in trade order. Every marker says whether it is
+     * a buy or sell. The original draft orders are not changed.
      */
     getOrderEventsForDisplay() {
         const trades = [...this.trades];
@@ -366,18 +394,19 @@ class TradeDraft {
     }
 
     /*
-     * This method checks whether an earlier order snapshot is available.
+     * This method checks whether Undo has an earlier copy of the draft to restore.
      *
-     * Returns true when Undo can restore state; otherwise false.
+     * Returns true when Undo is available. Returns false otherwise.
      */
     canUndo() {
         return this.history.length > 0;
     }
 
     /*
-     * This method restores the snapshot captured before the most recent order event.
+     * This method restores the complete draft copy saved before the newest order.
      *
-     * Returns true when state was restored, or false when history was already empty.
+     * Returns true when an earlier state was restored.
+     * Returns false when there was nothing to undo.
      */
     undoLastOrderEvent() {
         const previousState = this.history.pop();
@@ -391,9 +420,10 @@ class TradeDraft {
     }
 
     /*
-     * This method exposes editable descriptive fields for the active trade.
+     * This method gets the editable notes and process-deviation value for the open trade.
      *
-     * Returns notes and processDeviation, or null when no trade is active.
+     * Returns an object containing notes and processDeviation.
+     * Returns null when no trade is open.
      */
     getActiveTradeDetails() {
         if (!this.activeTrade) return null;
@@ -406,19 +436,23 @@ class TradeDraft {
     }
 
     /*
-     * This method exposes completed trades without sharing mutable draft references.
+     * This method gives display code a copy of the completed trades.
+     * The copy prevents display code from accidentally changing the real draft.
      *
-     * Returns a deep copy of the completed trade array.
+     * Returns a deep copy, including copies of all nested orders.
      */
     getCompletedTradesForDisplay() {
         return structuredClone(this.trades);
     }
 
     /*
-     * This method updates one completed trade's notes across current and undoable states.
-     * Keeping snapshots aligned prevents Undo from restoring an obsolete note value.
+     * This method changes the notes for one completed trade.
      *
-     * It returns no value and throws for an invalid index or oversized notes.
+     * It also changes that trade's notes inside every saved Undo copy. Otherwise,
+     * pressing Undo could bring back an older version of the notes.
+     *
+     * It does not return a value.
+     * It throws an error when the trade number is invalid or notes are too long.
      */
     updateCompletedTradeNotes(tradeIndex, notes) {
         if (

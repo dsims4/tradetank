@@ -14,7 +14,7 @@ async function runWithPromiseLock(pendingPromises, key, createPromise) {
     let pendingPromise = pendingPromises.get(key);
 
     if (!pendingPromise) {
-        // Store before awaiting so later callers join this exact operation.
+        // Save the Promise before waiting so later callers can join this exact operation.
         pendingPromise = createPromise();
         pendingPromises.set(key, pendingPromise);
     }
@@ -22,7 +22,7 @@ async function runWithPromiseLock(pendingPromises, key, createPromise) {
     try {
         return await pendingPromise;
     } finally {
-        // Identity checking prevents an older request from deleting a replacement Promise.
+        // Remove it only if it is still this Promise, not a newer one using the same key.
         if (pendingPromises.get(key) === pendingPromise) {
             pendingPromises.delete(key);
         }

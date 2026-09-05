@@ -1,4 +1,4 @@
-/* Reusable containers, buttons, forms, messages, dialogs, and date-picker controls. */
+/* Styles shared by page boxes, buttons, forms, messages, popups, and date controls. */
 .main-container {
     position: relative;
     display: flex;
@@ -423,7 +423,7 @@
     font-size: inherit;
 }
 
-/* Native-looking custom checkboxes shared across forms */
+/* Custom checkboxes styled consistently while keeping normal checkbox behavior */
 .checkbox-field {
     display: flex;
     align-items: center;

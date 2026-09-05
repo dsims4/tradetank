@@ -228,7 +228,7 @@ router.post("/forgot-password", forgotPasswordIPRateLimit, async (req, res) => {
         }
     } catch (error) {
         console.error("Password reset request failed:", error.message);
-        // Return the same response so account existence is not exposed.
+        // Always show the same result so this form cannot reveal whether the account exists.
     }
 
     return res.redirect("/forgot-password-confirmation");

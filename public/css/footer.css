@@ -1,4 +1,4 @@
-/* Shared public-site footer layout and responsive link treatment. */
+/* Shared footer layout, including links that rearrange on narrower screens. */
 .footer {
     position: relative;
     border-top: var(--border-thin);

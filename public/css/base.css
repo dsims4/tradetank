@@ -1,4 +1,4 @@
-/* Global design tokens, font faces, resets, and page-level color schemes. */
+/* Shared colors, sizes, fonts, browser defaults, and page themes. */
 @font-face {
     font-family: "general-sans";
     src: url("../fonts/general-sans-light.woff2") format("woff2");

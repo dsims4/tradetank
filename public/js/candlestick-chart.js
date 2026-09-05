@@ -1,9 +1,12 @@
-/** Renders responsive candlesticks, axes, crosshairs, and trade-action markers. */
+/** Draws the candlestick chart, labels, pointer crosshair, and trade-order boxes. */
 class CandlestickChart {
     /*
-     * This constructor initializes canvas state, New York time formatting, and pointer events.
+     * This constructor prepares one candlestick chart.
      *
-     * Returns the newly constructed responsive chart instance.
+     * It stores the drawing surface and candles, creates the New York time
+     * formatter, and listens for pointer movement and pointer exit.
+     *
+     * Returns the new chart object created by `new CandlestickChart(...)`.
      */
     constructor(canvas, candlesticks = []) {
         this.candlesticks = candlesticks;
@@ -34,9 +37,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method replaces market data and clears interactions tied to the old series.
+     * This method replaces every candle currently displayed.
+     * The old crosshair and order markers are cleared because they refer to the
+     * previous candle list.
      *
-     * It redraws the chart and returns no value; invalid input throws TypeError.
+     * It redraws the chart and does not return a value.
+     * It throws a TypeError when the supplied value is not an array.
      */
     setCandlesticks(candlesticks) {
         if (!Array.isArray(candlesticks)) {
@@ -52,10 +58,14 @@ class CandlestickChart {
     }
 
     /*
-     * This method synchronizes the canvas backing store with its responsive CSS dimensions.
-     * Device-pixel scaling keeps drawing sharp while geometry continues to use CSS pixels.
+     * This method makes the canvas drawing resolution match its visible CSS size.
      *
-     * It redraws only after a dimension changes and returns no value.
+     * High-density screens use several physical pixels for one CSS pixel. Scaling
+     * by the device pixel ratio keeps lines and text sharp while the rest of the
+     * chart can continue measuring ordinary CSS pixels.
+     *
+     * It redraws only when width, height, or screen density changed.
+     * It does not return a value.
      */
     resize() {
         const boundingClientRect = this.canvas.getBoundingClientRect();
@@ -90,10 +100,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method clears and redraws the complete chart in visual stacking order.
-     * Empty data produces one centered availability message instead of axes.
+     * This method erases and redraws the complete chart from back to front.
      *
-     * It mutates the canvas and returns no value.
+     * Drawing in a fixed order controls which items appear on top. With no
+     * candles, it shows one centered unavailable message instead of empty axes.
+     *
+     * It changes the canvas drawing and does not return a value.
      */
     render() {
         this.ctx.clearRect(
@@ -134,10 +146,14 @@ class CandlestickChart {
     }
 
     /*
-     * This method derives the visible price range from candle extremes and marker space.
-     * Marker padding expands only the side on which buy or sell labels must appear.
+     * This method finds the lowest and highest prices the chart must display.
      *
-     * Returns minimum and maximum prices, or null when no candles exist.
+     * It begins with candle lows and highs, then leaves enough extra price space
+     * for order boxes. A buy box needs space below candles and a sell box needs
+     * space above them, so only the needed side is enlarged.
+     *
+     * Returns an object containing minimum and maximum prices.
+     * Returns null when there are no candles.
      */
     getPriceRange() {
         if (this.candlesticks.length === 0) return null;
@@ -212,9 +228,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method reserves fixed canvas gutters for time and price labels.
+     * This method separates the canvas into the candle area and margins for the
+     * bottom time labels and right-side price labels.
      *
-     * Returns the drawable plot boundaries and their dimensions in CSS pixels.
+     * Returns the candle area's left, right, top, bottom, width, and height in CSS pixels.
      */
     getPlotArea() {
         const left = 10;
@@ -233,9 +250,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method maps a price into the chart's vertically inverted canvas coordinates.
+     * This method converts a market price into a vertical canvas position.
+     * Canvas y positions increase downward, so higher prices need smaller y values.
      *
-     * Returns the corresponding y-coordinate inside the current plot area.
+     * Returns the matching vertical position inside the candle area.
      */
     priceToY(price, priceRange) {
         const plotArea = this.getPlotArea();
@@ -251,9 +269,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method calculates one candle's horizontal slot, center, and bounded body width.
+     * This method calculates where one candle belongs horizontally.
+     * It also chooses a body width that fits inside that candle's share of the chart.
      *
-     * Returns centerX and bodyWidth in CSS pixels.
+     * Returns the candle's horizontal center and body width in CSS pixels.
      */
     getCandleGeometry(index) {
         const plotArea = this.getPlotArea();
@@ -274,9 +293,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws every wick and body using monochrome bullish and bearish styling.
+     * This method draws every candle's thin high-to-low wick and open-to-close body.
+     * Rising candles use white bodies and falling candles use black bodies.
      *
-     * It mutates the canvas and returns no value.
+     * It changes the canvas drawing and does not return a value.
      */
     drawCandlesticks() {
         const priceRange = this.getPriceRange();
@@ -331,9 +351,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws the right price axis with six labels snapped to quarter points.
+     * This method draws six price labels along the chart's right side.
+     * Each displayed price is rounded to an ES quarter-point increment of 0.25.
      *
-     * It mutates the canvas and returns no value.
+     * It changes the canvas drawing and does not return a value.
      */
     drawPriceAxis() {
         const priceRange = this.getPriceRange();
@@ -381,10 +402,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws at most six evenly distributed New York time labels.
-     * Endpoint labels are clamped so their text remains inside the plot width.
+     * This method draws at most six New York time labels along the bottom.
      *
-     * It mutates the canvas and returns no value.
+     * Labels are spread across the session. The first and final labels are moved
+     * inward when needed so their text is not cut off by the chart edges.
+     *
+     * It changes the canvas drawing and does not return a value.
      */
     drawTimeAxis() {
         if (this.candlesticks.length === 0) return;
@@ -446,9 +469,9 @@ class CandlestickChart {
     }
 
     /*
-     * This method converts a canvas y-coordinate back into a price.
+     * This method converts a vertical canvas position back into a market price.
      *
-     * Returns the unsnapped price represented by that vertical position.
+     * Returns the exact unrounded price represented by that position.
      */
     yToPrice(y, priceRange) {
         const plotArea = this.getPlotArea();
@@ -463,9 +486,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method maps a horizontal pointer coordinate to its candle slot.
+     * This method finds which candle is underneath a horizontal pointer position.
      *
-     * Returns the bounded candle index, or null when x lies outside the candle area.
+     * Returns the candle's array position, kept inside the valid range.
+     * Returns null when the pointer is outside the candle area.
      */
     getCandleIndexAtX(x) {
         const plotArea = this.getPlotArea();
@@ -494,8 +518,11 @@ class CandlestickChart {
     }
 
     /*
-     * This method converts pointer movement into a candle and quarter-point selection.
-     * Movement outside the plot clears the crosshair rather than clamping it to an edge.
+     * This method updates the crosshair from pointer movement.
+     *
+     * The horizontal position chooses a candle. The vertical position becomes a
+     * price rounded to 0.25. Moving outside the candle area removes the crosshair
+     * instead of leaving it stuck on an edge.
      *
      * It updates chart state, redraws the canvas, and returns no value.
      */
@@ -551,7 +578,7 @@ class CandlestickChart {
     }
 
     /*
-     * This method removes an active crosshair and redraws the underlying chart.
+     * This method removes the active crosshair and redraws the chart underneath it.
      *
      * It returns no value and performs no redraw when the crosshair is already absent.
      */
@@ -563,9 +590,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws crosshair guides and contrasting time and price value boxes.
+     * This method draws the crosshair's horizontal and vertical lines, plus boxes
+     * that display its selected time and price.
      *
-     * It mutates the canvas and returns no value when no crosshair is active.
+     * It changes the canvas drawing and does nothing when no crosshair is active.
      */
     drawCrosshair() {
         if (!this.crosshair) return;
@@ -643,10 +671,11 @@ class CandlestickChart {
     }
 
     /*
-     * This method exposes the active candle timestamp and snapped pointer price to Input.
-     * It also reports whether that price falls inside the authoritative candle range.
+     * This method gives the Input page the crosshair's selected candle and price.
+     * It also checks whether the price is between that candle's trusted low and high.
      *
-     * Returns the selection object, or null when the crosshair is inactive.
+     * Returns an object containing time, price, and the candle-range check.
+     * Returns null when no crosshair is visible.
      */
     getCrosshairSelection() {
         if (!this.crosshair) return null;
@@ -665,9 +694,14 @@ class CandlestickChart {
 }
 
     /*
-     * This method shallow-copies replacement order markers and redraws the chart.
+     * This method replaces the order markers and redraws the chart.
      *
-     * It returns no value and throws TypeError when markers are not provided as an array.
+     * It creates a new outer array but keeps the marker objects themselves. This
+     * prevents later changes to the caller's array, such as adding an item, from
+     * silently changing the chart's list.
+     *
+     * It does not return a value.
+     * It throws a TypeError when the markers are not supplied as an array.
      */
     setOrderMarkers(orderMarkers) {
         if (!Array.isArray(orderMarkers)) {
@@ -686,10 +720,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method groups same-side events at one candle into a shared marker label.
-     * Events at the same price also combine their contract quantities.
+     * This method groups buy orders or sell orders placed on the same candle into
+     * one chart box. Orders at the exact same price have their contract counts added.
      *
-     * Returns an array of grouped markers without mutating the original marker array.
+     * Returns a new array of grouped markers without changing the original markers.
      */
     getGroupedOrderMarkers() {
         const groupedMarkers = new Map();
@@ -745,9 +779,9 @@ class CandlestickChart {
     }
 
     /*
-     * This method calculates a multiline marker label's height from its event count.
+     * This method calculates how tall an order box must be for all its text lines.
      *
-     * Returns the required label height in CSS pixels.
+     * Returns the required box height in CSS pixels.
      */
     getOrderMarkerLabelHeight(orderEventCount) {
         const labelLineCount = orderEventCount * 2 - 1;
@@ -756,10 +790,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method creates vertically ordered B/S quantity lines for one marker.
-     * Higher prices appear earlier, with plus-sign separator lines between events.
+     * This method creates the text lines inside one order box.
      *
-     * Returns the complete array of label strings.
+     * A buy of one contract becomes B1 and a sell of two becomes S2. Higher-price
+     * orders appear first. A separate plus-sign line appears between orders.
+     *
+     * Returns the complete array of lines to draw.
      */
     getOrderMarkerLabelLines(orderMarker) {
         const prefix = orderMarker.orderSide === "buy" ? "B" : "S";
@@ -781,9 +817,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method measures every marker line and adds horizontal text padding.
+     * This method measures the text in every order-box line and adds empty space
+     * on both sides.
      *
-     * Returns the minimum label width in CSS pixels.
+     * Returns the smallest box width that can hold every line, in CSS pixels.
      */
     getOrderMarkerLabelWidth(labelLines) {
         return Math.max(
@@ -795,9 +832,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method finds the candle matching an order marker's exact opening timestamp.
+     * This method finds the candle whose opening time exactly matches an order's time.
      *
-     * Returns its index, or -1 when the marker does not belong to the displayed data.
+     * Returns the candle's array position.
+     * Returns -1 when the order does not belong to the displayed candle list.
      */
     getCandleIndexForTime(time) {
         return this.candlesticks.findIndex(
@@ -806,10 +844,14 @@ class CandlestickChart {
     }
 
     /*
-     * This method estimates price-range padding for non-overlapping same-side label lanes.
-     * Horizontal interval packing prevents adjacent labels from being counted in one lane.
+     * This method estimates how much extra price space is needed for order boxes.
      *
-     * Returns the greater of baseline padding or the total required label-lane height.
+     * Boxes that overlap horizontally must use separate rows, called lanes. Boxes
+     * that do not overlap may share a lane. Counting these lanes avoids adding
+     * much more empty chart space than the labels actually need.
+     *
+     * Returns either the normal minimum padding or the space needed by every
+     * label lane, whichever is larger.
      */
     getOrderMarkerPaddingPixels(
         orderSide,
@@ -887,10 +929,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method finds a preferred label center beyond every candle under its horizontal span.
-     * Buy labels prefer below the lowest low and sell labels prefer above the highest high.
+     * This method chooses the first preferred vertical position for an order box.
      *
-     * Returns the preferred vertical center in CSS pixels.
+     * It looks at every candle underneath the box's horizontal width. Buy boxes
+     * start below the lowest of those candles, while sell boxes start above the highest.
+     *
+     * Returns the preferred vertical center of the box in CSS pixels.
      */
     getOrderMarkerLabelY({
         labelCenterX,
@@ -939,9 +983,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method finds candle bounds colliding with a proposed padded label rectangle.
+     * This method finds candles that would be covered by a proposed order box,
+     * including the required empty space around the box.
      *
-     * Returns an array containing the bounds of every overlapping candle.
+     * Returns an array containing the rectangle around every overlapping candle.
      */
     getOverlappingCandlestickBounds(
         bounds,
@@ -975,10 +1020,14 @@ class CandlestickChart {
     }
 
     /*
-     * This method walks a label away from candles and prior labels until a free slot exists.
-     * Buy labels move downward and sell labels move upward to preserve their semantic side.
+     * This method moves an order box until it no longer covers candles or an
+     * order box that was already placed.
      *
-     * Returns the accepted center and bounds, or null when no in-plot position is available.
+     * Buy boxes move downward and sell boxes move upward so each stays on the
+     * expected side of its candle. The search stops if no valid location remains.
+     *
+     * Returns the accepted center and rectangle.
+     * Returns null when the box cannot fit inside the chart without an overlap.
      */
     getAvailableOrderMarkerLabel({
         preferredCenterY,
@@ -1060,10 +1109,12 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws one short execution-price line across its candle.
-     * A wider white underlay keeps the black line visible over bearish candle bodies.
+     * This method draws a short horizontal line at an order's exact price.
      *
-     * It mutates the canvas and returns no value.
+     * It first draws a slightly wider white line, then a black line on top. The
+     * white edge keeps the black price line visible over a black candle body.
+     *
+     * It changes the canvas drawing and does not return a value.
      */
     drawOrderPriceLine(centerX, halfWidth, priceY) {
         this.ctx.strokeStyle = "#ffffff";
@@ -1082,9 +1133,10 @@ class CandlestickChart {
     }
 
     /*
-     * This method draws one white bordered marker box and its centered multiline label.
+     * This method draws one white order box with a black border and centered text
+     * that may use several lines.
      *
-     * It mutates the canvas and returns no value.
+     * It changes the canvas drawing and does not return a value.
      */
     drawOrderMarkerLabel(
         labelLines,
@@ -1121,10 +1173,13 @@ class CandlestickChart {
     }
 
     /*
-     * This method groups, positions, and draws all order price lines and available labels.
-     * Drawing is clipped to the plot so markers never expand or paint over the chart border.
+     * This method groups all order markers, chooses non-overlapping box positions,
+     * and draws their price lines and boxes.
      *
-     * It mutates the canvas and returns no value.
+     * Drawing is restricted to the candle area. Nothing can paint over the chart
+     * border, and markers do not change the canvas element's actual size.
+     *
+     * It changes the canvas drawing and does not return a value.
      */
     drawOrderMarkers() {
         if (this.orderMarkers.length === 0) return;

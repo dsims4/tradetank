@@ -51,7 +51,8 @@ function parseCookies(cookieHeader = "") {
  *
  * HttpOnly stops page JavaScript from reading it. SameSite limits cross-site
  * requests. Production adds Secure so the browser sends it only over HTTPS.
- * Max-Age is included only when the user chooses "Remember me."
+ * Max-Age follows the saved session duration: one day normally, or thirty days
+ * when the user chooses "Remember me." Both choices persist across browser restarts.
  *
  * It changes the response's Set-Cookie header and does not return a value.
  */
