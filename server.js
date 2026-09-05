@@ -23,6 +23,11 @@ const { verifySameOrigin } = require("./middleware/csrf");
 
 const app = express();
 
+// There is one trusted proxy hop before Express, which is nginx.
+if (isProduction) {
+    app.set("trust proxy", 1);
+}
+
 /*
  * This function sends an error in the format expected by the requested address.
  *
