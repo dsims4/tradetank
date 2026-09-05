@@ -1,0 +1,23 @@
+# Dependencies are installed inside the image.
+node_modules/
+
+# Never copy secrets or environment files into the image.
+.env
+.env.*
+*.pem
+*.key
+
+# Local development and repository metadata.
+.git/
+.codex/
+.vscode/
+.idea/
+.DS_Store
+
+# Runtime/generated files.
+*.log
+coverage/
+
+# Local Docker/Compose overrides, if you create them later.
+compose.override.yml
+docker-compose.override.yml

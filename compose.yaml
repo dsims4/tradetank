@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: tradetank
+      POSTGRES_USER: tradetank
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradetank -d tradetank"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/dsims4/tradetank:latest
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    env_file:
+      - .env
+
+    environment:
+      DATABASE_URL: postgres://tradetank:${POSTGRES_PASSWORD}@db:5432/tradetank
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  postgres_data:
