@@ -1,4 +1,4 @@
-name: Build and Publish
+name: Build and Deploy
 
 on:
   push:
@@ -42,3 +42,20 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/tradetank:latest
+
+  deploy:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Lightsail
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            cd ~/tradetank
+            sudo docker compose pull app
+            sudo docker compose up -d app
+            sudo docker compose ps
