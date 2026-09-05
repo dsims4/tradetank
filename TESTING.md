@@ -1,4 +1,26 @@
-# Testing backlog
+# Testing
+
+## Run the implemented unit suite
+
+Run `npm run test:unit` from the project directory. No .env file, database, SMTP account,
+or Databento account is needed. Node's built-in runner and strict assertions are used.
+
+The suite covers independent logic plus configuration and external-service boundaries.
+Configuration tests use fresh child processes with explicit dummy settings and no inherited
+credentials. Socket connections and real fetch requests are blocked in those processes.
+Database query/acquisition and email delivery recorders throw at the boundary: these tests
+check validation, arguments, and error propagation, not SQL results or real message delivery.
+The rate-limit checks record library configuration and handlers, not live HTTP traffic.
+
+The support helper is in `test/support/isolated-process.js`. Test files end in `.test.js`.
+`npm test` uses Node's default discovery, which can also report support files; `test:unit`
+selects only the unit test files. Keep future integration tests in a separately selected location.
+
+Current implementation: 65 passing tests including nested rate-limit checks. See TEST-PLAN.md
+for the broader backlog. Database results, transaction commit/rollback behavior, provider response
+processing, and actual browser interaction still need their respective follow-up tests.
+
+## Remaining testing backlog
 
 Use Node's built-in `node:test` runner unless the project later needs a browser-specific test tool.
 Keep unit tests independent of the live Postgres database and Databento account.

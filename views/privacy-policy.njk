@@ -25,6 +25,21 @@
                 in memory for rate limiting, but are not persistently stored in the application
                 database or attached to a user's profile.
             </p>
+            <h2>Server and network logs</h2>
+            <p>
+                We plan to disable Nginx access logging to reduce the information retained
+                about visits. This change has not yet been confirmed as active. Until then,
+                server access logs may contain IP addresses and request details. Disabling
+                access logging does not disable error logs, which may also contain IP
+                addresses or request details when a problem occurs.
+            </p>
+            <p>
+                When traffic to Trade Tank passes through Cloudflare, Cloudflare may process
+                and log visitor IP addresses and request information to deliver and protect
+                the service. This processing is separate from Trade Tank's application
+                database and Nginx access logging settings. For more information, see
+                <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's Privacy Policy</a>.
+            </p>
         </div>
     </div>
 {% endblock %}
